@@ -1,0 +1,25 @@
+export default {
+  title: "project-setup",
+  description: "CLI documentation for project-setup",
+  themeConfig: {
+    nav: [
+      { text: "Guide", link: "/quick-start" },
+      { text: "Presets", link: "/presets" },
+      { text: "Doctor", link: "/doctor" },
+    ],
+    sidebar: [
+      { text: "Home", link: "/" },
+      { text: "Installation", link: "/installation" },
+      { text: "Quick Start", link: "/quick-start" },
+      { text: "WordPress", link: "/wordpress" },
+      { text: "React", link: "/react" },
+      { text: "Next.js", link: "/nextjs" },
+      { text: "Laravel", link: "/laravel" },
+      { text: "Existing WP", link: "/existing-wp" },
+      { text: "Presets", link: "/presets" },
+      { text: "Doctor", link: "/doctor" },
+      { text: "Environment Variables", link: "/environment-variables" },
+      { text: "FAQ", link: "/faq" },
+    ],
+  },
+};
