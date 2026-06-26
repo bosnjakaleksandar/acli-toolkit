@@ -1,14 +1,25 @@
 import { confirm, select, text } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
 import { hasPresetValue } from "../services/PresetService.js";
+import {
+  assertRequiredProjectContext,
+  validateProjectContext,
+} from "../services/CliOptionsService.js";
+import { validateProjectName } from "../services/ProjectValidationService.js";
 
 /**
  * Collects project context using interactive prompts, skipping values supplied by a preset.
  *
  * @param {object} preset Loaded preset values.
+ * @param {{nonInteractive?: boolean}} options Prompt options.
  * @returns {Promise<object>}
  */
-export async function collectProjectContext(preset = {}) {
+export async function collectProjectContext(preset = {}, { nonInteractive = false } = {}) {
+  validateProjectContext(preset);
+  if (nonInteractive) {
+    assertRequiredProjectContext(preset);
+  }
+
   const setupType = hasPresetValue(preset, "setupType")
     ? preset.setupType
     : await ask(select, {
@@ -57,10 +68,12 @@ export async function collectProjectContext(preset = {}) {
 
       useLaravel = hasPresetValue(preset, "useLaravel")
         ? Boolean(preset.useLaravel)
-        : await ask(confirm, {
-            message: "Do you want to add Laravel as a backend?",
-            initialValue: false,
-          });
+        : nonInteractive
+          ? false
+          : await ask(confirm, {
+              message: "Do you want to add Laravel as a backend?",
+              initialValue: false,
+            });
 
       projectType = framework;
     } else {
@@ -92,7 +105,7 @@ export async function collectProjectContext(preset = {}) {
         ],
       });
 
-  return {
+  const ctx = {
     ...preset,
     setupType,
     projectName,
@@ -103,18 +116,8 @@ export async function collectProjectContext(preset = {}) {
     wpType,
     environment,
   };
+
+  return validateProjectContext(ctx);
 }
 
-/**
- * Validates a project name for filesystem and package compatibility.
- *
- * @param {string} value Candidate project name.
- * @returns {string | undefined}
- */
-export function validateProjectName(value) {
-  if (value.trim() === "") return "Project name cannot be empty.";
-  if (!/^[a-z0-9-_]+$/.test(value)) {
-    return "Project name can only contain lowercase letters, numbers, dashes, and underscores.";
-  }
-  return undefined;
-}
+export { validateProjectName };

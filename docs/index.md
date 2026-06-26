@@ -8,6 +8,8 @@ A Node.js CLI for scaffolding Next.js, React, Laravel, WordPress, WooCommerce, a
 create-project
 ```
 
+For flags, partial prompts, and automation, see [CLI Options](./cli-options.md).
+
 ## Check Requirements
 
 ```bash

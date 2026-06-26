@@ -8,12 +8,14 @@ import { runCommand } from "../utils/commandRunner.js";
  *
  * @param {{nextSteps: string, hasNpm: boolean, hasComposer: boolean, installDir: string}} plan Install plan.
  * @param {import("@clack/prompts").Spinner} spinner Clack spinner.
+ * @param {object} ctx Project context.
  * @returns {Promise<string>} Updated next steps.
  */
-export async function maybeInstallDependencies(plan, spinner) {
+export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
   let { nextSteps, hasNpm, hasComposer, installDir } = plan;
 
   if (!hasNpm && !hasComposer) return nextSteps;
+  if (ctx.nonInteractive) return nextSteps;
 
   const doInstall = await ask(confirm, {
     message: "Would you like me to install dependencies automatically?",

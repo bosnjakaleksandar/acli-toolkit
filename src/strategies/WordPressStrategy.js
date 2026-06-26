@@ -14,16 +14,22 @@ import {
 import { hasPresetValue } from "../services/PresetService.js";
 
 export default class WordPressStrategy extends BaseStrategy {
-  async askQuestions(ctx) {
+  async askQuestions(ctx, { nonInteractive = false } = {}) {
     const mysqlVersion = hasPresetValue(ctx, "mysqlVersion")
       ? ctx.mysqlVersion
-      : await askMysqlVersion();
+      : nonInteractive
+        ? "8.0"
+        : await askMysqlVersion();
     const wpVersion = hasPresetValue(ctx, "wpVersion")
       ? ctx.wpVersion
-      : await askWpVersion();
+      : nonInteractive
+        ? "latest"
+        : await askWpVersion();
 
     let themeRepo = ctx.themeRepo;
-    if (!hasPresetValue(ctx, "themeRepo")) {
+    if (!hasPresetValue(ctx, "themeRepo") && nonInteractive) {
+      themeRepo = process.env.WP_THEME_REPO || "";
+    } else if (!hasPresetValue(ctx, "themeRepo")) {
       const defaultRepo = process.env.WP_THEME_REPO || "git@github.com:starter-theme.git";
       const themeChoice = await ask(select, {
         message: "How do you want to create the theme?",
@@ -48,10 +54,17 @@ export default class WordPressStrategy extends BaseStrategy {
 
     const themeBranch = hasPresetValue(ctx, "themeBranch")
       ? ctx.themeBranch
-      : await this.#askThemeBranch(ctx, themeRepo);
+      : nonInteractive
+        ? this.#defaultThemeBranch(ctx, themeRepo)
+        : await this.#askThemeBranch(ctx, themeRepo);
 
     let sshKeyPath = "";
-    if (themeRepo && themeRepo.startsWith("git@") && !hasPresetValue(ctx, "sshKeyPath")) {
+    if (
+      themeRepo &&
+      themeRepo.startsWith("git@") &&
+      !hasPresetValue(ctx, "sshKeyPath") &&
+      !nonInteractive
+    ) {
       sshKeyPath = await askSshKeyPath();
     } else {
       sshKeyPath = ctx.sshKeyPath || "";
@@ -59,14 +72,18 @@ export default class WordPressStrategy extends BaseStrategy {
 
     const plugins = hasPresetValue(ctx, "plugins")
       ? normalizePlugins(ctx.plugins)
-      : await this.#askPlugins();
+      : nonInteractive
+        ? []
+        : await this.#askPlugins();
 
     const installWpCli = hasPresetValue(ctx, "installWpCli")
       ? Boolean(ctx.installWpCli)
-      : await ask(confirm, {
-          message: "Install WP-CLI inside the local environment when supported?",
-          initialValue: false,
-        });
+      : nonInteractive
+        ? false
+        : await ask(confirm, {
+            message: "Install WP-CLI inside the local environment when supported?",
+            initialValue: false,
+          });
 
     return {
       ...ctx,
@@ -82,17 +99,21 @@ export default class WordPressStrategy extends BaseStrategy {
 
   async #askThemeBranch(ctx, themeRepo) {
     if (!themeRepo) return "";
-    const defaultBranch =
-      ctx.projectType === "wp-woo"
-        ? process.env.WP_WOO_BRANCH || "woocommerce"
-        : ctx.projectType === "wp-react"
-          ? process.env.WP_REACT_BRANCH || "react"
-          : "";
+    const defaultBranch = this.#defaultThemeBranch(ctx, themeRepo);
 
     return ask(text, {
       message: "Theme branch (leave empty for repository default):",
       initialValue: defaultBranch,
     });
+  }
+
+  #defaultThemeBranch(ctx, themeRepo) {
+    if (!themeRepo) return "";
+    return ctx.projectType === "wp-woo"
+      ? process.env.WP_WOO_BRANCH || "woocommerce"
+      : ctx.projectType === "wp-react"
+        ? process.env.WP_REACT_BRANCH || "react"
+        : "";
   }
 
   async #askPlugins() {

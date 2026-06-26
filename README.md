@@ -64,6 +64,55 @@ create-project --preset ./preset.json
 create-project doctor
 ```
 
+## CLI Options
+
+Interactive mode is still the default:
+
+```bash
+create-project
+```
+
+You can also pass partial options. The CLI skips prompts for supplied values and asks only for the missing choices:
+
+```bash
+create-project --name my-app
+create-project --name my-app --preset react --environment docker
+create-project --name salon --preset wordpress --environment lando
+```
+
+For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required values are reported as errors instead of prompts:
+
+```bash
+create-project --existing --name client-site --environment lando --yes
+create-project --type application --framework nextjs --laravel --name booking-app --environment docker --yes
+```
+
+Presets and CLI options can be combined. CLI options override preset values, so this uses the React preset but creates a Lando environment:
+
+```bash
+create-project --preset react --name my-app --environment lando
+```
+
+Common options:
+
+- `--name <name>`
+- `--environment <docker|lando>` or `--env <docker|lando>`
+- `--preset <preset>`
+- `--existing`
+- `--type <application|wordpress>`
+- `--framework <react|nextjs|next>`
+- `--laravel`
+- `--wp-type <theme|woo|react|wp-theme|wp-woo|wp-react>`
+- `--mysql <version>`
+- `--wp-version <version>`
+- `--theme-repo <url>`
+- `--theme-branch <branch>`
+- `--staging-url <url>`
+- `--ssh-key <path>`
+- `--skip-git`
+- `--skip-knowledge-base`
+- `--yes` or `--non-interactive`
+
 ## Doctor
 
 `create-project doctor` verifies:

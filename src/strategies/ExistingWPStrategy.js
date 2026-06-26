@@ -22,24 +22,32 @@ export default class ExistingWPStrategy extends BaseStrategy {
     this.wordpressMigrationService = new WordPressMigrationService(envService);
   }
 
-  async askQuestions(ctx) {
+  async askQuestions(ctx, { nonInteractive = false } = {}) {
     const mysqlVersion = hasPresetValue(ctx, "mysqlVersion")
       ? ctx.mysqlVersion
-      : await askMysqlVersion();
+      : nonInteractive
+        ? "8.0"
+        : await askMysqlVersion();
     const wpVersion = hasPresetValue(ctx, "wpVersion")
       ? ctx.wpVersion
-      : await askWpVersion();
+      : nonInteractive
+        ? "latest"
+        : await askWpVersion();
     const sshKeyPath = hasPresetValue(ctx, "sshKeyPath")
       ? ctx.sshKeyPath
-      : await askSshKeyPath();
+      : nonInteractive
+        ? ""
+        : await askSshKeyPath();
 
     const suffix = process.env.STAGING_SUFFIX || ".staging";
     const stagingUrl = hasPresetValue(ctx, "stagingUrl")
       ? ctx.stagingUrl
-      : await ask(text, {
-          message: "What is the Staging URL for search-replace?",
-          initialValue: `https://${ctx.projectName}${suffix}`,
-        });
+      : nonInteractive
+        ? `https://${ctx.projectName}${suffix}`
+        : await ask(text, {
+            message: "What is the Staging URL for search-replace?",
+            initialValue: `https://${ctx.projectName}${suffix}`,
+          });
 
     return { ...ctx, mysqlVersion, wpVersion, stagingUrl, sshKeyPath };
   }

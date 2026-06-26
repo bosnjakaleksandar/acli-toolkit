@@ -10,8 +10,8 @@ export default class LaravelStrategy extends BaseStrategy {
     this.frontendStrategy = frontendStrategy;
   }
 
-  async askQuestions(ctx) {
-    return await this.frontendStrategy.askQuestions(ctx);
+  async askQuestions(ctx, options = {}) {
+    return await this.frontendStrategy.askQuestions(ctx, options);
   }
 
   async scaffold(targetDir, ctx) {
