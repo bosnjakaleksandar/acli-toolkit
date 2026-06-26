@@ -15,9 +15,9 @@ export default class BaseStrategy {
     throw new Error("getTemplateType must be implemented");
   }
 
-  async scaffoldEnvironment(targetDir, ctx) {
+  async scaffoldEnvironment(targetDir, ctx, spinner = null) {
     if (this.envService) {
-      await this.envService.scaffold(targetDir, this.getTemplateType(), ctx);
+      await this.envService.scaffold(targetDir, this.getTemplateType(), ctx, spinner);
     }
   }
 }

@@ -10,6 +10,11 @@
   "bin": {
     "create-project": "./index.js"
   },
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "chalk": "^5.6.2",
@@ -18,5 +23,8 @@
     "figlet": "^1.11.0",
     "fs-extra": "^11.3.4",
     "gradient-string": "^3.0.0"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.0"
   }
 }

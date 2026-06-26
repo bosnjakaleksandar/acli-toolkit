@@ -1,8 +1,8 @@
 import { text, select, confirm, spinner } from "@clack/prompts";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import { createProjectPost } from "../utils/wpApi.js";
 import { ask } from "../utils/prompts.js";
+import { runCommandSync } from "../utils/commandRunner.js";
 
 export async function registerOnKnowledgeBase(ctx) {
   const sendToWp = await ask(confirm, {
@@ -25,8 +25,10 @@ export async function registerOnKnowledgeBase(ctx) {
 
   let defaultDevName = "Unknown Developer";
   try {
-    defaultDevName = execSync("git config user.name").toString().trim();
-  } catch (e) {}
+    defaultDevName = runCommandSync("git", ["config", "user.name"]).stdout.trim();
+  } catch {
+    // Keep the fallback when Git is unavailable or user.name is not configured.
+  }
 
   const developerName = await ask(text, {
     message: "Developer Name:",

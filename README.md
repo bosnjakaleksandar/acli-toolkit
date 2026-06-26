@@ -1,131 +1,213 @@
-# Project Setup CLI
+# project-setup
 
-A Command Line Interface tool for automatically scaffolding projects. It supports **Next.js**, **React**, **WordPress**, **WordPress + WooCommerce**, **WordPress + React** installations, while automatically generating the required local development environment config for **Docker** or **Lando**.
+`project-setup` is a Node.js CLI for scaffolding local projects used across modern frontend, Laravel, and WordPress workflows.
 
-## 📌 Prerequisites
+It supports:
 
-Before running this tool, you must have the following installed on your machine:
+- Next.js
+- React with Vite
+- Laravel + React
+- Laravel + Next.js
+- WordPress
+- WordPress + WooCommerce
+- WordPress + React
+- Existing WordPress projects synced from staging
 
-1. **Node.js and npm** (v18 or newer recommended) - [Download here](https://nodejs.org/en)
-2. **Docker** or **Lando** (Depending on which environment you choose for local development)
-
-## 🚀 Installation (Mac, Linux)
-
-This CLI tool is designed to be installed globally on your machine so you can scaffold projects from **any directory**. The installation process is identical across operating systems.
-
-### Step 1: Navigate to the CLI source directory
-
-Open your terminal `Terminal` on Mac/Linux.
-Navigate to the directory where this CLI code is located (where `package.json` and `index.js` live).
-
-For example:
+## Installation
 
 ```bash
-cd /path/to/folder/project-setup
-```
-
-### Step 2: Enable the command globally (NPM Link)
-
-Simply run the following command while inside the tool's directory:
-
-```bash
+npm install
 npm link
 ```
 
-**This will install any necessary dependencies and create a global alias ("shortcut") for the `create-project` command on your operating system.**
-
-_(Note: If you get an EACCES permission error on Mac or Linux, try `sudo npm link`, though ensuring a Node version manager like NVM is used usually resolves permission issues natively)._
-
-## ⚙️ Configuration
-
-You can customize the CLI behavior for your specific organization by creating a `.env` file in the root of the CLI directory (based on `.env.example`).
-
-### Environment Variables
-
-- `STAGING_SUFFIX`: Default domain suffix for staging environments.
-- `STAGING_SSH_HOST`: SSH host for the staging environment.
-- `KNOWLEDGE_BASE_URL`: The URL for the Knowledge Base registration.
-- `WP_THEME_REPO`: Default GitHub repository URL for the starter theme.
-- `WP_WOO_BRANCH`: Branch name for WooCommerce template.
-- `WP_REACT_BRANCH`: Branch name for React template.
-
-## 💻 Usage
-
-Once linked, you no longer need to be inside the tool's directory. Navigate to any empty folder where you want to create or clone a project and type:
+After linking, run:
 
 ```bash
 create-project
 ```
 
-Upon starting, the CLI will ask: **What would you like to do?**
-1. **Create a new project** (See "Scaffolding a New Project")
-2. **Set up an existing WP project** (See "Existing Project Setup")
+## Requirements
 
----
+Required tools depend on the project type:
 
-### 🏗️ Scaffolding a New Project
+- Node.js and npm for the CLI, React, and Next.js projects
+- Git for repository initialization and theme cloning
+- Docker with Docker Compose or Lando for local environments
+- Composer and PHP for Laravel projects
+- SSH and rsync for existing WordPress staging syncs
+- WP-CLI is optional locally; Docker/Lando workflows can run WP commands inside the environment
 
-An interactive menu will guide you through:
-
-1. **What is the name of your project?** - Folder and project name (lowercase, numbers, dashes only).
-2. **What are you building?** - Choose the core architecture for your project: Application or WordPress.
-   - **Application**
-     - **Which framework do you want to use?** - Choose between **Next.js** (for modern SSR) or **React** (for a classic SPA).
-     - **Do you want to add Laravel as the backend?** - Choose 'Yes' to scaffold a full-stack environment alongside your frontend.
-   - **WordPress**
-     - **Type of WordPress project:**
-       - **Standard Theme** - Pulls the boilerplate SSH template `git@github.com:starter-theme.git` on the default branch.
-       - **WordPress + WooCommerce** - Automatically checks out the `woocommerce` branch of the chosen repository.
-       - **WordPress + React** - Automatically checks out the `react` branch of the chosen repository.
-     - **Choose MySQL version**
-     - **Choose WordPress version**
-     - **Git template URL** - Leave empty for standard boilerplate files, or enter an SSH/HTTPS Git URL.
-3. **Which local environment do you prefer?** - Generates either a `docker-compose.yaml` or a `.lando.yml` configuration for your chosen setup.
-
----
-
-### 🔄 Existing Project Setup (Clone from Staging)
-
-Use this option to pull an existing WordPress project from a dedicated staging server.
-
-#### 🔑 Prerequisites
-- Ensure the `STAGING_SSH_HOST` variable is set correctly in your `.env` file.
-- You must have SSH access to the staging server.
-- The staging server should have `rsync` and `mariadb-dump` / `mysqldump` available.
-
-#### 🧪 Process:
-1. **Project Name**: Enter the name of the project as it's defined on the staging server (it will be used for the local folder and SSH user).
-2. **Credentials**: Supply the path to your SSH Private Key if not using the default `~/.ssh/id_rsa`.
-3. **Staging URL**: The CLI will suggest a staging URL for search-replace based on `STAGING_SUFFIX`.
-4. **Automated Steps**:
-   - **File Syncing**: Uses `rsync` to pull `wp-content/uploads`, `plugins`, and `themes`.
-   - **Database Migration**: Securely exports the remote database over SSH and downloads it.
-   - **Git Linkage**: Automatically attempts to find and link the remote Git repository from the staging environment.
-   - **Environment Launch**: Starts your chosen environment (Docker/Lando) and imports the data.
-   - **Search-Replace**: Automatically flips URLs from staging to local (e.g., `https://project.staging` to `http://localhost:8080`).
-
----
-
-### And then...
-
-Once inputs are gathered, the CLI tool generates the project folder and configures your Docker/Lando/Node/PHP specifications.
-
-All that's left is to enter the newly generated folder:
+Check your machine with:
 
 ```bash
-cd <your-project-name>
+create-project doctor
 ```
 
-For **new projects**, you will need to start your containers manually:
+## Quick Start
 
 ```bash
-docker-compose up -d
+create-project
 ```
 
-or
+The CLI asks what you want to create, which local environment to use, and any project-specific questions. It then scaffolds the project and prints next steps.
+
+## Examples
+
+```bash
+create-project --preset wordpress
+create-project --preset wordpress-woo
+create-project --preset react
+create-project --preset next
+create-project --preset laravel-react
+create-project --preset laravel-next
+create-project --preset ./preset.json
+create-project doctor
+```
+
+## CLI Options
+
+Interactive mode is still the default:
+
+```bash
+create-project
+```
+
+You can also pass partial options. The CLI skips prompts for supplied values and asks only for the missing choices:
+
+```bash
+create-project --name my-app
+create-project --name my-app --preset react --environment docker
+create-project --name salon --preset wordpress --environment lando
+```
+
+For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required values are reported as errors instead of prompts:
+
+```bash
+create-project --existing --name client-site --environment lando --yes
+create-project --type application --framework nextjs --laravel --name booking-app --environment docker --yes
+```
+
+Presets and CLI options can be combined. CLI options override preset values, so this uses the React preset but creates a Lando environment:
+
+```bash
+create-project --preset react --name my-app --environment lando
+```
+
+Common options:
+
+- `--name <name>`
+- `--environment <docker|lando>` or `--env <docker|lando>`
+- `--preset <preset>`
+- `--existing`
+- `--type <application|wordpress>`
+- `--framework <react|nextjs|next>`
+- `--laravel`
+- `--wp-type <theme|woo|react|wp-theme|wp-woo|wp-react>`
+- `--mysql <version>`
+- `--wp-version <version>`
+- `--theme-repo <url>`
+- `--theme-branch <branch>`
+- `--staging-url <url>`
+- `--ssh-key <path>`
+- `--skip-git`
+- `--skip-knowledge-base`
+- `--yes` or `--non-interactive`
+
+## Doctor
+
+`create-project doctor` verifies:
+
+- Node.js
+- npm
+- Git
+- Docker
+- Docker Compose
+- Lando
+- Composer
+- PHP
+- SSH
+- WP-CLI, optional
+
+Missing tools are reported with suggested fixes.
+
+## Presets
+
+Presets skip questions that already have answers. Built-in presets are:
+
+- `wordpress`
+- `wordpress-woo`
+- `react`
+- `next`
+- `laravel-react`
+- `laravel-next`
+
+Custom JSON preset example:
+
+```json
+{
+  "projectName": "acme-site",
+  "projectType": "wordpress",
+  "environment": "lando",
+  "mysqlVersion": "8.0",
+  "wpVersion": "latest",
+  "themeRepo": "git@github.com:company/theme.git",
+  "themeBranch": "main",
+  "plugins": ["advanced-custom-fields"]
+}
+```
+
+Run it with:
+
+```bash
+create-project --preset ./preset.json
+```
+
+## Generated Projects
+
+React projects include a Vite app, ESLint, Prettier, `.editorconfig`, and `.env.example`.
+
+Next.js projects include App Router, TypeScript, ESLint config dependencies, Prettier, `.editorconfig`, and `.env.example`.
+
+Laravel combinations create a real Laravel application in `backend/` using `composer create-project`, plus a generated frontend in `frontend/`.
+
+WordPress projects generate the selected Docker or Lando environment, support starter or custom theme repositories, optional branch selection, and optional plugin setup scripts.
+
+Existing WordPress projects sync staging files, export the staging database, scaffold the local environment, detect Git remotes, import the database, and run search-replace.
+
+## Configuration
+
+Environment variables can be placed in `.env` at the project root:
+
+```bash
+STAGING_SSH_HOST=example.com
+STAGING_SUFFIX=.staging
+WP_THEME_REPO=git@github.com:company/theme.git
+WP_WOO_BRANCH=woocommerce
+WP_REACT_BRANCH=react
+KNOWLEDGE_BASE_URL=https://knowledge-base.staging
+WP_BASIC_AUTH_USER=username
+WP_BASIC_AUTH_PASS=password
+```
+
+## Troubleshooting
+
+Run `create-project doctor` first. It catches most missing local tools.
+
+If Laravel generation fails, install Composer and PHP, then rerun the command.
+
+If a theme clone fails, verify the repository URL, selected branch, and SSH key access.
+
+If existing WordPress sync fails, verify `STAGING_SSH_HOST`, SSH access, rsync availability, and the remote project directory.
+
+If Docker database import fails, start the environment manually and inspect container logs:
+
+```bash
+docker compose logs
+```
+
+If Lando database import fails, verify the app started:
 
 ```bash
 lando start
+lando info
 ```
-
-*(Note: For **existing projects**, the environment is started automatically during the setup process!)*
