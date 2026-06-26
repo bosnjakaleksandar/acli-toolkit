@@ -1,12 +1,16 @@
 export default {
   title: "project-setup",
   description: "CLI documentation for project-setup",
+
+  base: "/project-setup/",
+
   themeConfig: {
     nav: [
       { text: "Guide", link: "/quick-start" },
       { text: "Presets", link: "/presets" },
       { text: "Doctor", link: "/doctor" },
     ],
+
     sidebar: [
       { text: "Home", link: "/" },
       { text: "Installation", link: "/installation" },
