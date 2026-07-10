@@ -1,43 +1,42 @@
 import { Command } from "commander";
-import { createProjectCommand } from "../commands/createProject.js";
-import { doctorCommand } from "../commands/doctor.js";
+import { getPackageMetadata } from "../utils/packageMetadata.js";
+import { maybeUpdate } from "../update/maybeUpdate.js";
+import { registerCommands } from "./registerCommands.js";
+import { BRANDING } from "../config/branding.js";
 
 /**
  * CLI entry point.
  *
  * @param {string[]} argv Process argv.
  */
-export async function run(argv = process.argv) {
+export async function run(argv = process.argv, { legacyExecutable = false } = {}) {
+  const packageMetadata = await getPackageMetadata();
+  const normalizedArgv = legacyExecutable ? normalizeLegacyArguments(argv) : argv;
+  const args = normalizedArgv.slice(2);
+  if (shouldCheckForUpdates(args) && await maybeUpdate(packageMetadata)) return;
+
   const program = new Command();
 
   program
-    .name("create-project")
-    .description("Scaffold Next.js, React, Laravel, WordPress, and existing WordPress projects.")
-    .option("--name <name>", "Project directory/name")
-    .option("--environment <environment>", "Local environment: docker or lando")
-    .option("--env <environment>", "Alias for --environment")
-    .option("--preset <preset>", "Use a built-in preset or path to a JSON preset file")
-    .option("--existing", "Shortcut for setting up an existing WordPress project")
-    .option("--type <type>", "Project type: application or wordpress")
-    .option("--framework <framework>", "Application framework: react, nextjs, or next")
-    .option("--laravel", "Add Laravel as a backend for application projects")
-    .option("--wp-type <type>", "WordPress type: theme, woo, react, wp-theme, wp-woo, or wp-react")
-    .option("--mysql <version>", "MySQL or MariaDB version")
-    .option("--wp-version <version>", "WordPress version")
-    .option("--theme-repo <url>", "Theme repository URL")
-    .option("--theme-branch <branch>", "Theme repository branch")
-    .option("--staging-url <url>", "Staging URL for existing WordPress search-replace")
-    .option("--ssh-key <path>", "SSH private key path")
-    .option("--skip-git", "Skip Git repository initialization")
-    .option("--skip-knowledge-base", "Skip Knowledge Base registration")
-    .option("--yes", "Run without interactive prompts when all required options are supplied")
-    .option("--non-interactive", "Alias for --yes")
-    .action((options) => createProjectCommand(options));
+    .name(BRANDING.command)
+    .description(`${BRANDING.name} ${BRANDING.subtitle}`)
+    .version(packageMetadata.version, "-v, --version", "output the current version")
+    .option("--skip-update", "Bypass the automatic update check")
+    .action(() => program.help());
 
-  program
-    .command("doctor")
-    .description("Verify local development requirements")
-    .action(() => doctorCommand());
+  registerCommands(program, { packageMetadata });
 
-  await program.parseAsync(argv);
+  await program.parseAsync(normalizedArgv);
+}
+
+function shouldCheckForUpdates(args) {
+  const bypassArguments = new Set(["--skip-update", "--version", "-v", "--help", "-h", "update", "help"]);
+  return !args.some((argument) => bypassArguments.has(argument));
+}
+
+function normalizeLegacyArguments(argv) {
+  const args = argv.slice(2);
+  const rootArguments = new Set(["create", "doctor", "update", "help", "--help", "-h", "--version", "-v"]);
+  if (args.some((argument) => rootArguments.has(argument))) return argv;
+  return [...argv.slice(0, 2), "create", ...args];
 }

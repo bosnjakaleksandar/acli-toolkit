@@ -15,6 +15,8 @@ import {
 } from "../services/CliOptionsService.js";
 import { resolveStrategy } from "../services/StrategyResolver.js";
 import { showBanner } from "../utils/banner.js";
+import { BRANDING } from "../config/branding.js";
+import { acaCharacter } from "../ui/acaCharacter.js";
 
 /**
  * Runs the interactive project creation command.
@@ -23,7 +25,7 @@ import { showBanner } from "../utils/banner.js";
  */
 export async function createProjectCommand(options = {}) {
   await showBanner();
-  intro(chalk.bgCyan(chalk.black(" 🚀 CLI START ")));
+  intro(chalk.bgCyan(chalk.black(` 🚀 ${BRANDING.name} CREATE `)));
 
   let targetDir = "";
   let s = null;
@@ -39,6 +41,8 @@ export async function createProjectCommand(options = {}) {
 
     ctx = await strategy.askQuestions(ctx, { nonInteractive });
 
+    await acaCharacter.play("working", "Creating project structure...");
+    acaCharacter.stop();
     s = spinner();
     s.start("Scaffolding your project...");
 
@@ -55,19 +59,51 @@ export async function createProjectCommand(options = {}) {
     await maybeInitializeGit(targetDir, ctx);
     await maybeRegisterOnKnowledgeBase(ctx);
 
+    await acaCharacter.play("success", "Project created successfully.");
+    acaCharacter.stop();
     outro(`Next steps:\n${nextSteps}\n\n${chalk.cyan("Happy coding!")}`);
   } catch (error) {
     if (s) s.stop(chalk.red("A critical error occurred."));
     if (targetDir) await fs.remove(targetDir).catch(() => {});
+    await acaCharacter.play("error", "Project creation failed.");
+    acaCharacter.stop();
     printError(error);
     process.exit(1);
   }
+}
+
+export function registerCreateCommand(program) {
+  program
+    .command("create")
+    .description("Scaffold a new application or WordPress project")
+    .option("--name <name>", "Project directory/name")
+    .option("--environment <environment>", "Local environment: docker or lando")
+    .option("--env <environment>", "Alias for --environment")
+    .option("--preset <preset>", "Use a built-in preset or path to a JSON preset file")
+    .option("--existing", "Shortcut for setting up an existing WordPress project")
+    .option("--type <type>", "Project type: application or wordpress")
+    .option("--framework <framework>", "Application framework: react, nextjs, or next")
+    .option("--laravel", "Add Laravel as a backend for application projects")
+    .option("--wp-type <type>", "WordPress type: theme, woo, react, wp-theme, wp-woo, or wp-react")
+    .option("--mysql <version>", "MySQL or MariaDB version")
+    .option("--wp-version <version>", "WordPress version")
+    .option("--theme-repo <url>", "Theme repository URL")
+    .option("--theme-branch <branch>", "Theme repository branch")
+    .option("--staging-url <url>", "Staging URL for existing WordPress search-replace")
+    .option("--ssh-key <path>", "SSH private key path")
+    .option("--skip-git", "Skip Git repository initialization")
+    .option("--skip-knowledge-base", "Skip Knowledge Base registration")
+    .option("--yes", "Run without interactive prompts when all required options are supplied")
+    .option("--non-interactive", "Alias for --yes")
+    .action((options) => createProjectCommand(options));
 }
 
 async function assertTargetDoesNotExist(targetDir, projectName, s) {
   if (!(await fs.pathExists(targetDir))) return;
 
   s.stop("Directory exists!");
+  await acaCharacter.play("warning", "Choose a different project name.");
+  acaCharacter.stop();
   console.log(
     chalk.red(
       `Directory "${projectName}" already exists! Please choose a different name.`,

@@ -1,6 +1,6 @@
-# project-setup
+# A-CLI
 
-`project-setup` is a Node.js CLI for scaffolding local projects used across modern frontend, Laravel, and WordPress workflows.
+A-CLI is a Node.js CLI for scaffolding local projects used across modern frontend, Laravel, and WordPress workflows.
 
 It supports:
 
@@ -15,6 +15,23 @@ It supports:
 
 ## Installation
 
+Node.js 20 or newer is required.
+
+Run without installing:
+
+```bash
+npx a-cli
+```
+
+Or install the command globally:
+
+```bash
+npm install --global a-cli
+acli create
+```
+
+For local development of this repository:
+
 ```bash
 npm install
 npm link
@@ -23,7 +40,61 @@ npm link
 After linking, run:
 
 ```bash
-create-project
+acli create
+```
+
+### Previous command name
+
+`create-project` remains available temporarily as a compatibility alias. It prints a deprecation warning and forwards legacy project-generation options to `acli create`:
+
+```bash
+create-project --preset react
+# Warning: 'create-project' is deprecated. Use 'acli create' instead.
+```
+
+New scripts and documentation should use `acli`.
+
+## Command Platform
+
+Project generation is one A-CLI command rather than the entire application. Commands are registered independently, keeping future additions such as `config`, `workspace`, `templates`, `deploy`, and `auth` isolated from the root parser.
+
+```bash
+acli create
+acli doctor
+acli update
+```
+
+## Updates
+
+On normal interactive launches, `acli` checks npm for a newer published version. Registry results are cached in `~/.a-cli/update.json` for 24 hours. If npm is unavailable, startup continues without an error or delay beyond the five-second request timeout.
+
+When an update is available, accept the prompt to install it globally, then rerun `acli`. To update immediately without a prompt:
+
+```bash
+acli update
+```
+
+To bypass the automatic check for a single run:
+
+```bash
+acli --skip-update
+```
+
+This is useful in CI and other automated environments. Update prompts are also automatically suppressed when input or output is not an interactive terminal.
+
+## Version and Help
+
+Print only the installed semantic version:
+
+```bash
+acli --version
+acli -v
+```
+
+List commands and options:
+
+```bash
+acli --help
 ```
 
 ## Requirements
@@ -40,13 +111,13 @@ Required tools depend on the project type:
 Check your machine with:
 
 ```bash
-create-project doctor
+acli doctor
 ```
 
 ## Quick Start
 
 ```bash
-create-project
+acli create
 ```
 
 The CLI asks what you want to create, which local environment to use, and any project-specific questions. It then scaffolds the project and prints next steps.
@@ -54,14 +125,14 @@ The CLI asks what you want to create, which local environment to use, and any pr
 ## Examples
 
 ```bash
-create-project --preset wordpress
-create-project --preset wordpress-woo
-create-project --preset react
-create-project --preset next
-create-project --preset laravel-react
-create-project --preset laravel-next
-create-project --preset ./preset.json
-create-project doctor
+acli create --preset wordpress
+acli create --preset wordpress-woo
+acli create --preset react
+acli create --preset next
+acli create --preset laravel-react
+acli create --preset laravel-next
+acli create --preset ./preset.json
+acli doctor
 ```
 
 ## CLI Options
@@ -69,28 +140,28 @@ create-project doctor
 Interactive mode is still the default:
 
 ```bash
-create-project
+acli create
 ```
 
 You can also pass partial options. The CLI skips prompts for supplied values and asks only for the missing choices:
 
 ```bash
-create-project --name my-app
-create-project --name my-app --preset react --environment docker
-create-project --name salon --preset wordpress --environment lando
+acli create --name my-app
+acli create --name my-app --preset react --environment docker
+acli create --name salon --preset wordpress --environment lando
 ```
 
 For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required values are reported as errors instead of prompts:
 
 ```bash
-create-project --existing --name client-site --environment lando --yes
-create-project --type application --framework nextjs --laravel --name booking-app --environment docker --yes
+acli create --existing --name client-site --environment lando --yes
+acli create --type application --framework nextjs --laravel --name booking-app --environment docker --yes
 ```
 
 Presets and CLI options can be combined. CLI options override preset values, so this uses the React preset but creates a Lando environment:
 
 ```bash
-create-project --preset react --name my-app --environment lando
+acli create --preset react --name my-app --environment lando
 ```
 
 Common options:
@@ -112,10 +183,11 @@ Common options:
 - `--skip-git`
 - `--skip-knowledge-base`
 - `--yes` or `--non-interactive`
+- `--skip-update`
 
 ## Doctor
 
-`create-project doctor` verifies:
+`acli doctor` verifies:
 
 - Node.js
 - npm
@@ -159,7 +231,7 @@ Custom JSON preset example:
 Run it with:
 
 ```bash
-create-project --preset ./preset.json
+acli create --preset ./preset.json
 ```
 
 ## Generated Projects
@@ -191,7 +263,11 @@ WP_BASIC_AUTH_PASS=password
 
 ## Troubleshooting
 
-Run `create-project doctor` first. It catches most missing local tools.
+Run `acli doctor` first. It catches most missing local tools.
+
+If a global update fails with a permissions error, configure an npm user-owned global directory (recommended by npm) or use `npx a-cli` instead. Check the installed copy with `acli --version` and the registry release with `npm view a-cli version`.
+
+If an update check is stale or its cache is damaged, remove `~/.a-cli/update.json`; it will be recreated on the next successful check. Offline update checks fail silently by design and never prevent project creation.
 
 If Laravel generation fails, install Composer and PHP, then rerun the command.
 

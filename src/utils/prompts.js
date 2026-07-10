@@ -1,9 +1,12 @@
 import { text, select, confirm, isCancel, cancel } from "@clack/prompts";
 import fs from "fs-extra";
+import { acaCharacter } from "../ui/acaCharacter.js";
 
 export async function ask(promptFn, options) {
   const result = await promptFn(options);
   if (isCancel(result)) {
+    await acaCharacter.play("cancelled", "Operation cancelled.");
+    acaCharacter.stop();
     cancel("Operation cancelled.");
     process.exit(0);
   }

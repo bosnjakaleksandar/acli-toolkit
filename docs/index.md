@@ -1,11 +1,11 @@
-# project-setup
+# A-CLI
 
-A Node.js CLI for scaffolding Next.js, React, Laravel, WordPress, WooCommerce, and existing WordPress projects.
+A-CLI Developer Toolkit is an extensible command platform for project scaffolding and local development workflows.
 
 ## Start
 
 ```bash
-create-project
+acli create
 ```
 
 For flags, partial prompts, and automation, see [CLI Options](./cli-options.md).
@@ -13,5 +13,5 @@ For flags, partial prompts, and automation, see [CLI Options](./cli-options.md).
 ## Check Requirements
 
 ```bash
-create-project doctor
+acli doctor
 ```

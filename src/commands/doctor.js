@@ -1,6 +1,8 @@
 import chalk from "chalk";
 import { intro, outro } from "@clack/prompts";
 import { spawnSync } from "child_process";
+import { BRANDING } from "../config/branding.js";
+import { acaCharacter } from "../ui/acaCharacter.js";
 
 const CHECKS = [
   { label: "Node.js", command: "node", args: ["--version"], required: true, fix: "Install Node.js 20 LTS or newer." },
@@ -19,7 +21,10 @@ const CHECKS = [
  * Runs the local toolchain doctor report.
  */
 export async function doctorCommand() {
-  intro(chalk.bgCyan(chalk.black(" 🩺 PROJECT SETUP DOCTOR ")));
+  intro(chalk.bgCyan(chalk.black(` 🩺 ${BRANDING.name} DOCTOR `)));
+
+  await acaCharacter.play("thinking", "Checking local requirements...");
+  acaCharacter.stop();
 
   const results = CHECKS.map(runCheck);
   const maxLabel = Math.max(...results.map((result) => result.label.length));
@@ -36,12 +41,23 @@ export async function doctorCommand() {
 
   const failedRequired = results.filter((result) => result.required && !result.ok);
   if (failedRequired.length) {
+    await acaCharacter.play("warning", `Doctor found ${failedRequired.length} required issue(s).`);
+    acaCharacter.stop();
     outro(chalk.red(`Doctor found ${failedRequired.length} required issue(s).`));
     process.exitCode = 1;
     return;
   }
 
+  await acaCharacter.play("success", "All required tools are available.");
+  acaCharacter.stop();
   outro(chalk.green("All required tools are available."));
+}
+
+export function registerDoctorCommand(program) {
+  program
+    .command("doctor")
+    .description("Verify local development requirements")
+    .action(() => doctorCommand());
 }
 
 function runCheck(check) {

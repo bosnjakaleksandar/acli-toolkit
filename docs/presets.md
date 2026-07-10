@@ -23,5 +23,5 @@ Custom preset:
 ```
 
 ```bash
-create-project --preset ./preset.json
+acli create --preset ./preset.json
 ```

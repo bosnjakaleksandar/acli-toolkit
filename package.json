@@ -1,16 +1,31 @@
 {
-  "name": "project-setup",
+  "name": "a-cli",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "description": "A-CLI Developer Toolkit for project scaffolding and local development workflows.",
+  "main": "src/cli/run.js",
+  "exports": "./src/cli/run.js",
+  "files": ["bin", "src", "templates", "README.md", "LICENSE"],
+  "keywords": ["cli", "developer-toolkit", "scaffolding", "wordpress", "laravel", "react", "nextjs"],
+  "author": "Aleksandar Bosnjak",
+  "license": "MIT",
   "type": "module",
   "bin": {
-    "create-project": "./index.js"
+    "acli": "./bin/acli",
+    "create-project": "./bin/create-project"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bosnjakaleksandar/a-cli.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "test": "node --test",
+    "prepublishOnly": "npm test && npm pack --dry-run",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

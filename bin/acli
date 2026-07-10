@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import * as dotenv from "dotenv";
+import { run } from "../src/cli/run.js";
+
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+dotenv.config({ path: path.join(packageRoot, ".env"), quiet: true });
+
+try {
+  await run();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+}

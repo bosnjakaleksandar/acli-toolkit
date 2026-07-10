@@ -3,7 +3,7 @@
 Run:
 
 ```bash
-create-project
+acli create
 ```
 
 Choose a project type, local environment, and project-specific options. The CLI prints exact next steps after scaffolding.
@@ -11,7 +11,7 @@ Choose a project type, local environment, and project-specific options. The CLI 
 You can also pass partial or full CLI options:
 
 ```bash
-create-project --name my-app --preset react --environment docker
+acli create --name my-app --preset react --environment docker
 ```
 
 See [CLI Options](./cli-options.md) for the full reference.

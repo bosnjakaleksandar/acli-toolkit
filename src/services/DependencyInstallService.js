@@ -2,6 +2,7 @@ import chalk from "chalk";
 import { confirm } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
 import { runCommand } from "../utils/commandRunner.js";
+import { acaCharacter } from "../ui/acaCharacter.js";
 
 /**
  * Offers automatic dependency installation and removes completed commands from next steps.
@@ -24,6 +25,8 @@ export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
 
   if (!doInstall) return nextSteps;
 
+  await acaCharacter.play("working", "Installing dependencies...");
+  acaCharacter.stop();
   spinner.start("Installing dependencies...");
   try {
     if (hasComposer) {
@@ -49,10 +52,14 @@ export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
     }
 
     spinner.stop("Dependencies installed successfully.");
+    await acaCharacter.play("success", "Dependencies installed successfully.");
+    acaCharacter.stop();
   } catch (err) {
     spinner.stop(chalk.yellow("Failed to install dependencies automatically. You may need to do it manually."));
     console.log(chalk.gray(`│  ${err.stderr?.trim() || err.message}`));
     console.log(chalk.gray("│  Suggested fix: run the listed install command manually from the generated directory."));
+    await acaCharacter.play("warning", "Install dependencies manually.");
+    acaCharacter.stop();
   }
 
   return nextSteps;
