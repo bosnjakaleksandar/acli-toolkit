@@ -1,21 +1,29 @@
-import os from "node:os";
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { BRANDING } from "../config/branding.js";
+import { getLegacyUpdateCachePath, getUpdateCachePath } from "../config/paths.js";
 
 export const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-export function getUpdateCachePath() {
-  return path.join(os.homedir(), BRANDING.cacheDirectory, "update.json");
+export { getUpdateCachePath };
+
+async function readCacheFile(cachePath) {
+  const cache = JSON.parse(await readFile(cachePath, "utf8"));
+  if (typeof cache.lastChecked !== "number" || typeof cache.latestVersion !== "string") return null;
+  return cache;
 }
 
-export async function readUpdateCache(cachePath = getUpdateCachePath()) {
+export async function readUpdateCache(cachePath = getUpdateCachePath(), legacyCachePath = getLegacyUpdateCachePath()) {
   try {
-    const cache = JSON.parse(await readFile(cachePath, "utf8"));
-    if (typeof cache.lastChecked !== "number" || typeof cache.latestVersion !== "string") return null;
-    return cache;
+    return await readCacheFile(cachePath);
   } catch {
-    return null;
+    // One-time fallback to the pre-unification `~/.a-cli/update.json` location
+    // so upgrading users don't lose a same-day cache. Writes always go to the
+    // unified path; this legacy file is never written to again.
+    try {
+      return await readCacheFile(legacyCachePath);
+    } catch {
+      return null;
+    }
   }
 }
 

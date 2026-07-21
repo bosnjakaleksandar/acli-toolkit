@@ -4,7 +4,7 @@ const MESSAGE_WIDTH = 48;
 const REGION_HEIGHT = FRAME_HEIGHT + 1;
 const INDENT = "  ";
 const GAP = "   ";
-const NAME = "Aca";
+const NAME = "A-CLI Bot";
 const NAME_ROW = 2;
 const MESSAGE_ROW = 3;
 
@@ -15,7 +15,7 @@ export const ACA_TIMING = Object.freeze({
   transitionDuration: 1200,
 });
 
-// Aca the robot: antenna status light, a head with eyes and a mouth,
+// A-CLI's robot mascot: antenna status light, a head with eyes and a mouth,
 // and a torso with indicator lights. Expressions carry the personality;
 // the antenna and torso lights carry the operational state.
 const shape = ({
@@ -99,6 +99,11 @@ const STATE_COLORS = Object.freeze({
   offline: "\x1B[2m",
 });
 
+// States whose duration is unknown up front (an async task the caller is
+// waiting on, not a fixed transition) loop until stop() is called instead of
+// settling after a fixed duration. Everything else is a bounded transition.
+const LOOPING_STATES = new Set(["thinking"]);
+
 export class AcaCharacter {
   constructor({ stdout = process.stdout, env = process.env, processRef = process, manageProcess = true } = {}) {
     this.stdout = stdout;
@@ -114,20 +119,41 @@ export class AcaCharacter {
     if (manageProcess) this.attachProcessHandlers();
   }
 
-  async play(state, message = defaultMessage(state)) {
+  /**
+   * Shows a state and its message. Finite states (the common case — a
+   * transition with a known natural length, like "working" or "success")
+   * resolve once their cycle settles, so `await mascot.show(...)` paces the
+   * transition. Looping states (currently just "thinking" — used while an
+   * async task of unknown duration runs) start animating and resolve
+   * immediately; call stop() when the task finishes.
+   */
+  async show(state, message = defaultMessage(state)) {
     this.assertState(state);
     this.stopTimer();
-    const generation = this.generation;
+    this.state = state;
+    this.message = message;
+    // --quiet ("Suppress decorative output") hides the mascot everywhere,
+    // not just the startup banner — it's purely decorative in every command.
+    if (this.env.ACLI_QUIET === "1") return;
     const stateFrames = ACA_STATES[state];
     const animated = this.canAnimate() && stateFrames.length > 1;
+
+    if (LOOPING_STATES.has(state) && animated) {
+      this.loopUntilStopped(state, message, stateFrames);
+      return;
+    }
+
+    await this.playOnce(state, message, stateFrames, animated);
+  }
+
+  async playOnce(state, message, stateFrames, animated) {
+    const generation = this.generation;
     const duration = state === "startup"
       ? ACA_TIMING.startupDuration
       : state === "idle"
         ? ACA_TIMING.idleDuration
         : ACA_TIMING.transitionDuration;
 
-    this.state = state;
-    this.message = message;
     this.hideCursor(animated);
 
     if (!animated) {
@@ -148,27 +174,13 @@ export class AcaCharacter {
     this.restoreCursor();
   }
 
-  setState(state, message = defaultMessage(state)) {
-    this.assertState(state);
-    this.stopTimer();
-    this.state = state;
-    this.message = message;
-    const stateFrames = ACA_STATES[state];
+  loopUntilStopped(state, message, stateFrames) {
     this.render(stateFrames[0], state, message);
-
-    if (!this.canAnimate() || stateFrames.length < 2) {
-      this.restoreCursor();
-      return;
-    }
-
     this.hideCursor(true);
     let index = 1;
-    let cycles = 0;
     this.timer = setInterval(() => {
       this.render(stateFrames[index % stateFrames.length], state, message);
       index += 1;
-      cycles += 1;
-      if (state === "idle" && cycles >= stateFrames.length * 2) this.stopTimer();
     }, ACA_TIMING.frameInterval);
     this.timer.unref?.();
   }
@@ -287,7 +299,7 @@ export class AcaCharacter {
   }
 }
 
-export const acaCharacter = new AcaCharacter();
+export const mascot = new AcaCharacter();
 
 function frames(value) {
   return Object.freeze(value.map((frame) => Object.freeze(frame)));

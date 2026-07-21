@@ -4,7 +4,6 @@ export const BRANDING = Object.freeze({
   name: "A-CLI",
   subtitle: "Developer Toolkit",
   command: "acli",
-  cacheDirectory: ".a-cli",
 });
 
 export async function getBranding() {

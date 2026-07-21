@@ -27,34 +27,37 @@ export class CommandError extends Error {
  * @returns {Promise<string>}
  */
 export async function runCommand(command, args = [], options = {}, onProgress = null) {
+  if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${[command, ...args].join(" ")}`);
   return new Promise((resolve, reject) => {
+    const { encoding = "utf8", ...spawnOptions } = options;
     const child = spawn(command, args, {
       shell: false,
-      ...options,
+      ...spawnOptions,
     });
 
-    let stdout = "";
-    let stderr = "";
+    const stdoutChunks = [];
+    const stderrChunks = [];
 
     child.stdout?.on("data", (data) => {
-      const text = data.toString();
-      stdout += text;
-      emitProgress(text, onProgress);
+      stdoutChunks.push(Buffer.from(data));
+      emitProgress(data.toString("utf8"), onProgress);
     });
 
     child.stderr?.on("data", (data) => {
-      const text = data.toString();
-      stderr += text;
-      emitProgress(text, onProgress);
+      stderrChunks.push(Buffer.from(data));
+      emitProgress(data.toString("utf8"), onProgress);
     });
 
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) {
-        resolve(stdout.trim());
+        const output = Buffer.concat(stdoutChunks);
+        resolve(encoding === null ? output : output.toString(encoding).trim());
         return;
       }
 
+      const stdout = Buffer.concat(stdoutChunks).toString("utf8");
+      const stderr = Buffer.concat(stderrChunks).toString("utf8");
       reject(
         new CommandError(command, args, {
           status: code,

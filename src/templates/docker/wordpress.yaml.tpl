@@ -7,8 +7,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: wordpress
-      MYSQL_USER: wp_user
-      MYSQL_PASSWORD: wp_password
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
 
   wordpress:
     depends_on:
@@ -21,8 +21,8 @@ services:
     restart: always
     environment:
       WORDPRESS_DB_HOST: db
-      WORDPRESS_DB_USER: wp_user
-      WORDPRESS_DB_PASSWORD: wp_password
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_TABLE_PREFIX: {{TABLE_PREFIX}}
 
@@ -36,8 +36,8 @@ services:
     restart: always
     environment:
       PMA_HOST: db
-      PMA_USER: wp_user
-      PMA_PASSWORD: wp_password
+      PMA_USER: wordpress
+      PMA_PASSWORD: wordpress
 
 volumes:
   db_data:

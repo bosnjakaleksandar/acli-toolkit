@@ -10,8 +10,8 @@ services:
     scanner: false
     overrides:
       environment:
-        DB_USER: user
-        DB_PASSWORD: user
+        DB_USER: wordpress
+        DB_PASSWORD: wordpress
         DB_NAME: wordpress
         DB_HOST: database
         TABLE_PREFIX: {{TABLE_PREFIX}}
@@ -22,11 +22,11 @@ services:
       - apt-get install -y nodejs
     run:
       - if [ ! -d "wp-content" ] || [ ! -d "wp-includes" ] || [ ! -d "wp-admin" ]; then wp core download; fi
-      - if [ ! -f "wp-config.php" ]; then wp config create --dbname="wordpress" --dbuser="user" --dbpass="user" --dbhost="database" --dbprefix="{{TABLE_PREFIX}}"; fi
+      - if [ ! -f "wp-config.php" ]; then wp config create --dbname="wordpress" --dbuser="wordpress" --dbpass="wordpress" --dbhost="database" --dbprefix="{{TABLE_PREFIX}}"; fi
   database:
     creds:
-      user: user
-      password: user
+      user: wordpress
+      password: wordpress
       database: wordpress
   pma:
     type: phpmyadmin

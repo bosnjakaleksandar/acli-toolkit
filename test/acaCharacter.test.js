@@ -36,13 +36,13 @@ test("all operational states exist and use identical frame dimensions", () => {
   }
 });
 
-test("state transitions clear the previous timer and stop clears all animation", () => {
+test("show() resolves immediately for a looping state (thinking) and keeps animating until stop()", async () => {
   const character = new AcaCharacter({ stdout: createOutput(), env: {}, manageProcess: false });
-  character.setState("working", "First operation");
+  await character.show("thinking", "First operation");
   const firstTimer = character.timer;
   assert.equal(character.hasActiveAnimation(), true);
 
-  character.setState("thinking", "Second operation");
+  await character.show("thinking", "Second operation");
   assert.notEqual(character.timer, firstTimer);
   assert.equal(firstTimer._destroyed, true);
 
@@ -50,10 +50,16 @@ test("state transitions clear the previous timer and stop clears all animation",
   assert.equal(character.hasActiveAnimation(), false);
 });
 
+test("show() resolves only after a finite state's transition settles, leaving no active timer", async () => {
+  const character = new AcaCharacter({ stdout: createOutput(), env: {}, manageProcess: false });
+  await character.show("working", "Bounded transition");
+  assert.equal(character.hasActiveAnimation(), false);
+});
+
 test("terminal cursor is restored after a completed state", async () => {
   const stdout = createOutput();
   const character = new AcaCharacter({ stdout, env: {}, manageProcess: false });
-  await character.play("success", "Done");
+  await character.show("success", "Done");
   assert.match(stdout.read(), /\x1B\[\?25l/);
   assert.match(stdout.read(), /\x1B\[\?25h/);
   assert.equal(character.hasActiveAnimation(), false);
@@ -62,7 +68,7 @@ test("terminal cursor is restored after a completed state", async () => {
 test("non-TTY and reduced-motion modes render one static frame", async () => {
   const nonTtyOutput = createOutput({ isTTY: false });
   const nonTty = new AcaCharacter({ stdout: nonTtyOutput, env: {}, manageProcess: false });
-  await nonTty.play("working", "Static output");
+  await nonTty.show("working", "Static output");
   assert.doesNotMatch(nonTtyOutput.read(), /\x1B\[/);
   assert.equal(nonTty.hasActiveAnimation(), false);
 
@@ -72,7 +78,7 @@ test("non-TTY and reduced-motion modes render one static frame", async () => {
     env: { ACLI_REDUCED_MOTION: "1" },
     manageProcess: false,
   });
-  await reduced.play("thinking", "Reduced motion");
+  await reduced.show("thinking", "Reduced motion");
   assert.doesNotMatch(reducedOutput.read(), /\x1B\[\?25l/);
   assert.equal(reduced.hasActiveAnimation(), false);
 });
@@ -84,8 +90,17 @@ test("NO_COLOR suppresses semantic state colors", async () => {
     env: { NO_COLOR: "", ACLI_REDUCED_MOTION: "1" },
     manageProcess: false,
   });
-  await character.play("error", "No color");
+  await character.show("error", "No color");
   assert.doesNotMatch(stdout.read(), /\x1B\[(?:31|32|33|36|38;5;\d+)m/);
+});
+
+test("ACLI_QUIET suppresses the mascot entirely, for both finite and looping states", async () => {
+  const stdout = createOutput();
+  const character = new AcaCharacter({ stdout, env: { ACLI_QUIET: "1" }, manageProcess: false });
+  await character.show("working", "Should not render");
+  await character.show("thinking", "Should not render either");
+  assert.equal(stdout.read(), "");
+  assert.equal(character.hasActiveAnimation(), false);
 });
 
 test("SIGINT and cancellation clean timers and restore the cursor", async () => {
@@ -93,13 +108,13 @@ test("SIGINT and cancellation clean timers and restore the cursor", async () => 
   processRef.pid = 123;
   const stdout = createOutput();
   const character = new AcaCharacter({ stdout, env: {}, processRef });
-  character.setState("working", "Interruptible");
+  await character.show("thinking", "Interruptible");
   processRef.emit("SIGINT");
   assert.equal(character.hasActiveAnimation(), false);
   assert.equal(processRef.exitCode, 130);
   assert.match(stdout.read(), /\x1B\[\?25h/);
 
   const cancelled = new AcaCharacter({ stdout: createOutput(), env: {}, manageProcess: false });
-  await cancelled.play("cancelled", "Operation cancelled.");
+  await cancelled.show("cancelled", "Operation cancelled.");
   assert.equal(cancelled.hasActiveAnimation(), false);
 });

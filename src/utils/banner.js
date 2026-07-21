@@ -2,26 +2,27 @@ import figlet from "figlet";
 import gradient from "gradient-string";
 import chalk from "chalk";
 import { BRANDING, getBranding } from "../config/branding.js";
-import { AcaCharacter, acaCharacter } from "../ui/acaCharacter.js";
+import { AcaCharacter, mascot as defaultMascot } from "../ui/acaCharacter.js";
 
 const INDENT = "  ";
 const LOGO_FONTS = ["ANSI Shadow", "Standard", "Small"];
 
 export async function showBanner({ stdout = process.stdout, env = process.env, character } = {}) {
+  if (env.ACLI_QUIET === "1" || env.CI) return;
   const branding = await getBranding();
   const width = getTerminalWidth(stdout);
   const logo = renderLogo(width);
-  const mascot = character ?? (stdout === process.stdout
-    ? acaCharacter
+  const activeMascot = character ?? (stdout === process.stdout
+    ? defaultMascot
     : new AcaCharacter({ stdout, env, manageProcess: false }));
 
   stdout.write(`\n${logo}\n\n`);
   stdout.write(`${INDENT}${chalk.dim(BRANDING.subtitle)}\n`);
   stdout.write(`${INDENT}${chalk.dim(`v${branding.version}`)}\n\n`);
 
-  if (mascot.canAnimate()) await mascot.play("startup", "Activating digital core...");
-  await mascot.play("idle", "Ready to build something awesome?");
-  mascot.stop();
+  if (activeMascot.canAnimate()) await activeMascot.show("startup", "Activating digital core...");
+  await activeMascot.show("idle", "Ready to build something awesome?");
+  activeMascot.stop();
 }
 
 function renderLogo(width) {

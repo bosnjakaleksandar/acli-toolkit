@@ -34,7 +34,7 @@ test("banner renders the A-CLI identity, subtitle, greeting, and package version
   assert.match(output, new RegExp(logoFirstLine.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(output, /Developer Toolkit/);
   assert.match(output, new RegExp(`v${version.replaceAll(".", "\\.")}`));
-  assert.match(output, /Aca/);
+  assert.match(output, /A-CLI Bot/);
   assert.match(output, /Ready to build something awesome\?/);
 });
 
@@ -45,7 +45,7 @@ test("banner layout is left-aligned with the mascot beside its text", async () =
   const output = stdout.read();
   assert.match(output, /\n {2}Developer Toolkit/);
   assert.match(output, /\n {2}v\d+\.\d+\.\d+/);
-  assert.match(output, /│ {9}Aca/);
+  assert.match(output, /│ {9}A-CLI Bot/);
   assert.match(output, /│ {9}Ready to build something awesome\?/);
   assert.doesNotMatch(output, /\n {10,}Developer Toolkit/);
 });
@@ -63,5 +63,6 @@ test("reduced motion disables animation even for a TTY", async () => {
   await showBanner({ stdout, env: { A_CLI_REDUCED_MOTION: "1" } });
 
   assert.doesNotMatch(stdout.raw(), /\x1B\[\?25l/);
-  assert.match(stdout.read(), /Developer Toolkit[\s\S]*v1\.0\.0[\s\S]*Aca/);
+  const { version } = await getPackageMetadata();
+  assert.match(stdout.read(), new RegExp(`Developer Toolkit[\\s\\S]*v${version.replaceAll(".", "\\.")}[\\s\\S]*A-CLI Bot`));
 });

@@ -5,9 +5,10 @@ import { scaffoldGitignore } from "../utils/git.js";
 import { hasCommand, runCommand } from "../utils/commandRunner.js";
 
 export default class LaravelStrategy extends BaseStrategy {
-  constructor(envService, frontendStrategy) {
+  constructor(envService, frontendStrategy, { runner = runCommand } = {}) {
     super(envService);
     this.frontendStrategy = frontendStrategy;
+    this.run = runner;
   }
 
   async askQuestions(ctx, options = {}) {
@@ -15,19 +16,11 @@ export default class LaravelStrategy extends BaseStrategy {
   }
 
   async scaffold(targetDir, ctx) {
-    if (!ctx.skipEnvironment) {
-      await this.scaffoldEnvironment(targetDir, ctx);
-    }
-
     const { projectName } = ctx;
 
-    const backendDir = path.join(targetDir, "backend");
     const frontendDir = path.join(targetDir, "frontend");
-
     await fs.ensureDir(frontendDir);
-
-    const frontendCtx = { ...ctx, isFullStack: true, skipEnvironment: true };
-    await this.frontendStrategy.scaffold(frontendDir, frontendCtx);
+    await this.frontendStrategy.scaffold(frontendDir, ctx);
 
     if (!hasCommand("composer")) {
       throw new Error(
@@ -35,19 +28,15 @@ export default class LaravelStrategy extends BaseStrategy {
       );
     }
 
-    await runCommand("composer", ["create-project", "laravel/laravel", "backend"], {
+    await this.run("composer", ["create-project", "laravel/laravel", "backend"], {
       cwd: targetDir,
     });
 
     await fs.writeFile(
       path.join(targetDir, "README.md"),
-      `# ${projectName}\n\nThis is a full-stack Laravel + ${ctx.framework} project.\n\n## Backend\nNavigate to \`backend/\` to view the Laravel app.\n\n## Frontend\nNavigate to \`frontend/\` to view the UI application. It is pre-configured to communicate with the Laravel backend API.\n`,
+      `# ${projectName}\n\nThis is a full-stack Laravel + ${ctx.framework} project.\n\n## Backend\n\`cd backend && php artisan serve\`\n\n## Frontend\n\`cd frontend\`, install dependencies, then run its dev script. Point it at the backend's API URL (\`http://localhost:8000\` by default).\n`,
     );
 
     await scaffoldGitignore(targetDir, "laravel");
-  }
-
-  getTemplateType() {
-    return "laravel";
   }
 }

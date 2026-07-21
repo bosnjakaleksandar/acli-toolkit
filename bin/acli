@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import * as dotenv from "dotenv";
-import { run } from "../src/cli/run.js";
+import os from "node:os";
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-dotenv.config({ path: path.join(packageRoot, ".env"), quiet: true });
+let recoveredDirectory = false;
+try { process.cwd(); } catch {
+  process.chdir(os.homedir());
+  recoveredDirectory = true;
+}
 
 try {
+  if (recoveredDirectory) console.warn(`Warning: the previous working directory no longer exists or is inaccessible. Continuing from ${process.cwd()}.`);
+  const { run } = await import("../src/cli/run.js");
   await run();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

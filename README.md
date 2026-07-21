@@ -56,17 +56,22 @@ New scripts and documentation should use `acli`.
 
 ## Command Platform
 
-Project generation is one A-CLI command rather than the entire application. Commands are registered independently, keeping future additions such as `config`, `workspace`, `templates`, `deploy`, and `auth` isolated from the root parser.
+Project generation is one A-CLI command rather than the entire application. Commands are registered independently, keeping future additions isolated from the root parser.
 
 ```bash
 acli create
 acli doctor
 acli update
+acli config
+acli preset
+acli profile
+acli link
+acli pull
 ```
 
 ## Updates
 
-On normal interactive launches, `acli` checks npm for a newer published version. Registry results are cached in `~/.a-cli/update.json` for 24 hours. If npm is unavailable, startup continues without an error or delay beyond the five-second request timeout.
+On normal interactive launches, `acli` checks npm for a newer published version. Registry results are cached alongside your user configuration file (`update.json` next to the path shown by `acli config path`) for 24 hours. If npm is unavailable, startup continues without an error or delay beyond the five-second request timeout.
 
 When an update is available, accept the prompt to install it globally, then rerun `acli`. To update immediately without a prompt:
 
@@ -120,7 +125,7 @@ acli doctor
 acli create
 ```
 
-The CLI asks what you want to create, which local environment to use, and any project-specific questions. It then scaffolds the project and prints next steps.
+The CLI asks what you want to create and any project-specific questions — including which local environment to use for WordPress projects (React/Next.js/Laravel are scaffolded by their own official generators and don't need one). It then scaffolds the project and prints next steps.
 
 ## Examples
 
@@ -131,7 +136,7 @@ acli create --preset react
 acli create --preset next
 acli create --preset laravel-react
 acli create --preset laravel-next
-acli create --preset ./preset.json
+acli create --preset ./preset.yaml
 acli doctor
 ```
 
@@ -147,7 +152,7 @@ You can also pass partial options. The CLI skips prompts for supplied values and
 
 ```bash
 acli create --name my-app
-acli create --name my-app --preset react --environment docker
+acli create --name my-app --preset react
 acli create --name salon --preset wordpress --environment lando
 ```
 
@@ -155,13 +160,13 @@ For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required
 
 ```bash
 acli create --existing --name client-site --environment lando --yes
-acli create --type application --framework nextjs --laravel --name booking-app --environment docker --yes
+acli create --type application --framework nextjs --laravel --name booking-app --yes
 ```
 
-Presets and CLI options can be combined. CLI options override preset values, so this uses the React preset but creates a Lando environment:
+Presets and CLI options can be combined. CLI options override preset values, so this uses the WordPress preset but creates a Lando environment:
 
 ```bash
-acli create --preset react --name my-app --environment lando
+acli create --preset wordpress --name my-site --environment lando
 ```
 
 Common options:
@@ -181,7 +186,6 @@ Common options:
 - `--staging-url <url>`
 - `--ssh-key <path>`
 - `--skip-git`
-- `--skip-knowledge-base`
 - `--yes` or `--non-interactive`
 - `--skip-update`
 
@@ -213,25 +217,23 @@ Presets skip questions that already have answers. Built-in presets are:
 - `laravel-react`
 - `laravel-next`
 
-Custom JSON preset example:
+Custom YAML preset example:
 
-```json
-{
-  "projectName": "acme-site",
-  "projectType": "wordpress",
-  "environment": "lando",
-  "mysqlVersion": "8.0",
-  "wpVersion": "latest",
-  "themeRepo": "git@github.com:company/theme.git",
-  "themeBranch": "main",
-  "plugins": ["advanced-custom-fields"]
-}
+```yaml
+projectName: acme-site
+projectType: wordpress
+environment: lando
+mysqlVersion: "8.0"
+wpVersion: latest
+themeRepo: https://github.com/example/starter-theme.git
+themeBranch: main
+plugins: [advanced-custom-fields]
 ```
 
 Run it with:
 
 ```bash
-acli create --preset ./preset.json
+acli create --preset ./preset.yaml
 ```
 
 ## Generated Projects
@@ -244,22 +246,23 @@ Laravel combinations create a real Laravel application in `backend/` using `comp
 
 WordPress projects generate the selected Docker or Lando environment, support starter or custom theme repositories, optional branch selection, and optional plugin setup scripts.
 
-Existing WordPress projects sync staging files, export the staging database, scaffold the local environment, detect Git remotes, import the database, and run search-replace.
+Existing WordPress projects sync staging files, export the staging database, scaffold the local environment, detect Git remotes, import the database, and run search-replace — and are linked to their staging profile automatically, so `acli pull` can re-sync them afterward. Use `acli link` to attach a profile to a directory you didn't create with `acli create` (e.g. a checked-out repo). See [docs/existing-wp.md](docs/existing-wp.md) for the daily `acli link`/`acli pull` workflow, and [docs/supported-matrix.md](docs/supported-matrix.md) for exactly what's supported and its known limitations.
 
-## Configuration
+## A-CLI v2 configuration
 
-Environment variables can be placed in `.env` at the project root:
+A-CLI is environment-agnostic. Project recipes live in presets; remote WordPress infrastructure lives in declarative profiles. YAML configuration is layered from built-in defaults, user configuration, `.acli/config.yaml`, selected presets, `--set`, and CLI options.
 
 ```bash
-STAGING_SSH_HOST=example.com
-STAGING_SUFFIX=.staging
-WP_THEME_REPO=git@github.com:company/theme.git
-WP_WOO_BRANCH=woocommerce
-WP_REACT_BRANCH=react
-KNOWLEDGE_BASE_URL=https://knowledge-base.staging
-WP_BASIC_AUTH_USER=username
-WP_BASIC_AUTH_PASS=password
+acli config path
+acli config validate
+acli preset list
+acli profile create
+acli profile use agency
+acli profile current
+acli create --existing --name client-site --profile agency --dry-run --yes
 ```
+
+Documents require `version: 1`. A-CLI does not load repository `.env` files. Profiles may explicitly reference environment variables or command-based secret providers; resolved output redacts secrets. Generic profiles ship in `examples/config`.
 
 ## Troubleshooting
 
@@ -267,13 +270,13 @@ Run `acli doctor` first. It catches most missing local tools.
 
 If a global update fails with a permissions error, configure an npm user-owned global directory (recommended by npm) or use `npx a-cli` instead. Check the installed copy with `acli --version` and the registry release with `npm view a-cli version`.
 
-If an update check is stale or its cache is damaged, remove `~/.a-cli/update.json`; it will be recreated on the next successful check. Offline update checks fail silently by design and never prevent project creation.
+If an update check is stale or its cache is damaged, remove `update.json` from the directory printed by `acli config path` (User); it will be recreated on the next successful check. Offline update checks fail silently by design and never prevent project creation.
 
 If Laravel generation fails, install Composer and PHP, then rerun the command.
 
 If a theme clone fails, verify the repository URL, selected branch, and SSH key access.
 
-If existing WordPress sync fails, verify `STAGING_SSH_HOST`, SSH access, rsync availability, and the remote project directory.
+If an existing WordPress sync fails, run a dry run and verify the selected profile, SSH access, transfer tool, and remote WordPress path.
 
 If Docker database import fails, start the environment manually and inspect container logs:
 

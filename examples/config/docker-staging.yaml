@@ -1,0 +1,25 @@
+version: 1
+profiles:
+  docker-staging:
+    type: wordpress
+    ssh:
+      host: staging.example.com
+      username: deploy
+      hostKeyPolicy: strict
+    remote:
+      projectRoot: "/var/www/{projectName}"
+      wordpressRoot: public
+    files:
+      transport: rsync
+      directories: [uploads, plugins, themes]
+    database:
+      driver: docker
+      service: db
+      executable: mariadb-dump
+      userEnv: MYSQL_USER
+      passwordEnv: MYSQL_PASSWORD
+      nameEnv: MYSQL_DATABASE
+    git:
+      enabled: false
+    urls:
+      staging: "https://staging.example.com/{projectName}"

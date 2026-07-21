@@ -1,11 +1,25 @@
 {
   "name": "a-cli",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A-CLI Developer Toolkit for project scaffolding and local development workflows.",
   "main": "src/cli/run.js",
   "exports": "./src/cli/run.js",
-  "files": ["bin", "src", "templates", "README.md", "LICENSE"],
-  "keywords": ["cli", "developer-toolkit", "scaffolding", "wordpress", "laravel", "react", "nextjs"],
+  "files": [
+    "bin",
+    "src",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "cli",
+    "developer-toolkit",
+    "scaffolding",
+    "wordpress",
+    "laravel",
+    "react",
+    "nextjs"
+  ],
   "author": "Aleksandar Bosnjak",
   "license": "MIT",
   "type": "module",
@@ -18,7 +32,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bosnjakaleksandar/a-cli.git"
+    "url": "git+https://github.com/bosnjakaleksandar/project-setup.git"
   },
   "publishConfig": {
     "access": "public"
@@ -34,10 +48,10 @@
     "@clack/prompts": "^1.1.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
-    "dotenv": "^17.3.1",
     "figlet": "^1.11.0",
     "fs-extra": "^11.3.4",
-    "gradient-string": "^3.0.0"
+    "gradient-string": "^3.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "vitepress": "^1.6.0"

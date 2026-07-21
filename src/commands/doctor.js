@@ -1,75 +1,41 @@
 import chalk from "chalk";
 import { intro, outro } from "@clack/prompts";
-import { spawnSync } from "child_process";
 import { BRANDING } from "../config/branding.js";
-import { acaCharacter } from "../ui/acaCharacter.js";
+import { mascot } from "../ui/acaCharacter.js";
+import { loadConfig } from "../services/ConfigService.js";
+import { loadPreset, loadProfile } from "../services/PresetService.js";
+import { checkTool } from "../services/ToolCheckService.js";
 
-const CHECKS = [
-  { label: "Node.js", command: "node", args: ["--version"], required: true, fix: "Install Node.js 20 LTS or newer." },
-  { label: "npm", command: "npm", args: ["--version"], required: true, fix: "Install npm with Node.js." },
-  { label: "Git", command: "git", args: ["--version"], required: true, fix: "Install Git and make sure it is on PATH." },
-  { label: "Docker", command: "docker", args: ["--version"], required: true, fix: "Install Docker Desktop and start it." },
-  { label: "Docker Compose", command: "docker", args: ["compose", "version"], required: true, fix: "Install a Docker version that includes Compose v2." },
-  { label: "Lando", command: "lando", args: ["--version"], required: true, fix: "Install Lando if you plan to use Lando environments." },
-  { label: "Composer", command: "composer", args: ["--version"], required: true, fix: "Install Composer for Laravel generation." },
-  { label: "PHP", command: "php", args: ["--version"], required: true, fix: "Install PHP 8.2 or newer for Laravel tooling." },
-  { label: "SSH", command: "ssh", args: ["-V"], required: true, fix: "Install OpenSSH client." },
-  { label: "WP CLI", command: "wp", args: ["--version"], required: false, fix: "Optional: install WP-CLI for local WordPress automation." },
-];
-
-/**
- * Runs the local toolchain doctor report.
- */
-export async function doctorCommand() {
-  intro(chalk.bgCyan(chalk.black(` 🩺 ${BRANDING.name} DOCTOR `)));
-
-  await acaCharacter.play("thinking", "Checking local requirements...");
-  acaCharacter.stop();
-
-  const results = CHECKS.map(runCheck);
-  const maxLabel = Math.max(...results.map((result) => result.label.length));
-
-  for (const result of results) {
-    const icon = result.ok ? chalk.green("✔") : result.required ? chalk.red("✖") : chalk.yellow("○");
-    const label = result.label.padEnd(maxLabel, " ");
-    const version = result.ok ? chalk.gray(result.version) : chalk.gray("not found");
-    console.log(`${icon} ${label}  ${version}`);
-    if (!result.ok) {
-      console.log(chalk.gray(`  Fix: ${result.fix}`));
-    }
-  }
-
-  const failedRequired = results.filter((result) => result.required && !result.ok);
-  if (failedRequired.length) {
-    await acaCharacter.play("warning", `Doctor found ${failedRequired.length} required issue(s).`);
-    acaCharacter.stop();
-    outro(chalk.red(`Doctor found ${failedRequired.length} required issue(s).`));
-    process.exitCode = 1;
+export async function doctorCommand(options = {}) {
+  if (!options.json) intro(chalk.bgCyan(chalk.black(` 🩺 ${BRANDING.name} DOCTOR `)));
+  if (!options.json) { await mascot.show("thinking", "Checking workflow requirements..."); mascot.stop(); }
+  const { config } = await loadConfig({ configPath: options.config });
+  const preset = await loadPreset(options.preset, config);
+  const profile = await loadProfile(options.profile || preset.profile, config);
+  const requirements = new Set(["node", "npm", "git"]);
+  const environment = options.environment || preset.environment || config.defaults?.environment;
+  if (environment) requirements.add(environment);
+  if (preset.useLaravel) { requirements.add("composer"); requirements.add("php"); }
+  if (profile) { requirements.add("ssh"); requirements.add(profile.files?.transport === "sftp" ? "scp" : "rsync"); }
+  const results = [...requirements].map((key) => checkTool(key)).filter(Boolean);
+  if (options.json) {
+    console.log(JSON.stringify({ ok: results.every((result) => result.ok), checks: results.map(({ label, ok, version, fix }) => ({ label, ok, version, ...(!ok ? { fix } : {}) })) }, null, 2));
+    if (results.some((result) => !result.ok)) process.exitCode = 1;
     return;
   }
-
-  await acaCharacter.play("success", "All required tools are available.");
-  acaCharacter.stop();
-  outro(chalk.green("All required tools are available."));
+  const maxLabel = Math.max(...results.map((result) => result.label.length));
+  for (const result of results) {
+    console.log(`${result.ok ? chalk.green("✔") : chalk.red("✖")} ${result.label.padEnd(maxLabel)}  ${chalk.gray(result.ok ? result.version : "not found")}`);
+    if (!result.ok) console.log(chalk.gray(`  Fix: ${result.fix}`));
+  }
+  const failed = results.filter((result) => !result.ok);
+  if (options.fix) console.log(chalk.gray("No automatic system changes were made. A-CLI only applies explicitly supported safe fixes."));
+  if (failed.length) { outro(chalk.red(`Doctor found ${failed.length} issue(s).`)); process.exitCode = 1; return; }
+  outro(chalk.green("All selected workflow requirements are available."));
 }
 
 export function registerDoctorCommand(program) {
-  program
-    .command("doctor")
-    .description("Verify local development requirements")
-    .action(() => doctorCommand());
-}
-
-function runCheck(check) {
-  const result = spawnSync(check.command, check.args, {
-    encoding: "utf8",
-    shell: false,
-  });
-  const output = result.stdout?.trim() || result.stderr?.trim() || "";
-
-  return {
-    ...check,
-    ok: !result.error && result.status === 0,
-    version: output.split("\n")[0],
-  };
+  program.command("doctor").description("Verify requirements for a selected workflow")
+    .option("--preset <preset>").option("--profile <profile>").option("--config <path>").option("--environment <environment>").option("--json", "Output machine-readable JSON").option("--fix", "Apply explicitly supported safe fixes")
+    .action(doctorCommand);
 }
