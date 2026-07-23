@@ -1,14 +1,20 @@
 import path from "node:path";
-import BaseStrategy from "./BaseStrategy.js";
+import BaseStrategy from "./BaseStrategy.ts";
 import { runCommand } from "../utils/commandRunner.ts";
+import type EnvironmentService from "../services/EnvironmentService.ts";
+import type { Spinner } from "../services/EnvironmentService.ts";
+
+type Runner = typeof runCommand;
 
 export default class ReactStrategy extends BaseStrategy {
-  constructor(envService, { runner = runCommand } = {}) {
+  run: Runner;
+
+  constructor(envService: EnvironmentService | null, { runner = runCommand }: { runner?: Runner } = {}) {
     super(envService);
     this.run = runner;
   }
 
-  async scaffold(targetDir, ctx, spinner = null) {
+  override async scaffold(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Scaffolding with create-vite...");
     const parentDir = path.dirname(targetDir);
     const name = path.basename(targetDir);

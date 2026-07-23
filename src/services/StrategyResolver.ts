@@ -1,10 +1,11 @@
-import NextjsStrategy from "../strategies/NextjsStrategy.js";
-import ReactStrategy from "../strategies/ReactStrategy.js";
-import WordPressStrategy from "../strategies/WordPressStrategy.js";
-import LaravelStrategy from "../strategies/LaravelStrategy.js";
-import ExistingWPStrategy from "../strategies/ExistingWPStrategy.js";
+import NextjsStrategy from "../strategies/NextjsStrategy.ts";
+import ReactStrategy from "../strategies/ReactStrategy.ts";
+import WordPressStrategy from "../strategies/WordPressStrategy.ts";
+import LaravelStrategy from "../strategies/LaravelStrategy.ts";
+import ExistingWPStrategy from "../strategies/ExistingWPStrategy.ts";
 import { ProjectTypeRegistry, type ScaffoldStrategy } from "../core/registry/ProjectTypeRegistry.ts";
 import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
+import type EnvironmentServiceType from "./EnvironmentService.ts";
 
 export const projectTypeRegistry = new ProjectTypeRegistry();
 
@@ -12,7 +13,7 @@ projectTypeRegistry.register({
   id: "existing-wp",
   label: "Existing WordPress site",
   matches: (plan) => plan.setupType === "existing-wp",
-  create: (envService) => new ExistingWPStrategy(envService) as ScaffoldStrategy,
+  create: (envService) => new ExistingWPStrategy(envService as EnvironmentServiceType | null) as ScaffoldStrategy,
 });
 
 projectTypeRegistry.register({
@@ -20,9 +21,10 @@ projectTypeRegistry.register({
   label: "Application (React, Next.js, optionally Laravel)",
   matches: (plan) => plan.appType === "application",
   create: (envService, plan) => {
+    const service = envService as EnvironmentServiceType | null;
     const frontend: ScaffoldStrategy =
-      plan.framework === "nextjs" ? new NextjsStrategy(envService) : new ReactStrategy(envService);
-    return plan.useLaravel ? (new LaravelStrategy(envService, frontend) as ScaffoldStrategy) : frontend;
+      plan.framework === "nextjs" ? new NextjsStrategy(service) : new ReactStrategy(service);
+    return plan.useLaravel ? (new LaravelStrategy(service, frontend) as ScaffoldStrategy) : frontend;
   },
 });
 
@@ -33,7 +35,7 @@ projectTypeRegistry.register({
   // existing-wp or an application, matching the original if-chain's
   // unconditional final `else`.
   matches: () => true,
-  create: (envService) => new WordPressStrategy(envService) as ScaffoldStrategy,
+  create: (envService) => new WordPressStrategy(envService as EnvironmentServiceType | null) as ScaffoldStrategy,
 });
 
 /**

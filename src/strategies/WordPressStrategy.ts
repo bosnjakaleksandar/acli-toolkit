@@ -1,4 +1,4 @@
-import BaseStrategy from "./BaseStrategy.js";
+import BaseStrategy from "./BaseStrategy.ts";
 import { confirm, multiselect, select, text } from "@clack/prompts";
 import chalk from "chalk";
 import fs from "fs-extra";
@@ -12,9 +12,10 @@ import {
   askSshKeyPath,
 } from "../utils/prompts.js";
 import { hasPresetValue } from "../services/PresetService.ts";
+import type { Spinner } from "../services/EnvironmentService.ts";
 
 export default class WordPressStrategy extends BaseStrategy {
-  async askQuestions(ctx, { nonInteractive = false } = {}) {
+  override async askQuestions(ctx: any, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<any> {
     const mysqlVersion = hasPresetValue(ctx, "mysqlVersion")
       ? ctx.mysqlVersion
       : nonInteractive
@@ -44,7 +45,7 @@ export default class WordPressStrategy extends BaseStrategy {
       if (themeChoice === "custom") {
         themeRepo = await ask(text, {
           message: "Theme repository URL (HTTPS or SSH):",
-          validate: (value) => {
+          validate: (value: string) => {
             if (!value.trim()) return "Theme repository URL is required.";
             return undefined;
           },
@@ -97,7 +98,7 @@ export default class WordPressStrategy extends BaseStrategy {
     };
   }
 
-  async #askThemeBranch(ctx, themeRepo) {
+  async #askThemeBranch(ctx: any, themeRepo: string): Promise<string> {
     if (!themeRepo) return "";
     const defaultBranch = this.#defaultThemeBranch(ctx, themeRepo);
 
@@ -107,7 +108,7 @@ export default class WordPressStrategy extends BaseStrategy {
     });
   }
 
-  #defaultThemeBranch(ctx, themeRepo) {
+  #defaultThemeBranch(ctx: any, themeRepo: string): string {
     if (!themeRepo) return "";
     return ctx.projectType === "wp-woo"
       ? process.env.WP_WOO_BRANCH || "woocommerce"
@@ -116,7 +117,7 @@ export default class WordPressStrategy extends BaseStrategy {
         : "";
   }
 
-  async #askPlugins() {
+  async #askPlugins(): Promise<string[]> {
     const selected = await ask(multiselect, {
       message: "Optional plugins to install:",
       options: [
@@ -130,7 +131,7 @@ export default class WordPressStrategy extends BaseStrategy {
     return selected || [];
   }
 
-  async scaffold(targetDir, ctx, spinner = null) {
+  override async scaffold(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
     if (!ctx.skipEnvironment) {
       await this.scaffoldEnvironment(targetDir, ctx, spinner);
     }
@@ -166,7 +167,7 @@ export default class WordPressStrategy extends BaseStrategy {
         console.log(
           chalk.green(`Removed .git tracking from the cloned starter theme.`),
         );
-      } catch (e) {
+      } catch (e: any) {
         await fs.remove(themeDir);
         throw new Error(
           `Failed to clone theme repository: ${themeRepo}\n${e.message}`,
@@ -193,7 +194,7 @@ export default class WordPressStrategy extends BaseStrategy {
     await scaffoldGitignore(targetDir, "wordpress");
   }
 
-  async #writeWordPressSetupScript(targetDir, ctx) {
+  async #writeWordPressSetupScript(targetDir: string, ctx: any): Promise<void> {
     if (!ctx.plugins?.length && !ctx.installWpCli) return;
 
     const scriptsDir = path.join(targetDir, "scripts");
@@ -210,7 +211,7 @@ export default class WordPressStrategy extends BaseStrategy {
       ctx.installWpCli && ctx.environment === "docker"
         ? "docker compose exec -T wordpress bash -lc 'command -v wp >/dev/null || (curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp)'"
         : "",
-      ...ctx.plugins.map((plugin) => `${wpCommand} plugin install ${plugin} --activate`),
+      ...ctx.plugins.map((plugin: string) => `${wpCommand} plugin install ${plugin} --activate`),
       "",
     ].filter(Boolean);
 
@@ -219,12 +220,12 @@ export default class WordPressStrategy extends BaseStrategy {
     });
   }
 
-  getTemplateType() {
+  override getTemplateType(): string {
     return "wordpress";
   }
 }
 
-function normalizePlugins(plugins) {
+function normalizePlugins(plugins: unknown): string[] {
   if (Array.isArray(plugins)) return plugins;
   if (typeof plugins === "string") {
     return plugins

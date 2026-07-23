@@ -1,4 +1,4 @@
-import BaseStrategy from "./BaseStrategy.js";
+import BaseStrategy from "./BaseStrategy.ts";
 import { scaffoldGitignore } from "../utils/git.js";
 import { askMysqlVersion, askWpVersion } from "../utils/prompts.js";
 import { hasPresetValue } from "../services/PresetService.ts";
@@ -6,16 +6,26 @@ import DatabaseDumpService from "../services/DatabaseDumpService.ts";
 import { PullService } from "../services/PullService.ts";
 import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.ts";
 import { writeLink } from "../services/ProjectLinkService.ts";
+import { runCommand } from "../utils/commandRunner.ts";
+import type EnvironmentService from "../services/EnvironmentService.ts";
+import type { Spinner } from "../services/EnvironmentService.ts";
+import type { ResolvedProfile } from "../core/model/ResolvedProfile.ts";
+
+type RemoteProfileServiceFactory = (profile: ResolvedProfile) => RemoteProfileService;
 
 export default class ExistingWPStrategy extends BaseStrategy {
-  constructor(envService, remoteProfileServiceFactory = (profile) => new RemoteProfileService(profile)) {
+  databaseDumpService: DatabaseDumpService;
+  remoteProfileServiceFactory: RemoteProfileServiceFactory;
+  pullService: PullService;
+
+  constructor(envService: EnvironmentService | null, remoteProfileServiceFactory: RemoteProfileServiceFactory = (profile) => new RemoteProfileService(profile)) {
     super(envService);
     this.databaseDumpService = new DatabaseDumpService();
     this.remoteProfileServiceFactory = remoteProfileServiceFactory;
-    this.pullService = new PullService(envService, remoteProfileServiceFactory);
+    this.pullService = new PullService(envService!, remoteProfileServiceFactory);
   }
 
-  async askQuestions(ctx, { nonInteractive = false } = {}) {
+  override async askQuestions(ctx: any, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<any> {
     // "Customize advanced settings?" (asked earlier, for every project type)
     // used to be a dead end here: this strategy always asked the MySQL/WP
     // version questions regardless of the answer, so declining had no
@@ -36,7 +46,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     return { ...ctx, mysqlVersion, wpVersion, stagingUrl, profile };
   }
 
-  buildPlan(ctx) {
+  buildPlan(ctx: any): unknown {
     const remote = this.remoteProfileServiceFactory(ctx.profile);
     return {
       preset: ctx.presetName || null, profile: ctx.profile.profileName || null, project: ctx.projectName,
@@ -44,16 +54,16 @@ export default class ExistingWPStrategy extends BaseStrategy {
       databaseDriver: ctx.skipDatabase ? "skipped" : ctx.profile.database.driver,
       fileTransfer: ctx.skipFiles ? "skipped" : ctx.profile.files?.transport || "rsync",
       gitLink: !ctx.skipGitLink && ctx.profile.git?.enabled !== false,
-      requiredTools: remote.requiredTools(ctx), localUrl: this.envService.getLocalUrl(ctx),
+      requiredTools: remote.requiredTools(ctx), localUrl: this.envService!.getLocalUrl(ctx),
     };
   }
 
-  async preflight(ctx, spinner = null) {
+  async preflight(ctx: any, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Preflight: validating local and remote capabilities...");
     await this.remoteProfileServiceFactory(ctx.profile).preflight(ctx);
   }
 
-  async scaffold(targetDir, ctx, spinner = null) {
+  override async scaffold(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
     const remote = this.remoteProfileServiceFactory(ctx.profile);
     let step = 1;
     const total = 7;
@@ -100,10 +110,10 @@ export default class ExistingWPStrategy extends BaseStrategy {
   // broke. error.code/hint are preserved so downstream resume-command and
   // suggestion logic (WordPressMigrationService, formatCreateError) is
   // unaffected.
-  async #step(label, fn) {
+  async #step<T>(label: string, fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
-    } catch (error) {
+    } catch (error: any) {
       if (error && !error.step) {
         error.step = label;
         error.message = `Step "${label}" failed: ${error.message}`;
@@ -112,16 +122,15 @@ export default class ExistingWPStrategy extends BaseStrategy {
     }
   }
 
-  async #linkGit(targetDir, ctx, remote, spinner) {
+  async #linkGit(targetDir: string, ctx: any, remote: RemoteProfileService, spinner: Spinner | null): Promise<void> {
     spinner?.message("Discovering remote Git repository...");
     const found = await remote.discoverGit();
     if (!found) return;
     ctx.stagingRepoUrl = found.url;
     ctx.skipGitInit = true;
-    const { runCommand } = await import("../utils/commandRunner.ts");
     await runCommand("git", ["init"], { cwd: targetDir });
     await runCommand("git", ["remote", "add", "origin", found.url], { cwd: targetDir });
   }
 
-  getTemplateType() { return "wordpress"; }
+  override getTemplateType(): string { return "wordpress"; }
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import ExistingWPStrategy from "../src/strategies/ExistingWPStrategy.js";
+import ExistingWPStrategy from "../src/strategies/ExistingWPStrategy.ts";
 import { readLink } from "../src/services/ProjectLinkService.ts";
 
 function makeFakeEnvService(calls) {

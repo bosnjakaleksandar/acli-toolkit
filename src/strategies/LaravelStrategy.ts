@@ -1,21 +1,28 @@
-import BaseStrategy from "./BaseStrategy.js";
+import BaseStrategy from "./BaseStrategy.ts";
 import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../utils/git.js";
 import { hasCommand, runCommand } from "../utils/commandRunner.ts";
+import type EnvironmentService from "../services/EnvironmentService.ts";
+import type { ScaffoldStrategy } from "../core/registry/ProjectTypeRegistry.ts";
+
+type Runner = typeof runCommand;
 
 export default class LaravelStrategy extends BaseStrategy {
-  constructor(envService, frontendStrategy, { runner = runCommand } = {}) {
+  frontendStrategy: ScaffoldStrategy;
+  run: Runner;
+
+  constructor(envService: EnvironmentService | null, frontendStrategy: ScaffoldStrategy, { runner = runCommand }: { runner?: Runner } = {}) {
     super(envService);
     this.frontendStrategy = frontendStrategy;
     this.run = runner;
   }
 
-  async askQuestions(ctx, options = {}) {
-    return await this.frontendStrategy.askQuestions(ctx, options);
+  override async askQuestions(ctx: any, options: { nonInteractive?: boolean } = {}): Promise<any> {
+    return await this.frontendStrategy.askQuestions?.(ctx, options);
   }
 
-  async scaffold(targetDir, ctx) {
+  override async scaffold(targetDir: string, ctx: any): Promise<void> {
     const { projectName } = ctx;
 
     const frontendDir = path.join(targetDir, "frontend");
