@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { CliError } from "../core/errors.ts";
-import { RemoteProfileService } from "./RemoteProfileService.js";
+import { RemoteProfileService } from "./RemoteProfileService.ts";
 import WordPressMigrationService from "./WordPressMigrationService.js";
 
 export const FILE_TARGETS = ["uploads", "plugins", "themes"];

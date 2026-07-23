@@ -24,17 +24,43 @@ export interface Profile {
     includes?: string[];
     targets?: Record<string, { path: string; excludes?: string[]; includes?: string[] }>;
   };
+  /**
+   * Which fields matter depends on `driver`: wp-cli needs nothing further;
+   * docker needs either `discovery: "container-name"` (+ containerPattern/
+   * executable/envFile/userEnv/passwordEnv/nameEnv) or service/composeFile/
+   * executable; direct needs host/port/user/password/name. Kept as one
+   * loosely-typed object (rather than a driver-keyed union) because it's
+   * authored as free-form YAML and RemoteProfileService.databaseCommand is
+   * the single place that actually interprets it per driver.
+   */
   database: {
     driver: "wp-cli" | "docker" | "direct";
     normalizeCollations?: boolean;
     tablePrefix?: string;
+    executable?: string;
+    discovery?: "container-name";
+    containerPattern?: string;
+    envFile?: string;
+    userEnv?: string;
+    passwordEnv?: string;
+    nameEnv?: string;
+    service?: string;
+    composeFile?: string;
+    host?: string;
+    port?: number | string;
+    user?: string;
+    password?: string;
+    name?: string;
   };
   git?: {
     enabled?: boolean;
+    includeProjectRoot?: boolean;
+    discoveryPaths?: string[];
   };
   urls?: {
     staging?: string;
     local?: string;
+    additionalSearchReplace?: string[];
   };
   local?: Record<string, unknown>;
 }

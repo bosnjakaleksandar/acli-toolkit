@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSshArgs, databaseCommand, renderTemplate, resolveRemoteProfile, RemoteProfileService } from "../src/services/RemoteProfileService.js";
+import { buildSshArgs, databaseCommand, renderTemplate, resolveRemoteProfile, RemoteProfileService } from "../src/services/RemoteProfileService.ts";
 
 const profile = { ssh: { host: "example.com", username: "{projectName}", identityFile: "~/.ssh/staging", hostKeyPolicy: "accept-new" }, remote: { projectRoot: "/srv/{projectName}", wordpressRoot: "wordpress" }, files: { transport: "rsync" }, database: { driver: "wp-cli" }, urls: { staging: "https://{projectName}.example.com" } };
 

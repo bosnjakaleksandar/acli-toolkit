@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/services/PullService.js";
-import { RemoteProfileService, resolveRemoteProfile } from "../src/services/RemoteProfileService.js";
+import { RemoteProfileService, resolveRemoteProfile } from "../src/services/RemoteProfileService.ts";
 import { CliError } from "../src/core/errors.ts";
 
 test("resolvePullTargets defaults to every target when nothing is requested", () => {

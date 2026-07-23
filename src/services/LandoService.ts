@@ -1,25 +1,29 @@
-import EnvironmentService from "./EnvironmentService.js";
+import EnvironmentService, { type Spinner, type WaitOptions, type WaitForAppDbOptions } from "./EnvironmentService.ts";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.js";
+import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.ts";
 import { runCommand } from "../utils/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// See DockerComposeService.js for why this also matches WordPress's own
+// See DockerComposeService.ts for why this also matches WordPress's own
 // connection-error message, not just the raw MySQL/MariaDB client's.
 const STALE_CREDENTIALS_PATTERN = /ERROR\s+1045|access denied|error establishing a database connection/i;
 
+type Runner = typeof runCommand;
+
 export default class LandoService extends EnvironmentService {
-  constructor({ runner = runCommand } = {}) {
+  run: Runner;
+
+  constructor({ runner = runCommand }: { runner?: Runner } = {}) {
     super();
     this.run = runner;
   }
 
-  getLocalUrl(ctx) { return ctx.profile?.local?.url || `https://${ctx.projectName}.lndo.site`; }
+  getLocalUrl(ctx: any): string { return ctx.profile?.local?.url || `https://${ctx.projectName}.lndo.site`; }
 
-  async scaffold(targetDir, type, options, spinner = null) {
+  async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
     const { projectName, mysqlVersion, tablePrefix } = options;
     const templateName = resolveTemplateName(type);
 
@@ -44,12 +48,12 @@ export default class LandoService extends EnvironmentService {
     await fs.writeFile(path.join(targetDir, ".lando.yml"), content);
   }
 
-  async start(targetDir, spinner = null) {
-    const onProgress = spinner ? (line) => spinner.message(`Lando: ${line}`) : null;
+  async start(targetDir: string, spinner: Spinner | null = null): Promise<void> {
+    const onProgress = spinner ? (line: string) => spinner.message(`Lando: ${line}`) : null;
     await this.run("lando", ["start"], { cwd: targetDir }, onProgress);
   }
 
-  async isDbReady(targetDir) {
+  async isDbReady(targetDir: string): Promise<boolean> {
     try {
       await this.run("lando", ["mysql", "-e", "SELECT 1"], { cwd: targetDir });
       return true;
@@ -58,7 +62,7 @@ export default class LandoService extends EnvironmentService {
     }
   }
 
-  async waitForDb(targetDir, { timeoutSeconds = 60 } = {}, spinner = null) {
+  async waitForDb(targetDir: string, { timeoutSeconds = 60 }: WaitOptions = {}, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Waiting for Lando database to be ready...");
     let waited = 0;
     while (!(await this.isDbReady(targetDir))) {
@@ -74,12 +78,12 @@ export default class LandoService extends EnvironmentService {
     }
   }
 
-  // See DockerComposeService.js's isAppDbReady() for why this check (TCP,
+  // See DockerComposeService.ts's isAppDbReady() for why this check (TCP,
   // app credentials, from the appserver) is distinct from isDbReady() (which
   // runs `lando mysql`, against the database service directly) and why
   // gating only on the latter can race a database that isn't actually
   // reachable from the appserver yet.
-  async isAppDbReady(targetDir) {
+  async isAppDbReady(targetDir: string): Promise<boolean> {
     const phpCode = 'mysqli_report(MYSQLI_REPORT_OFF); $c = @mysqli_connect(getenv("DB_HOST"), getenv("DB_USER"), getenv("DB_PASSWORD"), getenv("DB_NAME")); exit($c ? 0 : 1);';
     try {
       await this.run("lando", ["ssh", "-s", "appserver", "-c", `php -r '${phpCode}'`], { cwd: targetDir });
@@ -89,7 +93,7 @@ export default class LandoService extends EnvironmentService {
     }
   }
 
-  async waitForAppDb(targetDir, { timeoutSeconds = 120, pollIntervalMs = 2000 } = {}, spinner = null) {
+  async waitForAppDb(targetDir: string, { timeoutSeconds = 120, pollIntervalMs = 2000 }: WaitForAppDbOptions = {}, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Waiting for the Lando appserver to reach the database over the network...");
     let waited = 0;
     while (!(await this.isAppDbReady(targetDir))) {
@@ -105,7 +109,7 @@ export default class LandoService extends EnvironmentService {
     }
   }
 
-  async ensureWpCli(targetDir, spinner = null) {
+  async ensureWpCli(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Verifying WP-CLI...");
     try {
       await this.wp(targetDir, ["--version"], spinner);
@@ -117,7 +121,7 @@ export default class LandoService extends EnvironmentService {
     }
   }
 
-  async importDb(targetDir, sqlFile, spinner = null) {
+  async importDb(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
     await this.waitForDb(targetDir, {}, spinner);
     await this.waitForAppDb(targetDir, {}, spinner);
     await this.ensureWpCli(targetDir, spinner);
@@ -125,7 +129,7 @@ export default class LandoService extends EnvironmentService {
     try {
       await this.#importDbOnce(targetDir, sqlFile, spinner);
       await this.#verifyDbConnection(targetDir, spinner);
-    } catch (error) {
+    } catch (error: any) {
       const details = `${error?.stderr || ""}\n${error?.stdout || ""}\n${error?.message || ""}`;
       if (!STALE_CREDENTIALS_PATTERN.test(details)) throw error;
 
@@ -141,12 +145,12 @@ export default class LandoService extends EnvironmentService {
   // the appserver image, so they can fail with "command not found"
   // regardless of whether the DB connection itself is fine. --debug still
   // surfaces the actual underlying PHP/mysqli error when it isn't.
-  async #verifyDbConnection(targetDir, spinner = null) {
+  async #verifyDbConnection(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Verifying WordPress can connect to the imported database...");
     await this.wp(targetDir, ["option", "get", "siteurl", "--debug"], spinner);
   }
 
-  async recoverDb(targetDir, spinner = null) {
+  async recoverDb(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Local database credentials are stale; rebuilding the Lando app...");
     // The recipe's `wp config create` step (see wordpress.yaml.tpl) only
     // runs `if [ ! -f "wp-config.php" ]` — and webroot is the bind-mounted
@@ -165,17 +169,17 @@ export default class LandoService extends EnvironmentService {
     await this.ensureWpCli(targetDir, spinner);
   }
 
-  async #importDbOnce(targetDir, sqlFile, spinner = null) {
-    const onProgress = spinner ? (line) => spinner.message(`Importing DB: ${line}`) : null;
+  async #importDbOnce(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
+    const onProgress = spinner ? (line: string) => spinner.message(`Importing DB: ${line}`) : null;
     await this.run("lando", ["db-import", sqlFile], { cwd: targetDir }, onProgress);
   }
 
-  async wp(targetDir, args, spinner = null) {
-    const onProgress = spinner ? (line) => spinner.message(`WP-CLI: ${line}`) : null;
-    return this.run("lando", ["wp", ...args], { cwd: targetDir }, onProgress);
+  async wp(targetDir: string, args: string[], spinner: Spinner | null = null): Promise<string> {
+    const onProgress = spinner ? (line: string) => spinner.message(`WP-CLI: ${line}`) : null;
+    return (await this.run("lando", ["wp", ...args], { cwd: targetDir }, onProgress)) as string;
   }
 
-  async searchReplace(targetDir, from, to, spinner = null) {
+  async searchReplace(targetDir: string, from: string, to: string, spinner: Spinner | null = null): Promise<string> {
     return this.wp(targetDir, ["search-replace", from, to, "--all-tables"], spinner);
   }
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import LandoService from "../src/services/LandoService.js";
+import LandoService from "../src/services/LandoService.ts";
 import { CommandError } from "../src/utils/commandRunner.ts";
 
 function isImportCommand(args) {

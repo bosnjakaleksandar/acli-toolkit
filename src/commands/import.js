@@ -14,7 +14,7 @@ import { GitSource } from "../features/import/sources/GitSource.ts";
 import { SqlManualSource } from "../features/import/sources/SqlManualSource.ts";
 import { ZipSource } from "../features/import/sources/ZipSource.ts";
 import { runImportWorkflow } from "../features/import/ImportWorkflow.ts";
-import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
+import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
 import { maybeInstallDependencies } from "../services/DependencyInstallService.js";
 import { maybeInitializeGit } from "../services/GitService.js";
 import { buildNextSteps } from "../services/NextStepsService.ts";

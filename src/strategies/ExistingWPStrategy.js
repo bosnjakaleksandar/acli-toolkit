@@ -4,7 +4,7 @@ import { askMysqlVersion, askWpVersion } from "../utils/prompts.js";
 import { hasPresetValue } from "../services/PresetService.ts";
 import DatabaseDumpService from "../services/DatabaseDumpService.js";
 import { PullService } from "../services/PullService.js";
-import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.js";
+import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.ts";
 import { writeLink } from "../services/ProjectLinkService.js";
 
 export default class ExistingWPStrategy extends BaseStrategy {

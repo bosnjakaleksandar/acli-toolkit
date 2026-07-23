@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import DockerComposeService from "../src/services/DockerComposeService.js";
-import LandoService from "../src/services/LandoService.js";
+import DockerComposeService from "../src/services/DockerComposeService.ts";
+import LandoService from "../src/services/LandoService.ts";
 
 // Parity gate: every environment adapter must implement the full contract
 // with a working command shape, so a method added to one adapter and

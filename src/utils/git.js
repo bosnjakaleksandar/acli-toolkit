@@ -1,7 +1,7 @@
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveTemplateName } from "./templateMap.js";
+import { resolveTemplateName } from "./templateMap.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

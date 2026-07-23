@@ -1,8 +1,8 @@
-import EnvironmentService from "./EnvironmentService.js";
+import EnvironmentService, { type Spinner, type WaitOptions, type WaitForAppDbOptions } from "./EnvironmentService.ts";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.js";
+import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.ts";
 import { runCommand } from "../utils/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
 
@@ -17,15 +17,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // connection attempt fails. Recovering on either symptom catches both cases.
 const STALE_CREDENTIALS_PATTERN = /ERROR\s+1045|access denied|error establishing a database connection/i;
 
+type Runner = typeof runCommand;
+
 export default class DockerComposeService extends EnvironmentService {
-  constructor({ runner = runCommand } = {}) {
+  run: Runner;
+
+  constructor({ runner = runCommand }: { runner?: Runner } = {}) {
     super();
     this.run = runner;
   }
 
-  getLocalUrl(ctx) { return ctx.profile?.local?.url || "http://localhost:8080"; }
+  getLocalUrl(ctx: any): string { return ctx.profile?.local?.url || "http://localhost:8080"; }
 
-  async scaffold(targetDir, type, options, spinner = null) {
+  async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
     const { projectName, mysqlVersion, wpVersion, tablePrefix } = options;
     const templateName = resolveTemplateName(type);
 
@@ -55,12 +59,12 @@ export default class DockerComposeService extends EnvironmentService {
     await fs.writeFile(path.join(targetDir, "docker-compose.yaml"), content);
   }
 
-  async start(targetDir, spinner = null) {
-    const onProgress = spinner ? (line) => spinner.message(`Docker Compose: ${line}`) : null;
+  async start(targetDir: string, spinner: Spinner | null = null): Promise<void> {
+    const onProgress = spinner ? (line: string) => spinner.message(`Docker Compose: ${line}`) : null;
     await this.run("docker", ["compose", "up", "-d"], { cwd: targetDir }, onProgress);
   }
 
-  async isDbReady(targetDir) {
+  async isDbReady(targetDir: string): Promise<boolean> {
     try {
       await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", '(mariadb -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1" "$MYSQL_DATABASE" 2>/dev/null) || (mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1" "$MYSQL_DATABASE" 2>/dev/null) || (mariadb -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" "$MYSQL_DATABASE" 2>/dev/null) || (mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" -e "SELECT 1" "$MYSQL_DATABASE" 2>/dev/null)'], { cwd: targetDir });
       return true;
@@ -69,7 +73,7 @@ export default class DockerComposeService extends EnvironmentService {
     }
   }
 
-  async waitForDb(targetDir, { timeoutSeconds = 60 } = {}, spinner = null) {
+  async waitForDb(targetDir: string, { timeoutSeconds = 60 }: WaitOptions = {}, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Waiting for database to be ready...");
     let waited = 0;
     while (!(await this.isDbReady(targetDir))) {
@@ -92,7 +96,7 @@ export default class DockerComposeService extends EnvironmentService {
   // reach. So isDbReady() (and anything gated only on it) can report success
   // while WordPress — which connects over TCP, as the app user, from the
   // wordpress container — still can't get in. This probes that exact path.
-  async isAppDbReady(targetDir) {
+  async isAppDbReady(targetDir: string): Promise<boolean> {
     const phpCode = 'mysqli_report(MYSQLI_REPORT_OFF); $c = @mysqli_connect(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); exit($c ? 0 : 1);';
     try {
       await this.run("docker", ["compose", "exec", "-T", "wordpress", "php", "-r", phpCode], { cwd: targetDir });
@@ -102,7 +106,7 @@ export default class DockerComposeService extends EnvironmentService {
     }
   }
 
-  async waitForAppDb(targetDir, { timeoutSeconds = 120, pollIntervalMs = 2000 } = {}, spinner = null) {
+  async waitForAppDb(targetDir: string, { timeoutSeconds = 120, pollIntervalMs = 2000 }: WaitForAppDbOptions = {}, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Waiting for WordPress to reach the database over the network...");
     let waited = 0;
     while (!(await this.isAppDbReady(targetDir))) {
@@ -118,7 +122,7 @@ export default class DockerComposeService extends EnvironmentService {
     }
   }
 
-  async ensureWpCli(targetDir, spinner = null) {
+  async ensureWpCli(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Installing WP-CLI...");
     try {
       await this.run("docker", ["compose", "exec", "-T", "wordpress", "bash", "-c", "curl -fsSL -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp"], { cwd: targetDir });
@@ -130,7 +134,7 @@ export default class DockerComposeService extends EnvironmentService {
     }
   }
 
-  async importDb(targetDir, sqlFile, spinner = null) {
+  async importDb(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
     await this.waitForDb(targetDir, {}, spinner);
     await this.waitForAppDb(targetDir, {}, spinner);
     await this.ensureWpCli(targetDir, spinner);
@@ -138,7 +142,7 @@ export default class DockerComposeService extends EnvironmentService {
     try {
       await this.#importDbOnce(targetDir, sqlFile, spinner);
       await this.#verifyDbConnection(targetDir, spinner);
-    } catch (error) {
+    } catch (error: any) {
       const details = `${error?.stderr || ""}\n${error?.stdout || ""}\n${error?.message || ""}`;
       if (!STALE_CREDENTIALS_PATTERN.test(details)) throw error;
 
@@ -160,12 +164,12 @@ export default class DockerComposeService extends EnvironmentService {
   // image does not include, so they fail with "command not found"
   // regardless of whether the DB connection itself is fine. --debug still
   // surfaces the actual underlying PHP/mysqli error when it isn't.
-  async #verifyDbConnection(targetDir, spinner = null) {
+  async #verifyDbConnection(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Verifying WordPress can connect to the imported database...");
     await this.wp(targetDir, ["option", "get", "siteurl", "--debug"], spinner);
   }
 
-  async recoverDb(targetDir, spinner = null) {
+  async recoverDb(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Local database credentials are stale; rebuilding the generated DB volume...");
     // `down --volumes` only removes the *named* db_data volume — it has no
     // effect on wp-config.php, which lives on the bind-mounted project
@@ -187,8 +191,8 @@ export default class DockerComposeService extends EnvironmentService {
     await this.ensureWpCli(targetDir, spinner);
   }
 
-  async #importDbOnce(targetDir, sqlFile, spinner = null) {
-    const onProgress = spinner ? (line) => spinner.message(`Importing DB: ${line}`) : null;
+  async #importDbOnce(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
+    const onProgress = spinner ? (line: string) => spinner.message(`Importing DB: ${line}`) : null;
 
     spinner?.message("Copying DB to container...");
     await this.run("docker", ["compose", "cp", sqlFile, `db:/tmp/${sqlFile}`], { cwd: targetDir });
@@ -196,12 +200,12 @@ export default class DockerComposeService extends EnvironmentService {
     await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", `{ echo "[client]"; echo "user=root"; echo "password=$MYSQL_ROOT_PASSWORD"; } > /tmp/my.cnf && (mariadb --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${sqlFile} 2>/dev/null || mysql --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${sqlFile}); status=$?; rm -f /tmp/my.cnf; exit $status`], { cwd: targetDir }, onProgress);
   }
 
-  async wp(targetDir, args, spinner = null) {
-    const onProgress = spinner ? (line) => spinner.message(`WP-CLI: ${line}`) : null;
-    return this.run("docker", ["compose", "exec", "-T", "-u", "www-data", "wordpress", "wp", ...args], { cwd: targetDir }, onProgress);
+  async wp(targetDir: string, args: string[], spinner: Spinner | null = null): Promise<string> {
+    const onProgress = spinner ? (line: string) => spinner.message(`WP-CLI: ${line}`) : null;
+    return (await this.run("docker", ["compose", "exec", "-T", "-u", "www-data", "wordpress", "wp", ...args], { cwd: targetDir }, onProgress)) as string;
   }
 
-  async searchReplace(targetDir, from, to, spinner = null) {
+  async searchReplace(targetDir: string, from: string, to: string, spinner: Spinner | null = null): Promise<string> {
     return this.wp(targetDir, ["search-replace", from, to, "--all-tables"], spinner);
   }
 }
