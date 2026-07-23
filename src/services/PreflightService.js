@@ -1,6 +1,6 @@
 import net from "node:net";
 import { toolExists } from "./ToolCheckService.js";
-import { CliError } from "../utils/CliError.ts";
+import { CliError } from "../core/errors.ts";
 
 export async function runLocalPreflight(ctx) {
   // Application projects (React/Next.js/Laravel) are scaffolded by their

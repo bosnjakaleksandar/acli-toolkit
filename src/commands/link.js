@@ -8,7 +8,7 @@ import { resolveProfileSelection, profileSummary } from "../services/ProfileSele
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { readLink, writeLink } from "../services/ProjectLinkService.js";
 import { BRANDING } from "../config/branding.ts";
-import { CliError, describeError } from "../utils/CliError.ts";
+import { CliError, describeError } from "../core/errors.ts";
 
 const ENV_FILE_NAMES = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { describeError } from "../utils/CliError.ts";
+import { describeError } from "../core/errors.ts";
 
 const PROJECT_LABELS = {
   react: "React",
@@ -43,7 +43,7 @@ export function buildSuccessSummary(targetDir, ctx, nextSteps) {
   return `${chalk.green(`✔ ${ctx.projectName} is ready`)}\n\n${formatRows(rows)}${warnings}\n\n${chalk.bold("Next:")}\n${nextSteps}`;
 }
 
-export function formatCreateError(error, { targetDir = "", cleanedUp = false, preservedDump = false } = {}) {
+export function formatCreateError(error, { targetDir = "", ownsTargetDir = false, resumeCommand = null } = {}) {
   const cause = error ? describeError(error) : "Unknown error";
   const lines = [chalk.redBright("✖ Project creation failed"), "", `${chalk.bold("Cause:")} ${cause}`];
 
@@ -51,12 +51,15 @@ export function formatCreateError(error, { targetDir = "", cleanedUp = false, pr
   if (error?.hint) lines.push("", `${chalk.bold("Try:")} ${error.hint}`);
 
   if (targetDir) {
-    const status = preservedDump
-      ? "Project directory was preserved because it contains a recoverable staging.sql dump."
-      : cleanedUp
-        ? "Incomplete project files were removed."
-        : "Project files may still exist; inspect the directory before retrying.";
+    // Once any project files may exist, they are always preserved — never
+    // deleted — so a failure never destroys already-completed work (a
+    // scaffolded theme, an imported database). `resumeCommand` lets the run
+    // continue from the step that failed instead of starting over.
+    const status = ownsTargetDir
+      ? `Project directory was preserved: ${targetDir}`
+      : "No project files were created; nothing to clean up.";
     lines.push("", `${chalk.bold("Cleanup:")} ${status}`);
+    if (resumeCommand) lines.push("", `${chalk.bold("Resume:")} ${resumeCommand}`);
   }
 
   if (!error?.hint) lines.push("", chalk.bold("Try:"), "  acli doctor", "  Re-run with the same options after resolving the cause.");

@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { CliError } from "../utils/CliError.ts";
+import { CliError } from "../core/errors.ts";
 import { RemoteProfileService } from "./RemoteProfileService.js";
 import WordPressMigrationService from "./WordPressMigrationService.js";
 

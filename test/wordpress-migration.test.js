@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import WordPressMigrationService from "../src/services/WordPressMigrationService.js";
-import { CliError } from "../src/utils/CliError.ts";
+import { CliError } from "../src/core/errors.ts";
 
 function makeFakeEnvService({ importedSiteUrl = "https://demo.staging.example.com", localUrl = "http://localhost:8080", failImport = false, failWp = false } = {}) {
   const calls = [];

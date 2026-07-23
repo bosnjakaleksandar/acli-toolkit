@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
-import { CliError } from "../utils/CliError.ts";
+import { CliError } from "../core/errors.ts";
 
 // The set of table names every normal WordPress install has. A dump's real
 // prefix is whichever candidate covers the most of these — not just "the

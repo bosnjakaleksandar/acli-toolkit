@@ -4,7 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.js";
 import { runCommand } from "../utils/commandRunner.ts";
-import { CliError, describeError } from "../utils/CliError.ts";
+import { CliError, describeError } from "../core/errors.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // See DockerComposeService.js for why this also matches WordPress's own

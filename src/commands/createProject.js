@@ -14,15 +14,16 @@ import {
   normalizeCliOptions,
   parseSetOverrides,
 } from "../services/CliOptionsService.js";
-import { resolveStrategy } from "../services/StrategyResolver.js";
+import { resolveStrategy } from "../services/StrategyResolver.ts";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
 import { ask } from "../utils/prompts.js";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.js";
-import { TargetExistsError } from "../utils/CliError.ts";
+import { CliError, TargetExistsError } from "../core/errors.ts";
 import { loadLastPlan, saveSuccessfulPlan } from "../services/HistoryService.js";
 import { savePlanAsPreset } from "../services/HistoryService.js";
 import { runLocalPreflight } from "../services/PreflightService.js";
+import { StepRunner, readStepState } from "../core/StepRunner.ts";
 import {
   buildProjectSummary,
   buildSuccessSummary,
@@ -40,6 +41,7 @@ export async function createProjectCommand(options = {}) {
   let targetDir = "";
   let s = null;
   let ownsTargetDir = false;
+  let ctx = null;
 
   try {
     let { config } = await loadConfig({ configPath: options.config });
@@ -50,7 +52,7 @@ export async function createProjectCommand(options = {}) {
     const previousPlan = options.fromLast ? await loadLastPlan() : {};
     if (options.fromLast && !previousPlan) throw new Error("No successful create history was found in this directory.");
     const initialContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext), cliContext);
-    let ctx = await collectProjectContext(initialContext, { nonInteractive });
+    ctx = await collectProjectContext(initialContext, { nonInteractive });
     const needsProfile = ctx.setupType === "existing-wp";
     const selection = await resolveProfileSelection({ config, options, attachedProfileName: ctx.profile, required: needsProfile, nonInteractive });
     config = selection.config;
@@ -76,7 +78,14 @@ export async function createProjectCommand(options = {}) {
       return;
     }
 
-    if (!nonInteractive) {
+    if (options.resume && !(await readStepState(targetDir))) {
+      throw new CliError(`Nothing to resume at "${targetDir}": no in-progress create run was found there.`, {
+        code: "NOTHING_TO_RESUME",
+        hint: "Remove --resume to start a fresh run, or check --name matches the interrupted run's project name.",
+      });
+    }
+
+    if (!nonInteractive && !options.resume) {
       let decision = "edit";
       while (decision === "edit") {
         targetDir = path.join(process.cwd(), ctx.projectName);
@@ -93,28 +102,58 @@ export async function createProjectCommand(options = {}) {
     await mascot.show("working", "Creating project structure...");
     mascot.stop();
     s = spinner();
-    s.start("1/4 Validating project and requirements...");
 
-    await assertTargetDoesNotExist(targetDir);
-    const preflight = await runLocalPreflight(ctx);
-    ctx.warnings = [...(ctx.warnings || []), ...preflight.warnings];
-    if (typeof strategy.preflight === "function") await strategy.preflight(ctx, s);
-    s.message("2/4 Creating project files...");
-    await fs.ensureDir(targetDir);
-    ownsTargetDir = true;
-    await strategy.scaffold(targetDir, ctx, s);
+    const totalSteps = 4;
+    let nextSteps = "";
+    const stepRunner = new StepRunner(
+      [
+        {
+          id: "preflight",
+          title: "Validating project and requirements",
+          run: async () => {
+            s.start(`1/${totalSteps} Validating project and requirements...`);
+            if (!options.resume) await assertTargetDoesNotExist(targetDir);
+            const preflight = await runLocalPreflight(ctx);
+            ctx.warnings = [...(ctx.warnings || []), ...preflight.warnings];
+            if (typeof strategy.preflight === "function") await strategy.preflight(ctx, s);
+          },
+        },
+        {
+          id: "scaffold",
+          title: "Creating project files",
+          run: async () => {
+            s.message(`2/${totalSteps} Creating project files...`);
+            await fs.ensureDir(targetDir);
+            ownsTargetDir = true;
+            await strategy.scaffold(targetDir, ctx, s);
+            s.stop(`2/${totalSteps} Project files created.`);
+          },
+        },
+        {
+          id: "dependencies",
+          title: "Preparing dependencies",
+          run: async () => {
+            const installPlan = await buildNextSteps(targetDir, ctx);
+            s.start(`3/${totalSteps} Preparing dependencies...`);
+            s.stop(`3/${totalSteps} Dependency plan ready.`);
+            nextSteps = await maybeInstallDependencies(installPlan, s, ctx);
+            ctx.dependenciesInstalled = !nextSteps.includes(" install");
+          },
+        },
+        {
+          id: "git",
+          title: "Initializing Git repository",
+          run: async () => {
+            s.start(`4/${totalSteps} Initializing Git repository...`);
+            await maybeInitializeGit(targetDir, ctx);
+            s.stop(ctx.skipGitInit ? `4/${totalSteps} Git initialization skipped.` : `4/${totalSteps} Git repository initialized.`);
+          },
+        },
+      ],
+      targetDir,
+    );
 
-    s.stop("2/4 Project files created.");
-
-    const installPlan = await buildNextSteps(targetDir, ctx);
-    s.start("3/4 Preparing dependencies...");
-    s.stop("3/4 Dependency plan ready.");
-    let nextSteps = await maybeInstallDependencies(installPlan, s, ctx);
-    ctx.dependenciesInstalled = !nextSteps.includes(" install");
-
-    s.start("4/4 Initializing Git repository...");
-    await maybeInitializeGit(targetDir, ctx);
-    s.stop(ctx.skipGitInit ? "4/4 Git initialization skipped." : "4/4 Git repository initialized.");
+    await stepRunner.run({ resume: Boolean(options.resume) });
 
     await mascot.show("success", "Project created successfully.");
     mascot.stop();
@@ -127,14 +166,16 @@ export async function createProjectCommand(options = {}) {
     }
   } catch (error) {
     if (s) s.stop(chalk.red("A critical error occurred."));
-    const hasRecoverableDump = targetDir && await fs.pathExists(path.join(targetDir, "staging.sql")).catch(() => false);
-    let cleanedUp = false;
-    if (ownsTargetDir && targetDir && !hasRecoverableDump) {
-      cleanedUp = await fs.remove(targetDir).then(() => true).catch(() => false);
-    }
+    // Once the "scaffold" step has started, real files (and possibly an
+    // imported database) may already exist on disk — deleting targetDir on
+    // any later failure risked destroying recoverable work. Instead: never
+    // delete once we own the directory, and point at `--resume` so the run
+    // can continue from the failed step instead of starting over. Only a
+    // failure before any artifact exists (preflight) has nothing to preserve.
+    const resumeCommand = ownsTargetDir && ctx?.projectName ? `acli create --resume --name ${ctx.projectName}` : null;
     await mascot.show("error", "Project creation failed.");
     mascot.stop();
-    console.log(formatCreateError(error, { targetDir, cleanedUp, preservedDump: Boolean(hasRecoverableDump) }));
+    console.log(formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand }));
     if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
     process.exitCode = error.exitCode || 1;
   }
@@ -153,6 +194,7 @@ export function registerCreateCommand(program) {
     .option("--set <key=value>", "Override a non-secret configuration value", collect, [])
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--from-last", "Reuse the last successful create plan from this directory")
+    .option("--resume", "Continue an interrupted create run instead of starting over")
     .option("--existing", "Shortcut for setting up an existing WordPress project")
     .option("--type <type>", "Project type: application or wordpress")
     .option("--framework <framework>", "Application framework: react, nextjs, or next")

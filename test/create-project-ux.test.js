@@ -50,14 +50,24 @@ test("success summary gives location and executable next steps", () => {
   assert.match(result, /Next:\n  cd app\n  npm run dev/);
 });
 
-test("error summary explains cause, cleanup, and recovery", () => {
+test("error summary reports no cleanup needed when failure happened before any files were created", () => {
+  const result = plain(formatCreateError(new Error("Missing required tools: docker."), {
+    targetDir: "/work/site", ownsTargetDir: false,
+  }));
+  assert.match(result, /Project creation failed/);
+  assert.match(result, /Cause: Missing required tools: docker\./);
+  assert.match(result, /No project files were created; nothing to clean up\./);
+  assert.match(result, /acli doctor/);
+});
+
+test("error summary preserves the project directory (never deletes it) once files may already exist, and offers a resume command", () => {
   const result = plain(formatCreateError(new Error("SSH authentication failed"), {
-    targetDir: "/work/site", cleanedUp: true,
+    targetDir: "/work/site", ownsTargetDir: true, resumeCommand: "acli create --resume --name site",
   }));
   assert.match(result, /Project creation failed/);
   assert.match(result, /Cause: SSH authentication failed/);
-  assert.match(result, /Incomplete project files were removed/);
-  assert.match(result, /acli doctor/);
+  assert.match(result, /Project directory was preserved: \/work\/site/);
+  assert.match(result, /Resume:\s+acli create --resume --name site/);
 });
 
 test("application-type projects omit the Environment row (no docker-compose.yaml/.lando.yml is scaffolded for them)", () => {

@@ -9,7 +9,7 @@ import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { PullService, resolvePullTargets, ALL_TARGETS } from "../services/PullService.js";
 import { mascot } from "../ui/acaCharacter.js";
 import { BRANDING } from "../config/branding.ts";
-import { CliError, describeError } from "../utils/CliError.ts";
+import { CliError, describeError } from "../core/errors.ts";
 
 export async function pullCommand(targets, options = {}) {
   const cwd = process.cwd();
