@@ -6,6 +6,7 @@ import { BRANDING } from "../config/branding.ts";
 import { select } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
 import { createProjectCommand } from "../commands/createProject.js";
+import { importCommand } from "../commands/import.js";
 import { doctorCommand } from "../commands/doctor.js";
 import { linkCommand } from "../commands/link.js";
 import { pullCommand } from "../commands/pull.js";
@@ -40,6 +41,7 @@ export async function run(argv = process.argv, { legacyExecutable = false } = {}
         message: "What would you like to do?",
         options: [
           { label: "Create a project", value: "create" },
+          { label: "Import an existing WordPress site", value: "import" },
           { label: "Link an existing project to a staging profile", value: "link" },
           { label: "Pull files/database from a linked profile", value: "pull" },
           { label: "Check system requirements", value: "doctor" },
@@ -47,6 +49,7 @@ export async function run(argv = process.argv, { legacyExecutable = false } = {}
         ],
       });
       if (action === "create") return createProjectCommand(options);
+      if (action === "import") return importCommand(options);
       if (action === "link") return linkCommand(options);
       if (action === "pull") return pullCommand([], options);
       if (action === "doctor") return doctorCommand(options);
@@ -76,7 +79,7 @@ export function shouldCheckForUpdates(args, env = process.env) {
 
 function normalizeLegacyArguments(argv) {
   const args = argv.slice(2);
-  const rootArguments = new Set(["create", "doctor", "update", "link", "pull", "help", "--help", "-h", "--version", "-v"]);
+  const rootArguments = new Set(["create", "import", "doctor", "update", "link", "pull", "help", "--help", "-h", "--version", "-v"]);
   if (args.some((argument) => rootArguments.has(argument))) return argv;
   return [...argv.slice(0, 2), "create", ...args];
 }

@@ -43,9 +43,9 @@ export function buildSuccessSummary(targetDir, ctx, nextSteps) {
   return `${chalk.green(`✔ ${ctx.projectName} is ready`)}\n\n${formatRows(rows)}${warnings}\n\n${chalk.bold("Next:")}\n${nextSteps}`;
 }
 
-export function formatCreateError(error, { targetDir = "", ownsTargetDir = false, resumeCommand = null } = {}) {
+export function formatCreateError(error, { targetDir = "", ownsTargetDir = false, resumeCommand = null, action = "Project creation" } = {}) {
   const cause = error ? describeError(error) : "Unknown error";
-  const lines = [chalk.redBright("✖ Project creation failed"), "", `${chalk.bold("Cause:")} ${cause}`];
+  const lines = [chalk.redBright(`✖ ${action} failed`), "", `${chalk.bold("Cause:")} ${cause}`];
 
   if (error?.code && error.code !== "CLI_ERROR") lines.push(`${chalk.bold("Code:")} ${error.code}`);
   if (error?.hint) lines.push("", `${chalk.bold("Try:")} ${error.hint}`);

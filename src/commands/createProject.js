@@ -36,6 +36,9 @@ import {
  * @param {object} options CLI options.
  */
 export async function createProjectCommand(options = {}) {
+  if (options.existing && !options._viaImportCommand) {
+    console.warn(chalk.yellow("Warning: 'create --existing' is deprecated. Use 'acli import' instead.\n"));
+  }
   intro(chalk.bgCyan(chalk.black(` 🚀 ${BRANDING.name} CREATE `)));
 
   let targetDir = "";
@@ -81,7 +84,7 @@ export async function createProjectCommand(options = {}) {
     if (options.resume && !(await readStepState(targetDir))) {
       throw new CliError(`Nothing to resume at "${targetDir}": no in-progress create run was found there.`, {
         code: "NOTHING_TO_RESUME",
-        hint: "Remove --resume to start a fresh run, or check --name matches the interrupted run's project name.",
+        hint: "Check --name matches the interrupted run's project name. If a prior run failed before its first step recorded any progress, the directory may just be empty — remove it, then start a fresh run without --resume.",
       });
     }
 
