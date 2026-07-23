@@ -2,6 +2,7 @@ import { confirm, intro, note, outro, select, spinner, text } from "@clack/promp
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
+import type { Command } from "commander";
 import { collectProjectContext, editProjectContext } from "../prompts/projectPrompts.ts";
 import { maybeInstallDependencies } from "../services/DependencyInstallService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
@@ -29,22 +30,21 @@ import {
   buildSuccessSummary,
   formatCreateError,
 } from "../services/CreateProjectUxService.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 /**
  * Runs the interactive project creation command.
- *
- * @param {object} options CLI options.
  */
-export async function createProjectCommand(options = {}) {
+export async function createProjectCommand(options: any = {}): Promise<void> {
   if (options.existing && !options._viaImportCommand) {
     console.warn(chalk.yellow("Warning: 'create --existing' is deprecated. Use 'acli import' instead.\n"));
   }
   intro(chalk.bgCyan(chalk.black(` 🚀 ${BRANDING.name} CREATE `)));
 
   let targetDir = "";
-  let s = null;
+  let s: ReturnType<typeof spinner> | null = null;
   let ownsTargetDir = false;
-  let ctx = null;
+  let ctx: ProjectPlan | null = null;
 
   try {
     let { config } = await loadConfig({ configPath: options.config });
@@ -54,27 +54,27 @@ export async function createProjectCommand(options = {}) {
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
     const previousPlan = options.fromLast ? await loadLastPlan() : {};
     if (options.fromLast && !previousPlan) throw new Error("No successful create history was found in this directory.");
-    const initialContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext), cliContext);
+    const initialContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext) as ProjectPlan, cliContext);
     ctx = await collectProjectContext(initialContext, { nonInteractive });
     const needsProfile = ctx.setupType === "existing-wp";
-    const selection = await resolveProfileSelection({ config, options, attachedProfileName: ctx.profile, required: needsProfile, nonInteractive });
+    const selection = await resolveProfileSelection({ config, options, attachedProfileName: ctx.profile as string | undefined, required: needsProfile, nonInteractive });
     config = selection.config;
     if (selection.profile) {
-      ctx.profile = selection.profile;
+      (ctx as any).profile = selection.profile;
       if (!nonInteractive) note(profileSummary(selection.profile, ctx.environment), `Selected profile: ${selection.profileName}`);
     }
-    const envService = resolveEnvironmentService(ctx.environment);
+    const envService = resolveEnvironmentService(ctx.environment!);
     const strategy = resolveStrategy(ctx, envService);
 
-    ctx = await strategy.askQuestions(ctx, { nonInteractive });
-    targetDir = path.join(process.cwd(), ctx.projectName);
+    ctx = await strategy.askQuestions!(ctx, { nonInteractive });
+    targetDir = path.join(process.cwd(), ctx!.projectName!);
 
     if (options.dryRun) {
       const plan = typeof strategy.buildPlan === "function" ? strategy.buildPlan(ctx) : {
-        preset: ctx.presetName || options.preset || null,
-        project: ctx.projectName,
-        projectType: ctx.projectType,
-        localEnvironment: ctx.environment,
+        preset: ctx!.presetName || options.preset || null,
+        project: ctx!.projectName,
+        projectType: ctx!.projectType,
+        localEnvironment: ctx!.environment,
       };
       console.log(JSON.stringify(redactSecrets(plan), null, 2));
       outro(chalk.green("Dry run complete. No project files or remote state were changed."));
@@ -91,10 +91,10 @@ export async function createProjectCommand(options = {}) {
     if (!nonInteractive && !options.resume) {
       let decision = "edit";
       while (decision === "edit") {
-        targetDir = path.join(process.cwd(), ctx.projectName);
-        note(buildProjectSummary(ctx, targetDir), "Project plan");
-        decision = await ask(select, { message: "What would you like to do?", options: [{ label: "Create project", value: "create" }, { label: "Change answers", value: "edit" }, { label: "Cancel", value: "cancel" }] });
-        if (decision === "edit") ctx = await editProjectContext(ctx);
+        targetDir = path.join(process.cwd(), ctx!.projectName!);
+        note(buildProjectSummary(ctx!, targetDir), "Project plan");
+        decision = (await ask(select, { message: "What would you like to do?", options: [{ label: "Create project", value: "create" }, { label: "Change answers", value: "edit" }, { label: "Cancel", value: "cancel" }] })) as string;
+        if (decision === "edit") ctx = await editProjectContext(ctx!);
       }
       if (decision === "cancel") {
         outro(chalk.yellow("Project creation cancelled. No files were changed."));
@@ -108,48 +108,49 @@ export async function createProjectCommand(options = {}) {
 
     const totalSteps = 4;
     let nextSteps = "";
+    const finalCtx = ctx!;
     const stepRunner = new StepRunner(
       [
         {
           id: "preflight",
           title: "Validating project and requirements",
           run: async () => {
-            s.start(`1/${totalSteps} Validating project and requirements...`);
+            s!.start(`1/${totalSteps} Validating project and requirements...`);
             if (!options.resume) await assertTargetDoesNotExist(targetDir);
-            const preflight = await runLocalPreflight(ctx);
-            ctx.warnings = [...(ctx.warnings || []), ...preflight.warnings];
-            if (typeof strategy.preflight === "function") await strategy.preflight(ctx, s);
+            const preflight = await runLocalPreflight(finalCtx);
+            finalCtx.warnings = [...((finalCtx.warnings as string[]) || []), ...preflight.warnings];
+            if (typeof strategy.preflight === "function") await strategy.preflight(finalCtx, s);
           },
         },
         {
           id: "scaffold",
           title: "Creating project files",
           run: async () => {
-            s.message(`2/${totalSteps} Creating project files...`);
+            s!.message(`2/${totalSteps} Creating project files...`);
             await fs.ensureDir(targetDir);
             ownsTargetDir = true;
-            await strategy.scaffold(targetDir, ctx, s);
-            s.stop(`2/${totalSteps} Project files created.`);
+            await strategy.scaffold(targetDir, finalCtx, s);
+            s!.stop(`2/${totalSteps} Project files created.`);
           },
         },
         {
           id: "dependencies",
           title: "Preparing dependencies",
           run: async () => {
-            const installPlan = await buildNextSteps(targetDir, ctx);
-            s.start(`3/${totalSteps} Preparing dependencies...`);
-            s.stop(`3/${totalSteps} Dependency plan ready.`);
-            nextSteps = await maybeInstallDependencies(installPlan, s, ctx);
-            ctx.dependenciesInstalled = !nextSteps.includes(" install");
+            const installPlan = await buildNextSteps(targetDir, finalCtx);
+            s!.start(`3/${totalSteps} Preparing dependencies...`);
+            s!.stop(`3/${totalSteps} Dependency plan ready.`);
+            nextSteps = await maybeInstallDependencies(installPlan, s, finalCtx);
+            (finalCtx as any).dependenciesInstalled = !nextSteps.includes(" install");
           },
         },
         {
           id: "git",
           title: "Initializing Git repository",
           run: async () => {
-            s.start(`4/${totalSteps} Initializing Git repository...`);
-            await maybeInitializeGit(targetDir, ctx);
-            s.stop(ctx.skipGitInit ? `4/${totalSteps} Git initialization skipped.` : `4/${totalSteps} Git repository initialized.`);
+            s!.start(`4/${totalSteps} Initializing Git repository...`);
+            await maybeInitializeGit(targetDir, finalCtx as any);
+            s!.stop(finalCtx.skipGitInit ? `4/${totalSteps} Git initialization skipped.` : `4/${totalSteps} Git repository initialized.`);
           },
         },
       ],
@@ -160,14 +161,14 @@ export async function createProjectCommand(options = {}) {
 
     await mascot.show("success", "Project created successfully.");
     mascot.stop();
-    await saveSuccessfulPlan(ctx);
-    outro(buildSuccessSummary(targetDir, ctx, nextSteps));
+    await saveSuccessfulPlan(finalCtx);
+    outro(buildSuccessSummary(targetDir, finalCtx as any, nextSteps));
     if (!nonInteractive && await ask(confirm, { message: "Save this plan as a reusable preset?", initialValue: false })) {
-      const presetName = await ask(text, { message: "Preset name:", validate: (value) => /^[a-z0-9][a-z0-9-]*$/.test(value) ? undefined : "Use lowercase letters, numbers, and hyphens." });
-      const presetFile = await savePlanAsPreset(presetName, ctx, { configPath: options.config });
+      const presetName = await ask(text, { message: "Preset name:", validate: (value: string | undefined) => value && /^[a-z0-9][a-z0-9-]*$/.test(value) ? undefined : "Use lowercase letters, numbers, and hyphens." });
+      const presetFile = await savePlanAsPreset(presetName, finalCtx, { configPath: options.config });
       console.log(chalk.gray(`Preset "${presetName}" saved to ${presetFile}.`));
     }
-  } catch (error) {
+  } catch (error: any) {
     if (s) s.stop(chalk.red("A critical error occurred."));
     // Once the "scaffold" step has started, real files (and possibly an
     // imported database) may already exist on disk — deleting targetDir on
@@ -184,7 +185,7 @@ export async function createProjectCommand(options = {}) {
   }
 }
 
-export function registerCreateCommand(program) {
+export function registerCreateCommand(program: Command): void {
   program
     .command("create")
     .description("Scaffold a new application or WordPress project")
@@ -194,7 +195,7 @@ export function registerCreateCommand(program) {
     .option("--preset <preset>", "Use a named preset or portable YAML preset file")
     .option("--profile <profile>", "Use a named or portable remote environment profile")
     .option("--config <path>", "Use an explicit A-CLI configuration file")
-    .option("--set <key=value>", "Override a non-secret configuration value", collect, [])
+    .option("--set <key=value>", "Override a non-secret configuration value", collect, [] as string[])
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--from-last", "Reuse the last successful create plan from this directory")
     .option("--resume", "Continue an interrupted create run instead of starting over")
@@ -216,12 +217,12 @@ export function registerCreateCommand(program) {
     .option("--skip-git", "Skip Git repository initialization")
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
-    .action((options) => createProjectCommand(options));
+    .action((options: any) => createProjectCommand(options));
 }
 
-function collect(value, previous) { return [...previous, value]; }
+function collect(value: string, previous: string[]): string[] { return [...previous, value]; }
 
-async function assertTargetDoesNotExist(targetDir) {
+async function assertTargetDoesNotExist(targetDir: string): Promise<void> {
   if (!(await fs.pathExists(targetDir))) return;
   throw new TargetExistsError(targetDir);
 }

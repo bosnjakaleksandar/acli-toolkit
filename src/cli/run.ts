@@ -1,12 +1,12 @@
 import { Command } from "commander";
 import { getPackageMetadata } from "../utils/packageMetadata.ts";
 import { maybeUpdate } from "../update/maybeUpdate.ts";
-import { registerCommands } from "./registerCommands.js";
+import { registerCommands } from "./registerCommands.ts";
 import { BRANDING } from "../config/branding.ts";
 import { select } from "@clack/prompts";
 import { ask } from "../utils/prompts.ts";
-import { createProjectCommand } from "../commands/createProject.js";
-import { importCommand } from "../commands/import.js";
+import { createProjectCommand } from "../commands/createProject.ts";
+import { importCommand } from "../commands/import.ts";
 import { doctorCommand } from "../commands/doctor.ts";
 import { linkCommand } from "../commands/link.ts";
 import { pullCommand } from "../commands/pull.ts";
@@ -14,10 +14,8 @@ import { showBanner } from "../utils/banner.ts";
 
 /**
  * CLI entry point.
- *
- * @param {string[]} argv Process argv.
  */
-export async function run(argv = process.argv, { legacyExecutable = false } = {}) {
+export async function run(argv: string[] = process.argv, { legacyExecutable = false }: { legacyExecutable?: boolean } = {}): Promise<void> {
   const packageMetadata = await getPackageMetadata();
   const normalizedArgv = legacyExecutable ? normalizeLegacyArguments(argv) : argv;
   const args = normalizedArgv.slice(2);
@@ -34,7 +32,7 @@ export async function run(argv = process.argv, { legacyExecutable = false } = {}
     .option("--debug", "Show debug details and stack traces")
     .option("--quiet", "Suppress decorative output")
     .showSuggestionAfterError(true)
-    .action(async (options) => {
+    .action(async (options: any) => {
       if (!process.stdin.isTTY || !process.stdout.isTTY) return program.help();
       await showBanner();
       const action = await ask(select, {
@@ -68,7 +66,7 @@ export async function run(argv = process.argv, { legacyExecutable = false } = {}
   await program.parseAsync(normalizedArgv);
 }
 
-export function shouldCheckForUpdates(args, env = process.env) {
+export function shouldCheckForUpdates(args: string[], env: Record<string, string | undefined> = process.env): boolean {
   if (env.CI) return false;
   // "doctor" is a fast, repeatable diagnostic command — people run it
   // several times in a row while troubleshooting, so it should never carry
@@ -77,7 +75,7 @@ export function shouldCheckForUpdates(args, env = process.env) {
   return !args.some((argument) => bypassArguments.has(argument));
 }
 
-function normalizeLegacyArguments(argv) {
+function normalizeLegacyArguments(argv: string[]): string[] {
   const args = argv.slice(2);
   const rootArguments = new Set(["create", "import", "doctor", "update", "link", "pull", "help", "--help", "-h", "--version", "-v"]);
   if (args.some((argument) => rootArguments.has(argument))) return argv;

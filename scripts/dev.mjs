@@ -10,7 +10,7 @@ try { process.cwd(); } catch {
 }
 
 try {
-  const { run } = await import("../src/cli/run.js");
+  const { run } = await import("../src/cli/run.ts");
   if (recoveredDirectory) console.warn(`Warning: the previous working directory no longer exists or is inaccessible. Continuing from ${process.cwd()}.`);
   await run();
 } catch (error) {

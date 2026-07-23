@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
-import { shouldCheckForUpdates } from "../src/cli/run.js";
+import { shouldCheckForUpdates } from "../src/cli/run.ts";
 
 const primaryBin = fileURLToPath(new URL("../bin/acli", import.meta.url));
 const legacyBin = fileURLToPath(new URL("../bin/create-project", import.meta.url));

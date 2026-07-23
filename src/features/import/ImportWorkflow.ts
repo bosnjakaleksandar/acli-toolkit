@@ -19,7 +19,7 @@ export interface ImportWorkflowOptions {
  * profile-based `create --existing` flow uses (DatabaseDumpService,
  * WordPressMigrationService) — unmodified, so the two paths stay consistent.
  * Dependency install, Git init, and success/error rendering are the caller's
- * job (src/commands/import.js), mirroring how createProjectCommand handles
+ * job (src/commands/import.ts), mirroring how createProjectCommand handles
  * those same generic post-scaffold steps.
  */
 export async function runImportWorkflow({ source, ctx, targetDir, envService, spinner, resume }: ImportWorkflowOptions): Promise<void> {

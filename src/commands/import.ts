@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
+import type { Command } from "commander";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.ts";
 import { CliError, TargetExistsError } from "../core/errors.ts";
@@ -21,7 +22,7 @@ import { buildNextSteps } from "../services/NextStepsService.ts";
 import { runLocalPreflight } from "../services/PreflightService.ts";
 import { validateProjectName } from "../services/ProjectValidationService.ts";
 import { buildSuccessSummary, formatCreateError } from "../services/CreateProjectUxService.ts";
-import { createProjectCommand } from "./createProject.js";
+import { createProjectCommand } from "./createProject.ts";
 
 const importSourceRegistry = new ImportSourceRegistry();
 importSourceRegistry.register(LocalFolderSource);
@@ -44,13 +45,13 @@ const REMOTE_SOURCES = new Set(["profile", "ssh"]);
  * folder, git, zip, a manual sql dump) run the newer, source-agnostic
  * ImportWorkflow.
  */
-export async function importCommand(options = {}) {
+export async function importCommand(options: any = {}): Promise<void> {
   const source = options.source || "profile";
   if (REMOTE_SOURCES.has(source)) return importViaRemote(source, options);
   return importViaLocalSource(source, options);
 }
 
-async function importViaRemote(source, options) {
+async function importViaRemote(source: string, options: any): Promise<void> {
   if (source === "profile") {
     return createProjectCommand({ ...options, existing: true, _viaImportCommand: true });
   }
@@ -84,13 +85,13 @@ async function importViaRemote(source, options) {
   }
 }
 
-async function importViaLocalSource(sourceId, options) {
+async function importViaLocalSource(sourceId: string, options: any): Promise<void> {
   intro(chalk.bgCyan(chalk.black(` 📥 ${BRANDING.name} IMPORT `)));
 
   let targetDir = "";
   let ownsTargetDir = false;
-  let ctx = null;
-  let s = null;
+  let ctx: any = null;
+  let s: ReturnType<typeof spinner> | null = null;
 
   try {
     const source = importSourceRegistry.get(sourceId);
@@ -171,7 +172,7 @@ async function importViaLocalSource(sourceId, options) {
     await mascot.show("success", "Import completed successfully.");
     mascot.stop();
     outro(buildSuccessSummary(targetDir, ctx, nextSteps));
-  } catch (error) {
+  } catch (error: any) {
     if (s) s.stop(chalk.red("A critical error occurred."));
     const resumeCommand = ownsTargetDir && ctx?.projectName ? `acli import --source ${sourceId} --resume --name ${ctx.projectName}` : null;
     await mascot.show("error", "Import failed.");
@@ -182,7 +183,7 @@ async function importViaLocalSource(sourceId, options) {
   }
 }
 
-export function registerImportCommand(program) {
+export function registerImportCommand(program: Command): void {
   program
     .command("import")
     .description("Import an existing WordPress site into a new local project")
@@ -220,5 +221,5 @@ export function registerImportCommand(program) {
     .option("--keep-dump", "Keep staging.sql after a successful migration")
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
-    .action((options) => importCommand(options));
+    .action((options: any) => importCommand(options));
 }

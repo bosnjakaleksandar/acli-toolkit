@@ -5,7 +5,7 @@
  *
  * `profile` and `ssh` (a saved staging profile, or a one-off SSH target)
  * delegate to the existing, already-proven `acli create --existing`
- * machinery unchanged — see src/commands/import.js. The sources registered
+ * machinery unchanged — see src/commands/import.ts. The sources registered
  * here (local, git, sql, zip) are new: they don't need a remote host at
  * all, just files that already exist somewhere reachable from this
  * machine.
