@@ -1,6 +1,6 @@
 # Configuration and secrets
 
-A-CLI v2 does not load `.env` files as CLI configuration. It discovers YAML from the platform user location and `.acli/config.yaml` in the current project. Use `acli config path` to print both locations.
+A-CLI v2 does not load `.env` files as CLI configuration. It discovers YAML from the platform user location and `.acli/config.yaml` in the current project. Use `acli config path` to print both locations, or `acli config init` to write a starter file with an explanatory header.
 
 Precedence is built-in defaults, user configuration, project configuration, selected preset, `--set` overrides, then explicit CLI options. Every document starts with `version: 1`.
 

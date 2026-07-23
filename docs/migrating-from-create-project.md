@@ -29,7 +29,7 @@ This produces a profile with:
 From there, use the imported profile the same as any other:
 
 ```bash
-acli create --existing --name client-site --profile agency-staging
+acli import --name client-site --profile agency-staging
 # or, for an already-checked-out project:
 acli link --profile agency-staging --environment docker
 acli pull

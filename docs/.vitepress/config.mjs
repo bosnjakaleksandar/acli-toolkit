@@ -20,7 +20,7 @@ export default {
       { text: "React", link: "/react" },
       { text: "Next.js", link: "/nextjs" },
       { text: "Laravel", link: "/laravel" },
-      { text: "Existing WP", link: "/existing-wp" },
+      { text: "Import Existing WordPress", link: "/existing-wp" },
       { text: "Presets", link: "/presets" },
       { text: "Doctor", link: "/doctor" },
       { text: "Environment Variables", link: "/environment-variables" },

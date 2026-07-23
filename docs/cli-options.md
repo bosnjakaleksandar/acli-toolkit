@@ -19,9 +19,10 @@ acli create --name salon --preset wordpress --environment lando
 Use `--yes` or `--non-interactive` when automation should fail instead of asking questions:
 
 ```bash
-acli create --existing --name client-site --environment lando --yes
 acli create --type application --framework nextjs --laravel --name booking-app --yes
 ```
+
+To bring in an *existing* WordPress site rather than scaffolding a new one, use `acli import` instead — see [Import an existing WordPress project](./existing-wp.md). `create --existing` still works as a deprecated alias.
 
 Presets and CLI options can be combined. CLI options override preset values:
 
@@ -34,7 +35,6 @@ acli create --preset wordpress --name my-site --environment lando
 ```bash
 acli create --name my-app --preset react
 acli create --name salon --preset wordpress --environment lando
-acli create --existing --name client-site --environment lando
 acli create --type application --framework nextjs --laravel --name booking-app
 ```
 
@@ -47,7 +47,9 @@ acli create --type application --framework nextjs --laravel --name booking-app
 - `--config <path>`
 - `--set <key=value>`
 - `--dry-run`
-- `--existing`
+- `--from-last`
+- `--resume`
+- `--existing` (deprecated — use `acli import` instead)
 - `--type <application|wordpress>`
 - `--framework <react|nextjs|next>`
 - `--laravel`
