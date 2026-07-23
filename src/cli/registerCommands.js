@@ -1,12 +1,12 @@
 import { registerCreateCommand } from "../commands/createProject.js";
 import { registerImportCommand } from "../commands/import.js";
-import { registerDoctorCommand } from "../commands/doctor.js";
-import { registerUpdateCommand } from "../commands/update.js";
-import { registerConfigCommand } from "../commands/config.js";
-import { registerPresetCommand } from "../commands/preset.js";
-import { registerProfileCommand } from "../commands/profile.js";
-import { registerLinkCommand } from "../commands/link.js";
-import { registerPullCommand } from "../commands/pull.js";
+import { registerDoctorCommand } from "../commands/doctor.ts";
+import { registerUpdateCommand } from "../commands/update.ts";
+import { registerConfigCommand } from "../commands/config.ts";
+import { registerPresetCommand } from "../commands/preset.ts";
+import { registerProfileCommand } from "../commands/profile.ts";
+import { registerLinkCommand } from "../commands/link.ts";
+import { registerPullCommand } from "../commands/pull.ts";
 
 const commandRegistrars = [
   registerCreateCommand,

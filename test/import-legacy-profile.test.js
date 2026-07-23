@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { importLegacyProfileCommand } from "../src/commands/profile.js";
+import { importLegacyProfileCommand } from "../src/commands/profile.ts";
 import { validateProfileConfig } from "../src/services/ConfigService.ts";
 
 async function withEnv(overrides, run) {

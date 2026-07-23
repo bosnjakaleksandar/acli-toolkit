@@ -2,7 +2,7 @@ import { confirm, select } from "@clack/prompts";
 import { ask } from "../utils/prompts.ts";
 import { loadConfig } from "./ConfigService.ts";
 import { loadProfile } from "./PresetService.ts";
-import { createProfileCommand } from "../commands/profile.js";
+import { createProfileCommand } from "../commands/profile.ts";
 import type { AcliConfig } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/ResolvedProfile.ts";
 

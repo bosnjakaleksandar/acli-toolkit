@@ -1,9 +1,11 @@
 import chalk from "chalk";
+import type { Command } from "commander";
 import { installLatestVersion } from "../update/install.ts";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.ts";
+import type { PackageMetadata } from "../utils/packageMetadata.ts";
 
-export async function updateCommand(packageName) {
+export async function updateCommand(packageName: string): Promise<void> {
   console.log(chalk.cyan(`Installing the latest version of ${packageName}...\n`));
   await mascot.show("working", "Installing the latest A-CLI version...");
   mascot.stop();
@@ -20,7 +22,7 @@ export async function updateCommand(packageName) {
   console.log(`Please run:\n\n${chalk.cyan(BRANDING.command)}\n`);
 }
 
-export function registerUpdateCommand(program, { packageMetadata }) {
+export function registerUpdateCommand(program: Command, { packageMetadata }: { packageMetadata: PackageMetadata }): void {
   program
     .command("update")
     .description("Install the latest published version globally")

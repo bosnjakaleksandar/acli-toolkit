@@ -1,5 +1,6 @@
 import { confirm, intro, multiselect, outro, spinner } from "@clack/prompts";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { ask } from "../utils/prompts.ts";
 import { loadConfig } from "../services/ConfigService.ts";
 import { loadProfile } from "../services/PresetService.ts";
@@ -11,7 +12,7 @@ import { mascot } from "../ui/acaCharacter.ts";
 import { BRANDING } from "../config/branding.ts";
 import { CliError, describeError } from "../core/errors.ts";
 
-export async function pullCommand(targets, options = {}) {
+export async function pullCommand(targets: string[], options: any = {}): Promise<void> {
   const cwd = process.cwd();
   const nonInteractive = Boolean(options.yes || options.nonInteractive);
   intro(chalk.bgCyan(chalk.black(` ⬇ ${BRANDING.name} PULL `)));
@@ -31,18 +32,18 @@ export async function pullCommand(targets, options = {}) {
       });
     }
 
-    let finalTargets;
+    let finalTargets: string[];
     if (targets && targets.length) {
       finalTargets = resolvePullTargets(targets);
     } else if (nonInteractive) {
       finalTargets = resolvePullTargets([]);
     } else {
-      finalTargets = await ask(multiselect, {
+      finalTargets = (await ask(multiselect, {
         message: "What do you want to pull?",
         options: ALL_TARGETS.map((target) => ({ label: target, value: target })),
         initialValues: ALL_TARGETS,
         required: true,
-      });
+      })) as string[];
     }
 
     const { config } = await loadConfig({ configPath: options.config });
@@ -75,7 +76,7 @@ export async function pullCommand(targets, options = {}) {
     await mascot.show("success", "Pull complete.");
     mascot.stop();
     outro(chalk.green(`Pulled ${finalTargets.join(", ")} for "${link.name}".`));
-  } catch (error) {
+  } catch (error: any) {
     await mascot.show("error", "Pull failed.");
     mascot.stop();
     console.log(chalk.red(`✖ ${describeError(error)}`));
@@ -85,7 +86,7 @@ export async function pullCommand(targets, options = {}) {
   }
 }
 
-export function registerPullCommand(program) {
+export function registerPullCommand(program: Command): void {
   program
     .command("pull [targets...]")
     .description("Selectively sync files and/or the database from the linked staging profile")
@@ -95,5 +96,5 @@ export function registerPullCommand(program) {
     .option("--dry-run", "Print the resolved plan without pulling anything")
     .option("--yes", "Skip confirmation prompts")
     .option("--non-interactive", "Alias for --yes")
-    .action((targets, options) => pullCommand(targets, options));
+    .action((targets: string[], options: any) => pullCommand(targets, options));
 }

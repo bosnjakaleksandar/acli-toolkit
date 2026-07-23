@@ -1,18 +1,19 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
 import YAML from "yaml";
+import type { Command } from "commander";
 import { ask } from "../utils/prompts.ts";
 import { loadConfig, redactSecrets, validateProfileConfig } from "../services/ConfigService.ts";
 import { clearDefaultProfile, deleteProfile, saveProfile, setDefaultProfile } from "../services/ProfileService.ts";
 import { getProfileTemplate, listProfileTemplates } from "../config/profileTemplates.ts";
 
-export async function createProfileCommand(name, options = {}) {
+export async function createProfileCommand(name: string | undefined, options: any = {}): Promise<{ name: string; profile: any; filePath: string }> {
   const nonInteractive = Boolean(options.yes);
   const template = options.template ? requireTemplate(options.template) : nonInteractive ? null : await maybeChooseTemplate();
-  const d = template?.defaults || {};
+  const d: any = template?.defaults || {};
   const profileName = name || (nonInteractive ? "" : await requiredText("Profile name:"));
   if (!profileName) throw new Error("Profile name is required.");
   const scope = options.config ? "explicit" : options.scope || (nonInteractive ? "project" : await ask(select, { message: "Where should the profile be saved?", options: [{ label: "Project (.acli/config.yaml)", value: "project" }, { label: "User (available everywhere)", value: "user" }] }));
-  const value = async (option, message, initialValue = "") => option !== undefined ? option : nonInteractive ? initialValue : requiredText(message, initialValue);
+  const value = async (option: unknown, message: string, initialValue = ""): Promise<string> => option !== undefined ? (option as string) : nonInteractive ? initialValue : requiredText(message, initialValue);
   const host = await value(options.host, "SSH host:", d.host ?? "");
   const port = Number(await value(options.port, "SSH port:", d.port ?? "22"));
   const username = await value(options.usernameTemplate, "SSH username or template:", d.usernameTemplate ?? "{projectName}");
@@ -39,7 +40,7 @@ export async function createProfileCommand(name, options = {}) {
     urls: { staging: stagingUrl },
     ...(localUrl ? { local: { url: localUrl } } : {}),
   };
-  const filePath = await saveProfile(profileName, profile, { scope: scope === "explicit" ? "project" : scope, configPath: options.config, force: options.force });
+  const filePath = await saveProfile(profileName, profile as any, { scope: scope === "explicit" ? "project" : scope, configPath: options.config, force: options.force });
   console.log(`Profile "${profileName}" saved to ${filePath}.`);
   return { name: profileName, profile, filePath };
 }
@@ -51,7 +52,7 @@ export async function createProfileCommand(name, options = {}) {
  * `https://<project><STAGING_SUFFIX>`. Converts every legacy user's setup
  * with one command instead of hand-authoring the equivalent YAML.
  */
-export async function importLegacyProfileCommand(name, options = {}) {
+export async function importLegacyProfileCommand(name: string | undefined, options: any = {}): Promise<{ name: string; profile: any; filePath: string }> {
   const nonInteractive = Boolean(options.yes);
   const profileName = name || (nonInteractive ? "" : await requiredText("Profile name:"));
   if (!profileName) throw new Error("Profile name is required.");
@@ -72,28 +73,28 @@ export async function importLegacyProfileCommand(name, options = {}) {
     urls: { staging: `https://{projectName}${suffix}`, additionalSearchReplace: [`http://{projectName}${suffix}`] },
   };
 
-  const filePath = await saveProfile(profileName, profile, { scope: scope === "explicit" ? "project" : scope, configPath: options.config, force: options.force });
+  const filePath = await saveProfile(profileName, profile as any, { scope: scope === "explicit" ? "project" : scope, configPath: options.config, force: options.force });
   console.log(`Profile "${profileName}" saved to ${filePath}.`);
   console.log(`This reproduces the legacy convention: SSH username = project name, remote path ~/<project>/wordpress, Docker container discovered by name.`);
   console.log(`Note: hostKeyPolicy is set to "insecure" to match the legacy tool's behavior exactly. Once you've verified the connection, consider tightening it — edit the profile or rerun "acli profile create --host ${host} ..." with a stricter policy.`);
   return { name: profileName, profile, filePath };
 }
 
-async function maybeChooseTemplate() {
+async function maybeChooseTemplate(): Promise<ReturnType<typeof getProfileTemplate>> {
   const useTemplate = await ask(confirm, { message: "Start from a built-in template?", initialValue: true });
   if (!useTemplate) return null;
   const templates = listProfileTemplates();
   const choice = await ask(select, { message: "Choose a template:", options: templates.map((t) => ({ label: `${t.label} — ${t.description}`, value: t.name })) });
-  return getProfileTemplate(choice);
+  return getProfileTemplate(choice as string);
 }
 
-function requireTemplate(name) {
+function requireTemplate(name: string): NonNullable<ReturnType<typeof getProfileTemplate>> {
   const template = getProfileTemplate(name);
   if (!template) throw new Error(`Unknown profile template "${name}". Available: ${listProfileTemplates().map((t) => t.name).join(", ")}.`);
   return template;
 }
 
-export function registerProfileCommand(program) {
+export function registerProfileCommand(program: Command): void {
   const command = program.command("profile").description("Create and manage staging profiles");
   command.command("create [name]").description("Create a WordPress staging profile")
     .option("--template <name>", "Start from a built-in template: shared-host, docker-staging, or direct-database")
@@ -103,13 +104,13 @@ export function registerProfileCommand(program) {
     .option("--database-driver <driver>").option("--db-service <service>").option("--db-host <host>").option("--db-port <port>")
     .option("--db-user <value>").option("--db-password <value>").option("--db-name <value>").option("--staging-url <url>").option("--local-url <url>")
     .option("--git", "Enable Git discovery").option("--no-git", "Disable Git discovery").option("--force", "Replace an existing profile").option("--yes", "Do not prompt")
-    .action(createProfileCommand);
-  command.command("list").option("--config <path>").option("--json", "Output machine-readable JSON").action(async (options) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const current = rawConfig.defaults?.profile; const rows = Object.keys(rawConfig.profiles || {}).sort().map((name) => ({ name, default: name === current, description: describeProfile(rawConfig.profiles[name]) })); if (options.json) { console.log(JSON.stringify(rows, null, 2)); return; } if (!rows.length) { console.log("No profiles found. Run `acli profile create` to add one."); return; } for (const row of rows) console.log(`${row.default ? "*" : " "} ${row.name}${row.default ? " (default)" : ""} — ${row.description}`); });
-  command.command("current").option("--config <path>").action(async (options) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const name = rawConfig.defaults?.profile; if (!name) { console.log("No default profile is selected. A-CLI will ask during existing WordPress setup."); return; } const profile = rawConfig.profiles?.[name]; console.log(`${name}${profile ? ` — ${describeProfile(profile)}` : " (referenced but not found)"}`); });
-  command.command("use [name]").description("Choose the default staging profile").option("--scope <scope>", "Storage scope: project or user", "project").option("--config <path>").option("--clear", "Clear the default profile").action(async (name, options) => { if (options.clear) { const file = await clearDefaultProfile({ scope: options.scope, configPath: options.config }); console.log(`Default profile cleared in ${file}.`); return; } const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const names = Object.keys(rawConfig.profiles || {}); if (!names.length) throw new Error("No profiles exist. Run `acli profile create` first."); const selected = name || await ask(select, { message: "Choose the default staging profile:", options: names.map((item) => ({ label: `${item} — ${describeProfile(rawConfig.profiles[item])}`, value: item })) }); if (!rawConfig.profiles?.[selected]) throw new Error(`Profile "${selected}" was not found.`); const file = await setDefaultProfile(selected, { scope: options.scope, configPath: options.config, allowExternal: true }); console.log(`Default profile is now "${selected}" (${file}).`); });
-  command.command("inspect <name>").option("--config <path>").action(async (name, options) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const profile = rawConfig.profiles?.[name]; if (!profile) throw new Error(`Profile "${name}" was not found.`); console.log(YAML.stringify(redactSecrets(profile))); });
-  command.command("validate <name>").option("--config <path>").action(async (name, options) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const profile = rawConfig.profiles?.[name]; if (!profile) throw new Error(`Profile "${name}" was not found.`); validateProfileConfig(profile, `profile "${name}"`); console.log(`Profile "${name}" is valid.`); });
-  command.command("delete <name>").option("--scope <scope>", "Storage scope: project or user", "project").option("--config <path>").option("--yes", "Delete without confirmation").action(async (name, options) => { if (!options.yes && !(await ask(confirm, { message: `Delete profile "${name}"?`, initialValue: false }))) return; const file = await deleteProfile(name, { scope: options.scope, configPath: options.config }); console.log(`Profile "${name}" deleted from ${file}.`); });
+    .action(async (name: string | undefined, options: any) => { await createProfileCommand(name, options); });
+  command.command("list").option("--config <path>").option("--json", "Output machine-readable JSON").action(async (options: any) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const current = rawConfig.defaults?.profile; const rows = Object.keys(rawConfig.profiles || {}).sort().map((name) => ({ name, default: name === current, description: describeProfile(rawConfig.profiles![name]) })); if (options.json) { console.log(JSON.stringify(rows, null, 2)); return; } if (!rows.length) { console.log("No profiles found. Run `acli profile create` to add one."); return; } for (const row of rows) console.log(`${row.default ? "*" : " "} ${row.name}${row.default ? " (default)" : ""} — ${row.description}`); });
+  command.command("current").option("--config <path>").action(async (options: any) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const name = rawConfig.defaults?.profile; if (!name) { console.log("No default profile is selected. A-CLI will ask during existing WordPress setup."); return; } const profile = rawConfig.profiles?.[name as string]; console.log(`${name}${profile ? ` — ${describeProfile(profile)}` : " (referenced but not found)"}`); });
+  command.command("use [name]").description("Choose the default staging profile").option("--scope <scope>", "Storage scope: project or user", "project").option("--config <path>").option("--clear", "Clear the default profile").action(async (name: string | undefined, options: any) => { if (options.clear) { const file = await clearDefaultProfile({ scope: options.scope, configPath: options.config }); console.log(`Default profile cleared in ${file}.`); return; } const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const names = Object.keys(rawConfig.profiles || {}); if (!names.length) throw new Error("No profiles exist. Run `acli profile create` first."); const selected = name || (await ask(select, { message: "Choose the default staging profile:", options: names.map((item) => ({ label: `${item} — ${describeProfile(rawConfig.profiles![item])}`, value: item })) }) as string); if (!rawConfig.profiles?.[selected]) throw new Error(`Profile "${selected}" was not found.`); const file = await setDefaultProfile(selected, { scope: options.scope, configPath: options.config, allowExternal: true }); console.log(`Default profile is now "${selected}" (${file}).`); });
+  command.command("inspect <name>").option("--config <path>").action(async (name: string, options: any) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const profile = rawConfig.profiles?.[name]; if (!profile) throw new Error(`Profile "${name}" was not found.`); console.log(YAML.stringify(redactSecrets(profile))); });
+  command.command("validate <name>").option("--config <path>").action(async (name: string, options: any) => { const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const profile = rawConfig.profiles?.[name]; if (!profile) throw new Error(`Profile "${name}" was not found.`); validateProfileConfig(profile, `profile "${name}"`); console.log(`Profile "${name}" is valid.`); });
+  command.command("delete <name>").option("--scope <scope>", "Storage scope: project or user", "project").option("--config <path>").option("--yes", "Delete without confirmation").action(async (name: string, options: any) => { if (!options.yes && !(await ask(confirm, { message: `Delete profile "${name}"?`, initialValue: false }))) return; const file = await deleteProfile(name, { scope: options.scope, configPath: options.config }); console.log(`Profile "${name}" deleted from ${file}.`); });
   command.command("templates").description("List built-in profile templates").action(() => { for (const t of listProfileTemplates()) console.log(`${t.name} — ${t.label}\n  ${t.description}`); });
   command.command("import-legacy [name]").description("Reproduce the legacy create-project staging convention (STAGING_SSH_HOST/STAGING_SUFFIX) as a profile")
     .option("--host <host>", "SSH host (defaults to $STAGING_SSH_HOST)")
@@ -117,19 +118,19 @@ export function registerProfileCommand(program) {
     .option("--identity-file <reference>", "SSH identity file or ${ENV_VAR} reference (optional)")
     .option("--scope <scope>", "Storage scope: project or user").option("--config <path>")
     .option("--force", "Replace an existing profile").option("--yes", "Do not prompt")
-    .action(importLegacyProfileCommand);
+    .action(async (name: string | undefined, options: any) => { await importLegacyProfileCommand(name, options); });
 }
 
-async function buildDatabase(driver, options, nonInteractive, d = {}) {
+async function buildDatabase(driver: string, options: any, nonInteractive: boolean, d: any = {}): Promise<any> {
   if (driver === "wp-cli") return { driver };
   if (driver === "docker") return { driver, service: options.dbService || d.dbService || "db", executable: "mariadb-dump", userEnv: "MYSQL_USER", passwordEnv: "MYSQL_PASSWORD", nameEnv: "MYSQL_DATABASE" };
-  const read = async (option, message, fallback = "") => option !== undefined ? option : nonInteractive ? fallback : requiredText(message, fallback);
+  const read = async (option: unknown, message: string, fallback = ""): Promise<string> => option !== undefined ? (option as string) : nonInteractive ? fallback : requiredText(message, fallback);
   const database = { driver, host: await read(options.dbHost, "Database host:", d.dbHost ?? "127.0.0.1"), port: Number(await read(options.dbPort, "Database port:", d.dbPort ?? "3306")), user: await read(options.dbUser, "Database user or ${ENV_VAR} reference:", d.dbUser ?? ""), password: await read(options.dbPassword, "Database password ${ENV_VAR} reference:", d.dbPassword ?? ""), name: await read(options.dbName, "Database name or ${ENV_VAR} reference:", d.dbName ?? "") };
   if (!database.user || !database.password || !database.name) throw new Error("Direct database profiles require user, password, and database name references.");
   return database;
 }
 
-function requiredText(message, initialValue = "") { return ask(text, { message, initialValue, validate: (value) => value.trim() ? undefined : "A value is required." }); }
-function splitList(value) { return Array.isArray(value) ? value : value.split(",").map((item) => item.trim()).filter(Boolean); }
-function compact(object) { return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== "" && value !== undefined)); }
-function describeProfile(profile) { return `${profile.ssh?.host || "unknown host"} · ${profile.database?.executable === "auto" ? "MariaDB/MySQL" : profile.database?.driver || "unknown DB"} · ${profile.files?.transport || "rsync"}`; }
+function requiredText(message: string, initialValue = ""): Promise<string> { return ask(text, { message, initialValue, validate: (value: string | undefined) => value?.trim() ? undefined : "A value is required." }); }
+function splitList(value: unknown): string[] { return Array.isArray(value) ? value : String(value).split(",").map((item) => item.trim()).filter(Boolean); }
+function compact(object: Record<string, unknown>): Record<string, unknown> { return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== "" && value !== undefined)); }
+function describeProfile(profile: any): string { return `${profile.ssh?.host || "unknown host"} · ${profile.database?.executable === "auto" ? "MariaDB/MySQL" : profile.database?.driver || "unknown DB"} · ${profile.files?.transport || "rsync"}`; }

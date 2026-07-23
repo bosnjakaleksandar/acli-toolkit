@@ -7,9 +7,9 @@ import { select } from "@clack/prompts";
 import { ask } from "../utils/prompts.ts";
 import { createProjectCommand } from "../commands/createProject.js";
 import { importCommand } from "../commands/import.js";
-import { doctorCommand } from "../commands/doctor.js";
-import { linkCommand } from "../commands/link.js";
-import { pullCommand } from "../commands/pull.js";
+import { doctorCommand } from "../commands/doctor.ts";
+import { linkCommand } from "../commands/link.ts";
+import { pullCommand } from "../commands/pull.ts";
 import { showBanner } from "../utils/banner.ts";
 
 /**

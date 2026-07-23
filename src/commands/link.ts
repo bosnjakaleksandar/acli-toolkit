@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { confirm, intro, outro, select } from "@clack/prompts";
 import chalk from "chalk";
+import type { Command } from "commander";
 import { ask, askMysqlVersion, askWpVersion } from "../utils/prompts.ts";
 import { loadConfig } from "../services/ConfigService.ts";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
@@ -10,9 +11,9 @@ import { readLink, writeLink } from "../services/ProjectLinkService.ts";
 import { BRANDING } from "../config/branding.ts";
 import { CliError, describeError } from "../core/errors.ts";
 
-const ENV_FILE_NAMES = { docker: "docker-compose.yaml", lando: ".lando.yml" };
+const ENV_FILE_NAMES: Record<string, string> = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 
-export async function linkCommand(options = {}) {
+export async function linkCommand(options: any = {}): Promise<void> {
   const cwd = process.cwd();
   const nonInteractive = Boolean(options.yes || options.nonInteractive);
   intro(chalk.bgCyan(chalk.black(` 🔗 ${BRANDING.name} LINK `)));
@@ -27,15 +28,15 @@ export async function linkCommand(options = {}) {
     }
 
     const projectName = options.name || path.basename(cwd);
-    const environment = options.environment || (nonInteractive ? "docker" : await ask(select, { message: "Which local environment does this project use?", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }] }));
+    const environment: string = options.environment || (nonInteractive ? "docker" : await ask(select, { message: "Which local environment does this project use?", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }] }));
     if (!["docker", "lando"].includes(environment)) throw new CliError(`Unknown local environment "${environment}".`, { code: "INVALID_ENVIRONMENT", hint: "Use docker or lando." });
 
     let { config } = await loadConfig({ configPath: options.config });
     const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive });
     config = selection.config;
-    if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile, environment)));
+    if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile!, environment)));
 
-    const envFilePath = path.join(cwd, ENV_FILE_NAMES[environment]);
+    const envFilePath = path.join(cwd, ENV_FILE_NAMES[environment]!);
     if (!(await fs.pathExists(envFilePath))) {
       const shouldScaffold = nonInteractive || await ask(confirm, { message: `No ${ENV_FILE_NAMES[environment]} found here. Generate one now?`, initialValue: true });
       if (shouldScaffold) {
@@ -55,7 +56,7 @@ export async function linkCommand(options = {}) {
     });
 
     outro(chalk.green(`Linked "${projectName}" to profile "${selection.profileName}" (${filePath}).\nRun \`acli pull\` to sync files and the database.`));
-  } catch (error) {
+  } catch (error: any) {
     console.log(chalk.red(`✖ ${describeError(error)}`));
     if (error.hint) console.log(chalk.gray(`  ${error.hint}`));
     if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
@@ -63,7 +64,7 @@ export async function linkCommand(options = {}) {
   }
 }
 
-export function registerLinkCommand(program) {
+export function registerLinkCommand(program: Command): void {
   program
     .command("link")
     .description("Connect an existing local directory to a staging profile")
