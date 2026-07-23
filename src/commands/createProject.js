@@ -3,9 +3,9 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
 import { collectProjectContext, editProjectContext } from "../prompts/projectPrompts.js";
-import { maybeInstallDependencies } from "../services/DependencyInstallService.js";
+import { maybeInstallDependencies } from "../services/DependencyInstallService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
-import { maybeInitializeGit } from "../services/GitService.js";
+import { maybeInitializeGit } from "../services/GitService.ts";
 import { buildNextSteps } from "../services/NextStepsService.ts";
 import { loadPreset } from "../services/PresetService.ts";
 import { deepMerge, loadConfig, redactSecrets } from "../services/ConfigService.ts";
@@ -13,22 +13,22 @@ import {
   mergeProjectContext,
   normalizeCliOptions,
   parseSetOverrides,
-} from "../services/CliOptionsService.js";
+} from "../services/CliOptionsService.ts";
 import { resolveStrategy } from "../services/StrategyResolver.ts";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
 import { ask } from "../utils/prompts.js";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
 import { CliError, TargetExistsError } from "../core/errors.ts";
-import { loadLastPlan, saveSuccessfulPlan } from "../services/HistoryService.js";
-import { savePlanAsPreset } from "../services/HistoryService.js";
-import { runLocalPreflight } from "../services/PreflightService.js";
+import { loadLastPlan, saveSuccessfulPlan } from "../services/HistoryService.ts";
+import { savePlanAsPreset } from "../services/HistoryService.ts";
+import { runLocalPreflight } from "../services/PreflightService.ts";
 import { StepRunner, readStepState } from "../core/StepRunner.ts";
 import {
   buildProjectSummary,
   buildSuccessSummary,
   formatCreateError,
-} from "../services/CreateProjectUxService.js";
+} from "../services/CreateProjectUxService.ts";
 
 /**
  * Runs the interactive project creation command.

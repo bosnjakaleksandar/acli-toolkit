@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { runCommand } from "../utils/commandRunner.ts";
-import { toolExists } from "./ToolCheckService.js";
+import { toolExists } from "./ToolCheckService.ts";
 import { normalizeProfile } from "./ConfigService.ts";
 import type { Profile, ResolvedProfile } from "../core/model/ResolvedProfile.ts";
 import type { Spinner } from "./EnvironmentService.ts";

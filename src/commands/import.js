@@ -15,12 +15,12 @@ import { SqlManualSource } from "../features/import/sources/SqlManualSource.ts";
 import { ZipSource } from "../features/import/sources/ZipSource.ts";
 import { runImportWorkflow } from "../features/import/ImportWorkflow.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
-import { maybeInstallDependencies } from "../services/DependencyInstallService.js";
-import { maybeInitializeGit } from "../services/GitService.js";
+import { maybeInstallDependencies } from "../services/DependencyInstallService.ts";
+import { maybeInitializeGit } from "../services/GitService.ts";
 import { buildNextSteps } from "../services/NextStepsService.ts";
-import { runLocalPreflight } from "../services/PreflightService.js";
+import { runLocalPreflight } from "../services/PreflightService.ts";
 import { validateProjectName } from "../services/ProjectValidationService.ts";
-import { buildSuccessSummary, formatCreateError } from "../services/CreateProjectUxService.js";
+import { buildSuccessSummary, formatCreateError } from "../services/CreateProjectUxService.ts";
 import { createProjectCommand } from "./createProject.js";
 
 const importSourceRegistry = new ImportSourceRegistry();

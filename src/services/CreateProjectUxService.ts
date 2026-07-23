@@ -1,7 +1,8 @@
 import chalk from "chalk";
 import { describeError } from "../core/errors.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
-const PROJECT_LABELS = {
+const PROJECT_LABELS: Record<string, string> = {
   react: "React",
   nextjs: "Next.js",
   "wp-theme": "WordPress theme",
@@ -10,21 +11,22 @@ const PROJECT_LABELS = {
   "wp-existing": "Existing WordPress site",
 };
 
-export function buildProjectSummary(ctx, targetDir) {
-  const projectType = PROJECT_LABELS[ctx.projectType] || ctx.projectType || "Unknown";
+export function buildProjectSummary(ctx: ProjectPlan, targetDir: string): string {
+  const projectType = PROJECT_LABELS[ctx.projectType || ""] || ctx.projectType || "Unknown";
   const type = ctx.useLaravel ? `${projectType} + Laravel` : projectType;
-  const rows = [
+  const rows: Array<[string, unknown]> = [
     ["Name", ctx.projectName],
     ["Type", type],
-    ...(ctx.appType === "application" ? [] : [["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]]),
+    ...(ctx.appType === "application" ? [] : ([["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]] as Array<[string, unknown]>)),
     ["Directory", targetDir],
   ];
 
   if (ctx.setupType === "existing-wp") {
+    const profile = ctx.profile as any;
     rows.push(
-      ["Remote", ctx.profile?.ssh?.host || "Configured staging profile"],
-      ["Files", ctx.skipFiles ? "Skip" : ctx.profile?.files?.transport || "rsync"],
-      ["Database", ctx.skipDatabase ? "Skip" : ctx.profile?.database?.driver || "Configured"],
+      ["Remote", profile?.ssh?.host || "Configured staging profile"],
+      ["Files", ctx.skipFiles ? "Skip" : profile?.files?.transport || "rsync"],
+      ["Database", ctx.skipDatabase ? "Skip" : profile?.database?.driver || "Configured"],
     );
   }
 
@@ -32,10 +34,10 @@ export function buildProjectSummary(ctx, targetDir) {
   return formatRows(rows);
 }
 
-export function buildSuccessSummary(targetDir, ctx, nextSteps) {
-  const rows = [
+export function buildSuccessSummary(targetDir: string, ctx: ProjectPlan & { dependenciesInstalled?: boolean; warnings?: string[] }, nextSteps: string): string {
+  const rows: Array<[string, unknown]> = [
     ["Location", targetDir],
-    ...(ctx.appType === "application" ? [] : [["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]]),
+    ...(ctx.appType === "application" ? [] : ([["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]] as Array<[string, unknown]>)),
     ["Git", ctx.skipGitInit ? "Not initialized" : "Initialized"],
     ["Dependencies", ctx.dependenciesInstalled ? "Installed" : "Manual steps may remain"],
   ];
@@ -43,7 +45,14 @@ export function buildSuccessSummary(targetDir, ctx, nextSteps) {
   return `${chalk.green(`✔ ${ctx.projectName} is ready`)}\n\n${formatRows(rows)}${warnings}\n\n${chalk.bold("Next:")}\n${nextSteps}`;
 }
 
-export function formatCreateError(error, { targetDir = "", ownsTargetDir = false, resumeCommand = null, action = "Project creation" } = {}) {
+export interface FormatCreateErrorOptions {
+  targetDir?: string;
+  ownsTargetDir?: boolean;
+  resumeCommand?: string | null;
+  action?: string;
+}
+
+export function formatCreateError(error: any, { targetDir = "", ownsTargetDir = false, resumeCommand = null, action = "Project creation" }: FormatCreateErrorOptions = {}): string {
   const cause = error ? describeError(error) : "Unknown error";
   const lines = [chalk.redBright(`✖ ${action} failed`), "", `${chalk.bold("Cause:")} ${cause}`];
 
@@ -66,7 +75,7 @@ export function formatCreateError(error, { targetDir = "", ownsTargetDir = false
   return lines.join("\n");
 }
 
-function formatRows(rows) {
+function formatRows(rows: Array<[string, unknown]>): string {
   const width = Math.max(...rows.map(([label]) => label.length));
   return rows.map(([label, value]) => `${chalk.dim(label.padEnd(width))}  ${value}`).join("\n");
 }

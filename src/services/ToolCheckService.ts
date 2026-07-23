@@ -1,10 +1,23 @@
 import { spawnSync } from "node:child_process";
 
+export interface ToolCheck {
+  label: string;
+  command: string;
+  args: string[];
+  fix: string;
+}
+
+export interface ToolCheckResult extends ToolCheck {
+  key: string;
+  ok: boolean;
+  version: string;
+}
+
 // Shared catalog of external tool checks used by `doctor`, pre-create
 // preflight, and remote-profile preflight. Centralized so all three agree on
 // how to detect a tool (e.g. "docker" means Docker Compose v2, not just the
 // docker binary) instead of drifting into inconsistent bare-command checks.
-export const TOOL_CATALOG = {
+export const TOOL_CATALOG: Record<string, ToolCheck> = {
   node: { label: "Node.js", command: "node", args: ["--version"], fix: "Install Node.js 20 or newer." },
   npm: { label: "npm", command: "npm", args: ["--version"], fix: "Install npm with Node.js." },
   git: { label: "Git", command: "git", args: ["--version"], fix: "Install Git and add it to PATH." },
@@ -18,14 +31,14 @@ export const TOOL_CATALOG = {
   unzip: { label: "unzip", command: "unzip", args: ["-v"], fix: "Install unzip for `acli import --source zip`." },
 };
 
-export function checkTool(key) {
+export function checkTool(key: string): ToolCheckResult | null {
   const check = TOOL_CATALOG[key];
   if (!check) return null;
   const result = spawnSync(check.command, check.args, { encoding: "utf8", shell: false });
   const output = result.stdout?.trim() || result.stderr?.trim() || "";
-  return { key, ...check, ok: !result.error && result.status === 0, version: output.split("\n")[0] };
+  return { key, ...check, ok: !result.error && result.status === 0, version: output.split("\n")[0]! };
 }
 
-export function toolExists(key) {
+export function toolExists(key: string): boolean {
   return Boolean(checkTool(key)?.ok);
 }

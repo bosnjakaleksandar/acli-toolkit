@@ -4,7 +4,7 @@ import { hasPresetValue } from "../services/PresetService.ts";
 import {
   assertRequiredProjectContext,
   validateProjectContext,
-} from "../services/CliOptionsService.js";
+} from "../services/CliOptionsService.ts";
 import { validateProjectName } from "../services/ProjectValidationService.ts";
 
 /**

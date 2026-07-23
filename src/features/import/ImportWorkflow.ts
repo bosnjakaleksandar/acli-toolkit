@@ -1,5 +1,5 @@
-import DatabaseDumpService from "../../services/DatabaseDumpService.js";
-import WordPressMigrationService from "../../services/WordPressMigrationService.js";
+import DatabaseDumpService from "../../services/DatabaseDumpService.ts";
+import WordPressMigrationService from "../../services/WordPressMigrationService.ts";
 import { StepRunner } from "../../core/StepRunner.ts";
 import type { ImportSource, ImportSourceContext } from "./ImportSource.ts";
 

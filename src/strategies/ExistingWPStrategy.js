@@ -2,10 +2,10 @@ import BaseStrategy from "./BaseStrategy.js";
 import { scaffoldGitignore } from "../utils/git.js";
 import { askMysqlVersion, askWpVersion } from "../utils/prompts.js";
 import { hasPresetValue } from "../services/PresetService.ts";
-import DatabaseDumpService from "../services/DatabaseDumpService.js";
-import { PullService } from "../services/PullService.js";
+import DatabaseDumpService from "../services/DatabaseDumpService.ts";
+import { PullService } from "../services/PullService.ts";
 import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.ts";
-import { writeLink } from "../services/ProjectLinkService.js";
+import { writeLink } from "../services/ProjectLinkService.ts";
 
 export default class ExistingWPStrategy extends BaseStrategy {
   constructor(envService, remoteProfileServiceFactory = (profile) => new RemoteProfileService(profile)) {

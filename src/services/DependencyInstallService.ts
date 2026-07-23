@@ -3,17 +3,14 @@ import { confirm } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
 import { runCommand } from "../utils/commandRunner.ts";
 import { mascot } from "../ui/acaCharacter.js";
+import type { NextStepsResult } from "./NextStepsService.ts";
 
 /**
  * Offers automatic dependency installation and removes completed commands from next steps.
- *
- * @param {{nextSteps: string, hasNpm: boolean, hasComposer: boolean, installDir: string}} plan Install plan.
- * @param {import("@clack/prompts").Spinner} spinner Clack spinner.
- * @param {object} ctx Project context.
- * @returns {Promise<string>} Updated next steps.
  */
-export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
-  let { nextSteps, hasNpm, hasComposer, installDir, packageManager = { name: "npm", install: ["install"] } } = plan;
+export async function maybeInstallDependencies(plan: NextStepsResult, spinner: any, ctx: any = {}): Promise<string> {
+  let { nextSteps, hasNpm, hasComposer, installDir, packageManager } = plan;
+  packageManager ??= { name: "npm", lockfile: "package-lock.json", install: ["install"], run: ["run"] };
 
   if (!hasNpm && !hasComposer) return nextSteps;
   if (ctx.nonInteractive) return nextSteps;
@@ -35,7 +32,7 @@ export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
         "composer",
         ["install"],
         { cwd: installDir },
-        (line) => spinner.message(`Composer: ${line}`),
+        (line: string) => spinner.message(`Composer: ${line}`),
       );
       nextSteps = nextSteps.replace(/  composer install\n?/g, "");
     }
@@ -46,7 +43,7 @@ export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
         packageManager.name,
         packageManager.install,
         { cwd: installDir },
-        (line) => spinner.message(`NPM: ${line}`),
+        (line: string) => spinner.message(`NPM: ${line}`),
       );
       nextSteps = nextSteps.replace(new RegExp(`  ${packageManager.name} install.*?\\n?`, "g"), "");
     }
@@ -54,7 +51,7 @@ export async function maybeInstallDependencies(plan, spinner, ctx = {}) {
     spinner.stop("Dependencies installed successfully.");
     await mascot.show("success", "Dependencies installed successfully.");
     mascot.stop();
-  } catch (err) {
+  } catch (err: any) {
     spinner.stop(chalk.yellow("Failed to install dependencies automatically. You may need to do it manually."));
     console.log(chalk.gray(`│  ${err.stderr?.trim() || err.message}`));
     console.log(chalk.gray("│  Suggested fix: run the listed install command manually from the generated directory."));

@@ -5,18 +5,15 @@ import { confirm } from "@clack/prompts";
 
 /**
  * Optionally initializes a Git repository for a generated project.
- *
- * @param {string} targetDir Project directory.
- * @param {object} ctx Project context.
  */
-export async function maybeInitializeGit(targetDir, ctx) {
+export async function maybeInitializeGit(targetDir: string, ctx: { skipGitInit?: boolean; nonInteractive?: boolean }): Promise<void> {
   if (ctx.skipGitInit) return;
 
   if (ctx.nonInteractive) {
     try {
       await runCommand("git", ["init"], { cwd: targetDir });
       console.log(chalk.gray("│  Initialized empty Git repository."));
-    } catch (err) {
+    } catch (err: any) {
       console.log(chalk.red("│  Failed to initialize git."));
       console.log(chalk.gray(`│  ${err.stderr?.trim() || err.message}`));
       console.log(chalk.gray("│  Suggested fix: install Git or check write permissions in the project directory."));
@@ -34,7 +31,7 @@ export async function maybeInitializeGit(targetDir, ctx) {
   try {
     await runCommand("git", ["init"], { cwd: targetDir });
     console.log(chalk.gray("│  Initialized empty Git repository."));
-  } catch (err) {
+  } catch (err: any) {
     console.log(chalk.red("│  Failed to initialize git."));
     console.log(chalk.gray(`│  ${err.stderr?.trim() || err.message}`));
     console.log(chalk.gray("│  Suggested fix: install Git or check write permissions in the project directory."));

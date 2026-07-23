@@ -4,7 +4,7 @@ import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
 import { loadConfig } from "../services/ConfigService.ts";
 import { loadPreset, loadProfile } from "../services/PresetService.ts";
-import { checkTool } from "../services/ToolCheckService.js";
+import { checkTool } from "../services/ToolCheckService.ts";
 
 export async function doctorCommand(options = {}) {
   if (!options.json) intro(chalk.bgCyan(chalk.black(` 🩺 ${BRANDING.name} DOCTOR `)));

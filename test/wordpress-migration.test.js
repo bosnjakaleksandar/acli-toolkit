@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import WordPressMigrationService from "../src/services/WordPressMigrationService.js";
+import WordPressMigrationService from "../src/services/WordPressMigrationService.ts";
 import { CliError } from "../src/core/errors.ts";
 
 function makeFakeEnvService({ importedSiteUrl = "https://demo.staging.example.com", localUrl = "http://localhost:8080", failImport = false, failWp = false } = {}) {

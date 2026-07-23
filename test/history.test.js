@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { loadLastPlan, saveSuccessfulPlan, savePlanAsPreset } from "../src/services/HistoryService.js";
+import { loadLastPlan, saveSuccessfulPlan, savePlanAsPreset } from "../src/services/HistoryService.ts";
 import { loadPreset, loadProfile } from "../src/services/PresetService.ts";
 import { loadConfig } from "../src/services/ConfigService.ts";
 

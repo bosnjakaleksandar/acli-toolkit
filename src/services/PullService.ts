@@ -2,10 +2,15 @@ import path from "node:path";
 import fs from "fs-extra";
 import { CliError } from "../core/errors.ts";
 import { RemoteProfileService } from "./RemoteProfileService.ts";
-import WordPressMigrationService from "./WordPressMigrationService.js";
+import WordPressMigrationService from "./WordPressMigrationService.ts";
+import type EnvironmentService from "./EnvironmentService.ts";
+import type { Spinner } from "./EnvironmentService.ts";
+import type { ResolvedProfile } from "../core/model/ResolvedProfile.ts";
 
 export const FILE_TARGETS = ["uploads", "plugins", "themes"];
 export const ALL_TARGETS = ["db", ...FILE_TARGETS];
+
+type RemoteProfileServiceFactory = (profile: ResolvedProfile) => RemoteProfileService;
 
 /**
  * Turns whatever a user typed for `acli pull [targets...]` into a concrete,
@@ -13,10 +18,10 @@ export const ALL_TARGETS = ["db", ...FILE_TARGETS];
  * targets a given invocation resolves to can be asserted without running any
  * commands.
  *
- * @param {string[]} requested Raw target arguments (may be empty, may include "full").
- * @returns {string[]} Subset of ALL_TARGETS, in ALL_TARGETS order.
+ * @param requested Raw target arguments (may be empty, may include "full").
+ * @returns Subset of ALL_TARGETS, in ALL_TARGETS order.
  */
-export function resolvePullTargets(requested) {
+export function resolvePullTargets(requested: string[]): string[] {
   if (!requested || !requested.length || requested.includes("full")) return [...ALL_TARGETS];
   const invalid = requested.filter((target) => !ALL_TARGETS.includes(target));
   if (invalid.length) {
@@ -44,29 +49,33 @@ export function resolvePullTargets(requested) {
  * through from there.
  */
 export class PullService {
-  constructor(envService, remoteProfileServiceFactory = (profile) => new RemoteProfileService(profile)) {
+  envService: EnvironmentService;
+  remoteProfileServiceFactory: RemoteProfileServiceFactory;
+  migration: WordPressMigrationService;
+
+  constructor(envService: EnvironmentService, remoteProfileServiceFactory: RemoteProfileServiceFactory = (profile) => new RemoteProfileService(profile)) {
     this.envService = envService;
     this.remoteProfileServiceFactory = remoteProfileServiceFactory;
     this.migration = new WordPressMigrationService(envService);
   }
 
-  async syncFiles(targetDir, profile, directories, spinner = null) {
+  async syncFiles(targetDir: string, profile: ResolvedProfile, directories: string[] | undefined, spinner: Spinner | null = null): Promise<void> {
     const remote = this.remoteProfileServiceFactory(profile);
     await remote.syncFiles(targetDir, spinner, directories ? { directories } : {});
   }
 
-  async exportDatabase(targetDir, profile, spinner = null) {
+  async exportDatabase(targetDir: string, profile: ResolvedProfile, spinner: Spinner | null = null): Promise<void> {
     const remote = this.remoteProfileServiceFactory(profile);
     await remote.exportDatabase(targetDir, spinner);
   }
 
   /** Imports an already-exported staging.sql (see exportDatabase) and cleans it up unless keepDump is set. */
-  async importDatabase(targetDir, ctx, spinner = null, { keepDump = false } = {}) {
+  async importDatabase(targetDir: string, ctx: any, spinner: Spinner | null = null, { keepDump = false }: { keepDump?: boolean } = {}): Promise<void> {
     await this.migration.importAndReplace(targetDir, ctx, spinner);
     if (!keepDump) await fs.remove(path.join(targetDir, "staging.sql")).catch(() => {});
   }
 
-  async pull(targetDir, ctx, targets, { keepDump = false } = {}, spinner = null) {
+  async pull(targetDir: string, ctx: any, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<void> {
     const fileTargets = targets.filter((target) => FILE_TARGETS.includes(target));
 
     if (fileTargets.length) {

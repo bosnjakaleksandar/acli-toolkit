@@ -2,11 +2,15 @@ import path from "node:path";
 import fs from "fs-extra";
 import { CliError, describeError } from "../core/errors.ts";
 import { normalizeSqlDump } from "./SqlNormalizationService.ts";
+import type EnvironmentService from "./EnvironmentService.ts";
+import type { Spinner } from "./EnvironmentService.ts";
 
 export default class WordPressMigrationService {
-  constructor(envService) { this.envService = envService; }
+  envService: EnvironmentService;
 
-  async importAndReplace(targetDir, ctx, spinner = null) {
+  constructor(envService: EnvironmentService) { this.envService = envService; }
+
+  async importAndReplace(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
     const dumpPath = path.join(targetDir, "staging.sql");
     if (!(await fs.pathExists(dumpPath))) throw new CliError("Database export completed without creating staging.sql.", { code: "DUMP_MISSING" });
 
@@ -28,8 +32,8 @@ export default class WordPressMigrationService {
       // sources in case content references older/alternate hostnames too.
       const importedSiteUrl = (await this.envService.wp(targetDir, ["option", "get", "siteurl"], spinner))?.trim() || null;
 
-      const candidates = [importedSiteUrl, ctx.stagingUrl, ...(ctx.profile?.urls?.additionalSearchReplace || [])].filter(Boolean);
-      const sourceUrls = new Set();
+      const candidates: string[] = [importedSiteUrl, ctx.stagingUrl, ...(ctx.profile?.urls?.additionalSearchReplace || [])].filter(Boolean);
+      const sourceUrls = new Set<string>();
       for (const url of candidates) {
         sourceUrls.add(url);
         sourceUrls.add(toggleScheme(url));
@@ -37,7 +41,7 @@ export default class WordPressMigrationService {
       sourceUrls.delete(localUrl);
 
       for (const source of sourceUrls) await this.envService.searchReplace(targetDir, source, localUrl, spinner);
-    } catch (error) {
+    } catch (error: any) {
       // The underlying error (e.g. a CommandError from a failed `docker
       // compose exec ... wp ...`) carries the actual stderr/stdout — the
       // real diagnostic. error.message alone is often just "Command failed:
@@ -51,7 +55,7 @@ export default class WordPressMigrationService {
   }
 }
 
-function toggleScheme(url) {
+function toggleScheme(url: string): string {
   if (url.startsWith("https://")) return `http://${url.slice("https://".length)}`;
   if (url.startsWith("http://")) return `https://${url.slice("http://".length)}`;
   return url;

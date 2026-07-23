@@ -1,13 +1,18 @@
 import net from "node:net";
-import { toolExists } from "./ToolCheckService.js";
+import { toolExists } from "./ToolCheckService.ts";
 import { CliError } from "../core/errors.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
-export async function runLocalPreflight(ctx) {
+export interface PreflightResult {
+  warnings: string[];
+}
+
+export async function runLocalPreflight(ctx: ProjectPlan & { port?: number }): Promise<PreflightResult> {
   // Application projects (React/Next.js/Laravel) are scaffolded by their
   // official generators and run via their own dev servers — Docker/Lando is
   // not required for them, but npm is (create-next-app/create-vite both run
   // through it).
-  const required = ctx.appType === "application" ? ["npm"] : [ctx.environment];
+  const required = ctx.appType === "application" ? ["npm"] : [ctx.environment!];
   if (!ctx.skipGitInit && !ctx.skipGitLink) required.push("git");
   if (ctx.useLaravel) required.push("composer", "php");
   const missing = required.filter((command) => !toolExists(command));
@@ -17,7 +22,7 @@ export async function runLocalPreflight(ctx) {
   return { warnings: [] };
 }
 
-export function isPortAvailable(port, host = "127.0.0.1") {
+export function isPortAvailable(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => resolve(false));

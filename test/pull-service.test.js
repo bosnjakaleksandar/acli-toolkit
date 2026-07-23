@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/services/PullService.js";
+import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/services/PullService.ts";
 import { RemoteProfileService, resolveRemoteProfile } from "../src/services/RemoteProfileService.ts";
 import { CliError } from "../src/core/errors.ts";
 

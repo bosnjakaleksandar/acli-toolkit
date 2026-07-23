@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import ExistingWPStrategy from "../src/strategies/ExistingWPStrategy.js";
-import { readLink } from "../src/services/ProjectLinkService.js";
+import { readLink } from "../src/services/ProjectLinkService.ts";
 
 function makeFakeEnvService(calls) {
   return {

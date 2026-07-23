@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import { CliError } from "../core/errors.ts";
+import type { Spinner } from "./EnvironmentService.ts";
 
 // The set of table names every normal WordPress install has. A dump's real
 // prefix is whichever candidate covers the most of these — not just "the
@@ -17,13 +18,18 @@ const STRONG_COVERAGE_THRESHOLD = 3;
 // Handles backtick-quoted, ANSI double-quoted, and unquoted identifiers.
 const TABLE_STATEMENT_PATTERN = /^\s*(?:CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|INSERT\s+INTO)\s+[`"]?([A-Za-z0-9_]+)[`"]?/gim;
 
+export interface RemoteFacts {
+  tablePrefix?: string | null;
+  siteUrl?: string | null;
+}
+
 export default class DatabaseDumpService {
   /**
-   * @param {string} targetDir Directory containing staging.sql.
-   * @param {object|null} spinner Optional progress spinner.
-   * @param {{tablePrefix?: string|null}|null} remoteFacts Authoritative facts fetched via RemoteProfileService.getRemoteFacts(), when available.
+   * @param targetDir Directory containing staging.sql.
+   * @param spinner Optional progress spinner.
+   * @param remoteFacts Authoritative facts fetched via RemoteProfileService.getRemoteFacts(), when available.
    */
-  async detectTablePrefix(targetDir, spinner = null, remoteFacts = null) {
+  async detectTablePrefix(targetDir: string, spinner: Spinner | null = null, remoteFacts: RemoteFacts | null = null): Promise<string> {
     spinner?.message("Detecting WordPress table prefix...");
     const dumpPath = path.join(targetDir, "staging.sql");
     const sql = await fs.readFile(dumpPath, "utf8").catch(() => null);
@@ -44,11 +50,11 @@ export default class DatabaseDumpService {
   }
 }
 
-function detectPrefixFromDump(sql) {
-  const candidates = new Map(); // prefix -> Set of matched core suffixes
+function detectPrefixFromDump(sql: string): string | null {
+  const candidates = new Map<string, Set<string>>(); // prefix -> Set of matched core suffixes
 
   for (const match of sql.matchAll(TABLE_STATEMENT_PATTERN)) {
-    const tableName = match[1];
+    const tableName = match[1]!;
     const lowerName = tableName.toLowerCase();
     for (const suffix of CORE_TABLE_SUFFIXES) {
       if (lowerName.endsWith(suffix) && lowerName.length > suffix.length) {
@@ -56,7 +62,7 @@ function detectPrefixFromDump(sql) {
         // `WP_` keeps its real case instead of being forced to lowercase.
         const prefix = tableName.slice(0, tableName.length - suffix.length);
         if (!candidates.has(prefix)) candidates.set(prefix, new Set());
-        candidates.get(prefix).add(suffix);
+        candidates.get(prefix)!.add(suffix);
         break; // suffixes are mutually exclusive (none is a suffix of another)
       }
     }
@@ -73,5 +79,5 @@ function detectPrefixFromDump(sql) {
     return prefixA.localeCompare(prefixB); // fully deterministic as a last resort
   });
 
-  return pool[0][0];
+  return pool[0]![0];
 }

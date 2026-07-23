@@ -6,7 +6,7 @@ import { ask, askMysqlVersion, askWpVersion } from "../utils/prompts.js";
 import { loadConfig } from "../services/ConfigService.ts";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
-import { readLink, writeLink } from "../services/ProjectLinkService.js";
+import { readLink, writeLink } from "../services/ProjectLinkService.ts";
 import { BRANDING } from "../config/branding.ts";
 import { CliError, describeError } from "../core/errors.ts";
 

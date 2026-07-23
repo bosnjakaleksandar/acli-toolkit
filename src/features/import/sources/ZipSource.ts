@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import os from "node:os";
 import { runCommand } from "../../../utils/commandRunner.ts";
-import { toolExists } from "../../../services/ToolCheckService.js";
+import { toolExists } from "../../../services/ToolCheckService.ts";
 import { CliError, describeError } from "../../../core/errors.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import { copyWordPressContent, copySqlFile } from "./shared.ts";
