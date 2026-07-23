@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { intro, outro } from "@clack/prompts";
-import { BRANDING } from "../config/branding.js";
+import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
 import { loadConfig } from "../services/ConfigService.js";
 import { loadPreset, loadProfile } from "../services/PresetService.js";

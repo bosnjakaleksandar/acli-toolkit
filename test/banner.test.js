@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
 import figlet from "figlet";
 import { showBanner } from "../src/utils/banner.js";
-import { BRANDING } from "../src/config/branding.js";
-import { getPackageMetadata } from "../src/utils/packageMetadata.js";
+import { BRANDING } from "../src/config/branding.ts";
+import { getPackageMetadata } from "../src/utils/packageMetadata.ts";
 
 function createOutput({ isTTY = false, columns = 80 } = {}) {
   let contents = "";

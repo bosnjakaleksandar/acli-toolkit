@@ -1,7 +1,7 @@
 import figlet from "figlet";
 import gradient from "gradient-string";
 import chalk from "chalk";
-import { BRANDING, getBranding } from "../config/branding.js";
+import { BRANDING, getBranding } from "../config/branding.ts";
 import { AcaCharacter, mascot as defaultMascot } from "../ui/acaCharacter.js";
 
 const INDENT = "  ";

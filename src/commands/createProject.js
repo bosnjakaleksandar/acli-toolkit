@@ -15,11 +15,11 @@ import {
   parseSetOverrides,
 } from "../services/CliOptionsService.js";
 import { resolveStrategy } from "../services/StrategyResolver.js";
-import { BRANDING } from "../config/branding.js";
+import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
 import { ask } from "../utils/prompts.js";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.js";
-import { TargetExistsError } from "../utils/CliError.js";
+import { TargetExistsError } from "../utils/CliError.ts";
 import { loadLastPlan, saveSuccessfulPlan } from "../services/HistoryService.js";
 import { savePlanAsPreset } from "../services/HistoryService.js";
 import { runLocalPreflight } from "../services/PreflightService.js";

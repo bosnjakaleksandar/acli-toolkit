@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { CliError, describeError } from "../utils/CliError.js";
+import { CliError, describeError } from "../utils/CliError.ts";
 import { normalizeSqlDump } from "./SqlNormalizationService.js";
 
 export default class WordPressMigrationService {

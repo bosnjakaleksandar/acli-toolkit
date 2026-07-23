@@ -1,5 +1,15 @@
+export interface CliErrorOptions {
+  code?: string;
+  hint?: string;
+  exitCode?: number;
+}
+
 export class CliError extends Error {
-  constructor(message, { code = "CLI_ERROR", hint = "", exitCode = 1 } = {}) {
+  code: string;
+  hint: string;
+  exitCode: number;
+
+  constructor(message: string, { code = "CLI_ERROR", hint = "", exitCode = 1 }: CliErrorOptions = {}) {
     super(message);
     this.name = "CliError";
     this.code = code;
@@ -9,13 +19,21 @@ export class CliError extends Error {
 }
 
 export class TargetExistsError extends CliError {
-  constructor(targetDir) {
+  targetDir: string;
+
+  constructor(targetDir: string) {
     super(`Directory "${targetDir}" already exists.`, {
       code: "TARGET_EXISTS",
       hint: "Choose a different project name or directory.",
     });
     this.targetDir = targetDir;
   }
+}
+
+interface ErrorLike {
+  stderr?: string;
+  stdout?: string;
+  message?: string;
 }
 
 /**
@@ -25,7 +43,8 @@ export class TargetExistsError extends CliError {
  * the actual cause survives instead of being silently replaced by a
  * useless "Command failed" summary.
  */
-export function describeError(error) {
-  const details = [error?.stderr, error?.stdout].filter(Boolean).join("\n").trim();
-  return details || error?.message || String(error);
+export function describeError(error: unknown): string {
+  const err = error as ErrorLike;
+  const details = [err?.stderr, err?.stdout].filter(Boolean).join("\n").trim();
+  return details || err?.message || String(error);
 }

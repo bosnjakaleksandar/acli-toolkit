@@ -1,6 +1,6 @@
 import chalk from "chalk";
-import { installLatestVersion } from "../update/install.js";
-import { BRANDING } from "../config/branding.js";
+import { installLatestVersion } from "../update/install.ts";
+import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
 
 export async function updateCommand(packageName) {

@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import DatabaseDumpService from "../src/services/DatabaseDumpService.js";
-import { CliError } from "../src/utils/CliError.js";
+import { CliError } from "../src/utils/CliError.ts";
 
 async function withDump(sql, run) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-dump-"));

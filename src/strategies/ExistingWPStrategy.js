@@ -118,7 +118,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     if (!found) return;
     ctx.stagingRepoUrl = found.url;
     ctx.skipGitInit = true;
-    const { runCommand } = await import("../utils/commandRunner.js");
+    const { runCommand } = await import("../utils/commandRunner.ts");
     await runCommand("git", ["init"], { cwd: targetDir });
     await runCommand("git", ["remote", "add", "origin", found.url], { cwd: targetDir });
   }

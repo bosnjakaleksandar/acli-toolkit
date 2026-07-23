@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { runCommand } from "../utils/commandRunner.js";
+import { runCommand } from "../utils/commandRunner.ts";
 import { ask } from "../utils/prompts.js";
 import { confirm } from "@clack/prompts";
 

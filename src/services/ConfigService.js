@@ -2,8 +2,8 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import fs from "fs-extra";
 import YAML from "yaml";
-import { BUILT_IN_CONFIG, CONFIG_VERSION } from "../config/defaults.js";
-import { getProjectConfigPath, getUserConfigPath } from "../config/paths.js";
+import { BUILT_IN_CONFIG, CONFIG_VERSION } from "../config/defaults.ts";
+import { getProjectConfigPath, getUserConfigPath } from "../config/paths.ts";
 
 const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);

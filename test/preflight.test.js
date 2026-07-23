@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runLocalPreflight } from "../src/services/PreflightService.js";
-import { CliError } from "../src/utils/CliError.js";
+import { CliError } from "../src/utils/CliError.ts";
 
 test("preflight passes when the required tool is present", async () => {
   // "git" stands in for the environment tool here: it is virtually always

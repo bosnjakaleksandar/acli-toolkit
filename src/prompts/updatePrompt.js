@@ -1,6 +1,6 @@
 import { confirm, isCancel } from "@clack/prompts";
 import chalk from "chalk";
-import { BRANDING } from "../config/branding.js";
+import { BRANDING } from "../config/branding.ts";
 
 export async function confirmUpdate(currentVersion, latestVersion) {
   const line = chalk.gray("─".repeat(42));

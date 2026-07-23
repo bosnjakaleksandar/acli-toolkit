@@ -1,19 +1,26 @@
 const SEMVER_PATTERN = /^(?:v)?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
-export function compareVersions(left, right) {
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string[];
+}
+
+export function compareVersions(left: string, right: string): number {
   const a = parseVersion(left);
   const b = parseVersion(right);
-  for (const key of ["major", "minor", "patch"]) {
+  for (const key of ["major", "minor", "patch"] as const) {
     if (a[key] !== b[key]) return a[key] > b[key] ? 1 : -1;
   }
   return comparePrerelease(a.prerelease, b.prerelease);
 }
 
-export function isNewerVersion(candidate, current) {
+export function isNewerVersion(candidate: string, current: string): boolean {
   return compareVersions(candidate, current) > 0;
 }
 
-function parseVersion(version) {
+function parseVersion(version: string): ParsedVersion {
   const match = SEMVER_PATTERN.exec(String(version));
   if (!match) throw new TypeError(`Invalid semantic version: ${version}`);
   return {
@@ -22,19 +29,21 @@ function parseVersion(version) {
   };
 }
 
-function comparePrerelease(a, b) {
+function comparePrerelease(a: string[], b: string[]): number {
   if (!a.length && !b.length) return 0;
   if (!a.length) return 1;
   if (!b.length) return -1;
   for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
-    if (a[index] === undefined) return -1;
-    if (b[index] === undefined) return 1;
-    if (a[index] === b[index]) continue;
-    const aNumeric = /^\d+$/.test(a[index]);
-    const bNumeric = /^\d+$/.test(b[index]);
-    if (aNumeric && bNumeric) return Number(a[index]) > Number(b[index]) ? 1 : -1;
+    const left = a[index];
+    const right = b[index];
+    if (left === undefined) return -1;
+    if (right === undefined) return 1;
+    if (left === right) continue;
+    const aNumeric = /^\d+$/.test(left);
+    const bNumeric = /^\d+$/.test(right);
+    if (aNumeric && bNumeric) return Number(left) > Number(right) ? 1 : -1;
     if (aNumeric !== bNumeric) return aNumeric ? -1 : 1;
-    return a[index] > b[index] ? 1 : -1;
+    return left > right ? 1 : -1;
   }
   return 0;
 }

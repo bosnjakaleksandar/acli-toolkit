@@ -9,7 +9,7 @@ try { process.cwd(); } catch {
 }
 
 try {
-  const [{ run }, { BRANDING }] = await Promise.all([import("../src/cli/run.js"), import("../src/config/branding.js")]);
+  const [{ run }, { BRANDING }] = await Promise.all([import("../dist/cli/run.js"), import("../dist/config/branding.js")]);
   if (recoveredDirectory) console.warn(`Warning: the previous working directory no longer exists or is inaccessible. Continuing from ${process.cwd()}.`);
   console.warn(`Warning: 'create-project' is deprecated. Use '${BRANDING.command} create' instead.\n`);
   await run(process.argv, { legacyExecutable: true });

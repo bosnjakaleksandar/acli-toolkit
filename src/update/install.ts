@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
+import { spawn, type StdioOptions } from "node:child_process";
 
-export function installLatestVersion(packageName, { stdio = "inherit" } = {}) {
+export function installLatestVersion(packageName: string, { stdio = "inherit" }: { stdio?: StdioOptions } = {}): Promise<void> {
   const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
   return new Promise((resolve, reject) => {
     const child = spawn(npmExecutable, ["install", "--global", `${packageName}@latest`], {

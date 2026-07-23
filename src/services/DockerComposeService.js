@@ -3,8 +3,8 @@ import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
 import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.js";
-import { runCommand } from "../utils/commandRunner.js";
-import { CliError, describeError } from "../utils/CliError.js";
+import { runCommand } from "../utils/commandRunner.ts";
+import { CliError, describeError } from "../utils/CliError.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Matches both the raw MySQL/MariaDB client's auth failure (seen during the

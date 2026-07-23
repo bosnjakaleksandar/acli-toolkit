@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compareVersions, isNewerVersion } from "../src/update/semver.js";
+import { compareVersions, isNewerVersion } from "../src/update/semver.ts";
 
 test("compares numeric semantic version components", () => {
   assert.equal(compareVersions("1.9.0", "1.10.0"), -1);

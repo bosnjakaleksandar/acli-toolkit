@@ -1,6 +1,6 @@
 import path from "node:path";
 import BaseStrategy from "./BaseStrategy.js";
-import { runCommand } from "../utils/commandRunner.js";
+import { runCommand } from "../utils/commandRunner.ts";
 
 export default class ReactStrategy extends BaseStrategy {
   constructor(envService, { runner = runCommand } = {}) {

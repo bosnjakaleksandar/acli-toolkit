@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { confirm } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
-import { runCommand } from "../utils/commandRunner.js";
+import { runCommand } from "../utils/commandRunner.ts";
 import { mascot } from "../ui/acaCharacter.js";
 
 /**

@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import DockerComposeService from "../src/services/DockerComposeService.js";
-import { CommandError } from "../src/utils/commandRunner.js";
+import { CommandError } from "../src/utils/commandRunner.ts";
 
 function isImportCommand(args) {
   return args.join(" ").includes("defaults-file=/tmp/my.cnf");

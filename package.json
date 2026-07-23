@@ -2,11 +2,11 @@
   "name": "a-cli",
   "version": "1.1.0",
   "description": "A-CLI Developer Toolkit for project scaffolding and local development workflows.",
-  "main": "src/cli/run.js",
-  "exports": "./src/cli/run.js",
+  "main": "dist/cli/run.js",
+  "exports": "./dist/cli/run.js",
   "files": [
     "bin",
-    "src",
+    "dist",
     "examples",
     "README.md",
     "LICENSE"
@@ -38,7 +38,11 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node --test",
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/copy-templates.mjs",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "npm run typecheck && node --test",
+    "prepack": "npm run build",
     "prepublishOnly": "npm test && npm pack --dry-run",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -54,6 +58,9 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
     "vitepress": "^1.6.0"
   }
 }

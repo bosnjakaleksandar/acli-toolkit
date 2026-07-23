@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import YAML from "yaml";
-import { CONFIG_VERSION } from "../config/defaults.js";
+import { CONFIG_VERSION } from "../config/defaults.ts";
 import { readConfigFile, validateConfig } from "./ConfigService.js";
 
 /**

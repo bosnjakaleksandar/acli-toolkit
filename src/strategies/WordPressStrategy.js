@@ -4,7 +4,7 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../utils/git.js";
-import { runCommand } from "../utils/commandRunner.js";
+import { runCommand } from "../utils/commandRunner.ts";
 import {
   ask,
   askMysqlVersion,

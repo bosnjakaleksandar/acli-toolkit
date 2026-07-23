@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { describeError } from "../utils/CliError.js";
+import { describeError } from "../utils/CliError.ts";
 
 const PROJECT_LABELS = {
   react: "React",

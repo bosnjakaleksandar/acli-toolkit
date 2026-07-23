@@ -1,6 +1,19 @@
-import { readUpdateCache, isCacheFresh, writeUpdateCache } from "./cache.js";
-import { fetchLatestVersion } from "./registry.js";
-import { isNewerVersion } from "./semver.js";
+import { readUpdateCache, isCacheFresh, writeUpdateCache } from "./cache.ts";
+import { fetchLatestVersion } from "./registry.ts";
+import { isNewerVersion } from "./semver.ts";
+
+export interface CheckForUpdateOptions {
+  packageName: string;
+  currentVersion: string;
+  now?: number;
+  onOffline?: (error: unknown) => void | Promise<void>;
+  cachePath?: string;
+}
+
+export interface CheckForUpdateResult {
+  latestVersion: string | null;
+  alreadyNotified: boolean;
+}
 
 /**
  * Checks for a newer published version. The network fetch itself is
@@ -10,15 +23,13 @@ import { isNewerVersion } from "./semver.js";
  * five times in a row doesn't interactively prompt about the same known
  * update five times. `alreadyNotified` lets the caller downgrade to a quiet
  * one-line reminder instead of a blocking confirm prompt.
- *
- * @returns {Promise<{latestVersion: string|null, alreadyNotified: boolean}>}
  */
-export async function checkForUpdate({ packageName, currentVersion, now = Date.now(), onOffline, cachePath }) {
+export async function checkForUpdate({ packageName, currentVersion, now = Date.now(), onOffline, cachePath }: CheckForUpdateOptions): Promise<CheckForUpdateResult> {
   const cache = await readUpdateCache(cachePath);
-  let latestVersion;
+  let latestVersion: string;
   let notifiedVersion = cache?.notifiedVersion ?? null;
   if (isCacheFresh(cache, now)) {
-    latestVersion = cache.latestVersion;
+    latestVersion = cache!.latestVersion;
   } else {
     try {
       latestVersion = await fetchLatestVersion(packageName);
@@ -40,7 +51,7 @@ export async function checkForUpdate({ packageName, currentVersion, now = Date.n
 }
 
 /** Records that the user has now been told about this pending version, so the next check this window can skip straight to a quiet reminder. */
-export async function markUpdateNotified(latestVersion, now = Date.now(), cachePath) {
+export async function markUpdateNotified(latestVersion: string, now: number = Date.now(), cachePath?: string): Promise<void> {
   const cache = await readUpdateCache(cachePath);
   await writeUpdateCache({ lastChecked: cache?.lastChecked ?? now, latestVersion, notifiedVersion: latestVersion }, cachePath).catch(() => {});
 }

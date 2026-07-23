@@ -1,8 +1,8 @@
 import { Command } from "commander";
-import { getPackageMetadata } from "../utils/packageMetadata.js";
-import { maybeUpdate } from "../update/maybeUpdate.js";
+import { getPackageMetadata } from "../utils/packageMetadata.ts";
+import { maybeUpdate } from "../update/maybeUpdate.ts";
 import { registerCommands } from "./registerCommands.js";
-import { BRANDING } from "../config/branding.js";
+import { BRANDING } from "../config/branding.ts";
 import { select } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
 import { createProjectCommand } from "../commands/createProject.js";

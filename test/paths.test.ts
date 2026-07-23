@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getLegacyUpdateCachePath, getProjectConfigPath, getUpdateCachePath, getUserConfigPath } from "../src/config/paths.js";
+import { getLegacyUpdateCachePath, getProjectConfigPath, getUpdateCachePath, getUserConfigPath } from "../src/config/paths.ts";
 
 test("update cache path lives in the same directory as the user config file", () => {
   const configPath = getUserConfigPath("linux", {}, "/home/dev");

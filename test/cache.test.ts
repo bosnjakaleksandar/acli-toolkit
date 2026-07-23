@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
-import { isCacheFresh, readUpdateCache, UPDATE_INTERVAL_MS, writeUpdateCache } from "../src/update/cache.js";
+import { isCacheFresh, readUpdateCache, UPDATE_INTERVAL_MS, writeUpdateCache } from "../src/update/cache.ts";
 
 test("considers cache fresh for at most 24 hours", () => {
   const now = 2_000_000_000;

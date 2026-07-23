@@ -1,4 +1,4 @@
-import { getPackageMetadata } from "../utils/packageMetadata.js";
+import { getPackageMetadata } from "../utils/packageMetadata.ts";
 
 export const BRANDING = Object.freeze({
   name: "A-CLI",

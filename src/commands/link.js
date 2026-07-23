@@ -7,8 +7,8 @@ import { loadConfig } from "../services/ConfigService.js";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.js";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { readLink, writeLink } from "../services/ProjectLinkService.js";
-import { BRANDING } from "../config/branding.js";
-import { CliError, describeError } from "../utils/CliError.js";
+import { BRANDING } from "../config/branding.ts";
+import { CliError, describeError } from "../utils/CliError.ts";
 
 const ENV_FILE_NAMES = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 

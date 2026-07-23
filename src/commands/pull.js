@@ -8,8 +8,8 @@ import { readLink } from "../services/ProjectLinkService.js";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { PullService, resolvePullTargets, ALL_TARGETS } from "../services/PullService.js";
 import { mascot } from "../ui/acaCharacter.js";
-import { BRANDING } from "../config/branding.js";
-import { CliError, describeError } from "../utils/CliError.js";
+import { BRANDING } from "../config/branding.ts";
+import { CliError, describeError } from "../utils/CliError.ts";
 
 export async function pullCommand(targets, options = {}) {
   const cwd = process.cwd();

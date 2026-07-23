@@ -1,12 +1,25 @@
-import { spawn, spawnSync } from "child_process";
+import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
+
+interface CommandResultLike {
+  status?: number | null;
+  code?: number | null;
+  stdout?: string | Buffer;
+  stderr?: string | Buffer;
+}
 
 /**
  * Error thrown when a child process exits unsuccessfully.
  */
 export class CommandError extends Error {
-  constructor(command, args, result) {
-    const stderr = result.stderr?.toString?.() || result.stderr || "";
-    const stdout = result.stdout?.toString?.() || result.stdout || "";
+  command: string;
+  args: string[];
+  code: number | null | undefined;
+  stdout: string;
+  stderr: string;
+
+  constructor(command: string, args: string[], result: CommandResultLike) {
+    const stderr = result.stderr?.toString?.() || (result.stderr as string) || "";
+    const stdout = result.stdout?.toString?.() || (result.stdout as string) || "";
     super(`Command failed: ${[command, ...args].join(" ")}`);
     this.name = "CommandError";
     this.command = command;
@@ -17,16 +30,20 @@ export class CommandError extends Error {
   }
 }
 
+interface RunCommandOptions {
+  encoding?: BufferEncoding | null;
+  [key: string]: unknown;
+}
+
 /**
  * Runs a command without a shell and resolves with stdout.
- *
- * @param {string} command Executable name.
- * @param {string[]} args Command arguments.
- * @param {object} options spawn options.
- * @param {(line: string) => void} [onProgress] Progress callback.
- * @returns {Promise<string>}
  */
-export async function runCommand(command, args = [], options = {}, onProgress = null) {
+export async function runCommand(
+  command: string,
+  args: string[] = [],
+  options: RunCommandOptions = {},
+  onProgress: ((line: string) => void) | null = null,
+): Promise<string | Buffer> {
   if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${[command, ...args].join(" ")}`);
   return new Promise((resolve, reject) => {
     const { encoding = "utf8", ...spawnOptions } = options;
@@ -35,8 +52,8 @@ export async function runCommand(command, args = [], options = {}, onProgress = 
       ...spawnOptions,
     });
 
-    const stdoutChunks = [];
-    const stderrChunks = [];
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
 
     child.stdout?.on("data", (data) => {
       stdoutChunks.push(Buffer.from(data));
@@ -71,13 +88,12 @@ export async function runCommand(command, args = [], options = {}, onProgress = 
 
 /**
  * Runs a command synchronously without invoking a shell.
- *
- * @param {string} command Executable name.
- * @param {string[]} args Command arguments.
- * @param {object} options spawnSync options.
- * @returns {import("child_process").SpawnSyncReturns<Buffer>}
  */
-export function runCommandSync(command, args = [], options = {}) {
+export function runCommandSync(
+  command: string,
+  args: string[] = [],
+  options: Record<string, unknown> = {},
+): SpawnSyncReturns<string> {
   const result = spawnSync(command, args, {
     encoding: "utf8",
     shell: false,
@@ -97,11 +113,8 @@ export function runCommandSync(command, args = [], options = {}) {
 
 /**
  * Checks whether a binary can be found on PATH.
- *
- * @param {string} command Executable name.
- * @returns {boolean}
  */
-export function hasCommand(command) {
+export function hasCommand(command: string): boolean {
   const result = spawnSync(command, ["--version"], {
     encoding: "utf8",
     shell: false,
@@ -110,7 +123,7 @@ export function hasCommand(command) {
   return !result.error && result.status === 0;
 }
 
-function emitProgress(text, onProgress) {
+function emitProgress(text: string, onProgress: ((line: string) => void) | null): void {
   if (!onProgress) return;
   const lines = text.trim().split("\n");
   const lastLine = lines[lines.length - 1]?.trim();

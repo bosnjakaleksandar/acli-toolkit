@@ -130,7 +130,7 @@ for (const { name, Adapter } of adapters) {
         if (isImportCommand(args)) {
           importAttempts += 1;
           if (importAttempts === 1) {
-            const { CommandError } = await import("../src/utils/commandRunner.js");
+            const { CommandError } = await import("../src/utils/commandRunner.ts");
             throw new CommandError(command, args, { status: 1, stdout: "", stderr: "ERROR 1045 (28000): Access denied" });
           }
         }

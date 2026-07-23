@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/services/PullService.js";
 import { RemoteProfileService, resolveRemoteProfile } from "../src/services/RemoteProfileService.js";
-import { CliError } from "../src/utils/CliError.js";
+import { CliError } from "../src/utils/CliError.ts";
 
 test("resolvePullTargets defaults to every target when nothing is requested", () => {
   assert.deepEqual(resolvePullTargets([]), ALL_TARGETS);

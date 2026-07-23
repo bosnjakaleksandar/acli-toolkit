@@ -2,7 +2,7 @@ import BaseStrategy from "./BaseStrategy.js";
 import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../utils/git.js";
-import { hasCommand, runCommand } from "../utils/commandRunner.js";
+import { hasCommand, runCommand } from "../utils/commandRunner.ts";
 
 export default class LaravelStrategy extends BaseStrategy {
   constructor(envService, frontendStrategy, { runner = runCommand } = {}) {

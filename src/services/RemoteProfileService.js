@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { runCommand } from "../utils/commandRunner.js";
+import { runCommand } from "../utils/commandRunner.ts";
 import { toolExists } from "./ToolCheckService.js";
 import { normalizeProfile } from "./ConfigService.js";
 
