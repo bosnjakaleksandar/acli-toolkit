@@ -3,7 +3,7 @@ import { getPackageMetadata } from "../utils/packageMetadata.ts";
 import { maybeUpdate } from "../update/maybeUpdate.ts";
 import { registerCommands } from "./registerCommands.ts";
 import { BRANDING } from "../config/branding.ts";
-import { select } from "@clack/prompts";
+import { select, note } from "@clack/prompts";
 import { ask } from "../utils/prompts.ts";
 import { createProjectCommand } from "../commands/createProject.ts";
 import { importCommand } from "../commands/import.ts";
@@ -11,6 +11,8 @@ import { doctorCommand } from "../commands/doctor.ts";
 import { linkCommand } from "../commands/link.ts";
 import { pullCommand } from "../commands/pull.ts";
 import { showBanner } from "../utils/banner.ts";
+import { getUserConfigPath } from "../config/paths.ts";
+import fs from "fs-extra";
 
 /**
  * CLI entry point.
@@ -35,6 +37,12 @@ export async function run(argv: string[] = process.argv, { legacyExecutable = fa
     .action(async (options: any) => {
       if (!process.stdin.isTTY || !process.stdout.isTTY) return program.help();
       await showBanner();
+      if (!(await fs.pathExists(getUserConfigPath()))) {
+        note(
+          "No configuration found yet — that's normal for a first run.\nRun `acli config init` to write a starter config, or just pick an option below;\ncommands that need a staging profile will offer to create one on the spot.",
+          "Get started",
+        );
+      }
       const action = await ask(select, {
         message: "What would you like to do?",
         options: [
