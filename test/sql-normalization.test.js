@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSqlDump, NORMALIZATION_STEPS } from "../src/services/SqlNormalizationService.js";
+import { normalizeSqlDump, NORMALIZATION_STEPS } from "../src/services/SqlNormalizationService.ts";
 
 test("strips the MariaDB sandbox-mode marker", () => {
   const input = Buffer.from("/*M!999999\\- enable the sandbox mode */;\nCREATE TABLE wp_posts (id INT);\n");

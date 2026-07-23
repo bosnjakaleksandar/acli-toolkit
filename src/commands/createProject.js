@@ -6,9 +6,9 @@ import { collectProjectContext, editProjectContext } from "../prompts/projectPro
 import { maybeInstallDependencies } from "../services/DependencyInstallService.js";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { maybeInitializeGit } from "../services/GitService.js";
-import { buildNextSteps } from "../services/NextStepsService.js";
-import { loadPreset } from "../services/PresetService.js";
-import { deepMerge, loadConfig, redactSecrets } from "../services/ConfigService.js";
+import { buildNextSteps } from "../services/NextStepsService.ts";
+import { loadPreset } from "../services/PresetService.ts";
+import { deepMerge, loadConfig, redactSecrets } from "../services/ConfigService.ts";
 import {
   mergeProjectContext,
   normalizeCliOptions,

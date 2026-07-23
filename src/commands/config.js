@@ -1,6 +1,6 @@
 import path from "node:path";
 import YAML from "yaml";
-import { getProjectConfigPath, getUserConfigPath, loadConfig, redactSecrets } from "../services/ConfigService.js";
+import { getProjectConfigPath, getUserConfigPath, loadConfig, redactSecrets } from "../services/ConfigService.ts";
 
 export function registerConfigCommand(program) {
   const command = program.command("config").description("Inspect and validate A-CLI configuration");

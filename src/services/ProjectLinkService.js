@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { getProjectConfigPath, validateProjectLinkConfig } from "./ConfigService.js";
-import { readWritableConfig, writeConfigAtomic } from "./ConfigFileService.js";
+import { getProjectConfigPath, validateProjectLinkConfig } from "./ConfigService.ts";
+import { readWritableConfig, writeConfigAtomic } from "./ConfigFileService.ts";
 
 /**
  * Walks upward from `cwd` looking for a `.acli/config.yaml` that declares a

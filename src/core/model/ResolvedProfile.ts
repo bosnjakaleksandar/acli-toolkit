@@ -27,6 +27,7 @@ export interface Profile {
   database: {
     driver: "wp-cli" | "docker" | "direct";
     normalizeCollations?: boolean;
+    tablePrefix?: string;
   };
   git?: {
     enabled?: boolean;

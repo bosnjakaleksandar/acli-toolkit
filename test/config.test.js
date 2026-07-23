@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
-import { deepMerge, getUserConfigPath, loadConfig, normalizeProfile, redactSecrets, resolveReferences, validateConfig, validateProfileConfig } from "../src/services/ConfigService.js";
+import { deepMerge, getUserConfigPath, loadConfig, normalizeProfile, redactSecrets, resolveReferences, validateConfig, validateProfileConfig } from "../src/services/ConfigService.ts";
 
 test("deep configuration merge preserves lower layers and overrides nested values", () => {
   assert.deepEqual(deepMerge({ defaults: { environment: "docker", mysqlVersion: "8.0" } }, { defaults: { environment: "lando" } }), { defaults: { environment: "lando", mysqlVersion: "8.0" } });

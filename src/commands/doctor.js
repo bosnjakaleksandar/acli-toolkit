@@ -2,8 +2,8 @@ import chalk from "chalk";
 import { intro, outro } from "@clack/prompts";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.js";
-import { loadConfig } from "../services/ConfigService.js";
-import { loadPreset, loadProfile } from "../services/PresetService.js";
+import { loadConfig } from "../services/ConfigService.ts";
+import { loadPreset, loadProfile } from "../services/PresetService.ts";
 import { checkTool } from "../services/ToolCheckService.js";
 
 export async function doctorCommand(options = {}) {

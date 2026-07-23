@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { detectPackageManager, runScriptCommand } from "../src/services/PackageManagerService.js";
+import { detectPackageManager, runScriptCommand } from "../src/services/PackageManagerService.ts";
 
 test("package manager follows the nearest lockfile", async () => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acli-pm-"));

@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { getProfileTemplate, listProfileTemplates, PROFILE_TEMPLATES } from "../src/config/profileTemplates.js";
+import { getProfileTemplate, listProfileTemplates, PROFILE_TEMPLATES } from "../src/config/profileTemplates.ts";
 import { createProfileCommand } from "../src/commands/profile.js";
-import { readConfigFile, validateProfileConfig } from "../src/services/ConfigService.js";
+import { readConfigFile, validateProfileConfig } from "../src/services/ConfigService.ts";
 
 test("listProfileTemplates exposes name, label, and description for every built-in template", () => {
   const templates = listProfileTemplates();

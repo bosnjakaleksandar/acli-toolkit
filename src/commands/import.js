@@ -17,9 +17,9 @@ import { runImportWorkflow } from "../features/import/ImportWorkflow.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { maybeInstallDependencies } from "../services/DependencyInstallService.js";
 import { maybeInitializeGit } from "../services/GitService.js";
-import { buildNextSteps } from "../services/NextStepsService.js";
+import { buildNextSteps } from "../services/NextStepsService.ts";
 import { runLocalPreflight } from "../services/PreflightService.js";
-import { validateProjectName } from "../services/ProjectValidationService.js";
+import { validateProjectName } from "../services/ProjectValidationService.ts";
 import { buildSuccessSummary, formatCreateError } from "../services/CreateProjectUxService.js";
 import { createProjectCommand } from "./createProject.js";
 

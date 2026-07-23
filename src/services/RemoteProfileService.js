@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { runCommand } from "../utils/commandRunner.ts";
 import { toolExists } from "./ToolCheckService.js";
-import { normalizeProfile } from "./ConfigService.js";
+import { normalizeProfile } from "./ConfigService.ts";
 
 const SAFE_TEMPLATE_VALUE = /^[a-zA-Z0-9._@:/~-]+$/;
 

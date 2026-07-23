@@ -70,10 +70,10 @@ export const PROFILE_TEMPLATES = {
   },
 };
 
-export function getProfileTemplate(name) {
-  return PROFILE_TEMPLATES[name] || null;
+export function getProfileTemplate(name: string): (typeof PROFILE_TEMPLATES)[keyof typeof PROFILE_TEMPLATES] | null {
+  return (PROFILE_TEMPLATES as Record<string, (typeof PROFILE_TEMPLATES)[keyof typeof PROFILE_TEMPLATES]>)[name] || null;
 }
 
-export function listProfileTemplates() {
+export function listProfileTemplates(): Array<{ name: string; label: string; description: string }> {
   return Object.entries(PROFILE_TEMPLATES).map(([name, template]) => ({ name, label: template.label, description: template.description }));
 }

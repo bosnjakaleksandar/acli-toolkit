@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import { importLegacyProfileCommand } from "../src/commands/profile.js";
-import { validateProfileConfig } from "../src/services/ConfigService.js";
+import { validateProfileConfig } from "../src/services/ConfigService.ts";
 
 async function withEnv(overrides, run) {
   const original = {};

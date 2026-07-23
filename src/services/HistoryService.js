@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { redactSecrets } from "./ConfigService.js";
+import { redactSecrets } from "./ConfigService.ts";
 import YAML from "yaml";
 
 const VERSION = 1;

@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { deleteProfile, saveProfile } from "../src/services/ProfileService.js";
-import { readConfigFile } from "../src/services/ConfigService.js";
+import { deleteProfile, saveProfile } from "../src/services/ProfileService.ts";
+import { readConfigFile } from "../src/services/ConfigService.ts";
 
 const profile = {
   type: "wordpress",

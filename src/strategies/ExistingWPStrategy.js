@@ -1,7 +1,7 @@
 import BaseStrategy from "./BaseStrategy.js";
 import { scaffoldGitignore } from "../utils/git.js";
 import { askMysqlVersion, askWpVersion } from "../utils/prompts.js";
-import { hasPresetValue } from "../services/PresetService.js";
+import { hasPresetValue } from "../services/PresetService.ts";
 import DatabaseDumpService from "../services/DatabaseDumpService.js";
 import { PullService } from "../services/PullService.js";
 import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.js";

@@ -1,6 +1,6 @@
 import YAML from "yaml";
-import { loadConfig } from "../services/ConfigService.js";
-import { loadPreset } from "../services/PresetService.js";
+import { loadConfig } from "../services/ConfigService.ts";
+import { loadPreset } from "../services/PresetService.ts";
 
 export function registerPresetCommand(program) {
   const command = program.command("preset").description("List and inspect project presets");

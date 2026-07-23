@@ -11,7 +11,7 @@ import {
   askWpVersion,
   askSshKeyPath,
 } from "../utils/prompts.js";
-import { hasPresetValue } from "../services/PresetService.js";
+import { hasPresetValue } from "../services/PresetService.ts";
 
 export default class WordPressStrategy extends BaseStrategy {
   async askQuestions(ctx, { nonInteractive = false } = {}) {

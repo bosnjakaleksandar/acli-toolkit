@@ -1,11 +1,11 @@
 import { confirm, select, text } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
-import { hasPresetValue } from "../services/PresetService.js";
+import { hasPresetValue } from "../services/PresetService.ts";
 import {
   assertRequiredProjectContext,
   validateProjectContext,
 } from "../services/CliOptionsService.js";
-import { validateProjectName } from "../services/ProjectValidationService.js";
+import { validateProjectName } from "../services/ProjectValidationService.ts";
 
 /**
  * Collects project context using interactive prompts, skipping values supplied by a preset.

@@ -4,8 +4,8 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { loadLastPlan, saveSuccessfulPlan, savePlanAsPreset } from "../src/services/HistoryService.js";
-import { loadPreset, loadProfile } from "../src/services/PresetService.js";
-import { loadConfig } from "../src/services/ConfigService.js";
+import { loadPreset, loadProfile } from "../src/services/PresetService.ts";
+import { loadConfig } from "../src/services/ConfigService.ts";
 
 test("history stores reusable fields and excludes secrets", async () => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acli-history-"));

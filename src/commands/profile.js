@@ -1,9 +1,9 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
 import YAML from "yaml";
 import { ask } from "../utils/prompts.js";
-import { loadConfig, redactSecrets, validateProfileConfig } from "../services/ConfigService.js";
-import { clearDefaultProfile, deleteProfile, saveProfile, setDefaultProfile } from "../services/ProfileService.js";
-import { getProfileTemplate, listProfileTemplates } from "../config/profileTemplates.js";
+import { loadConfig, redactSecrets, validateProfileConfig } from "../services/ConfigService.ts";
+import { clearDefaultProfile, deleteProfile, saveProfile, setDefaultProfile } from "../services/ProfileService.ts";
+import { getProfileTemplate, listProfileTemplates } from "../config/profileTemplates.ts";
 
 export async function createProfileCommand(name, options = {}) {
   const nonInteractive = Boolean(options.yes);

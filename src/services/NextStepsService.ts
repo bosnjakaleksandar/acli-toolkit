@@ -1,17 +1,26 @@
 import fs from "fs-extra";
 import path from "path";
 import chalk from "chalk";
-import { detectPackageManager, installCommand, runScriptCommand } from "./PackageManagerService.js";
+import { detectPackageManager, installCommand, runScriptCommand, type PackageManager } from "./PackageManagerService.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
+
+export interface NextStepsResult {
+  nextSteps: string;
+  hasNpm: boolean;
+  hasComposer: boolean;
+  installDir: string;
+  packageManager: PackageManager | null;
+}
 
 /**
  * Builds post-scaffold instructions for the generated project.
- *
- * @param {string} targetDir Project directory.
- * @param {object} ctx Project context.
- * @returns {Promise<{nextSteps: string, hasNpm: boolean, hasComposer: boolean, installDir: string}>}
  */
-export async function buildNextSteps(targetDir, ctx) {
-  const { projectName, setupType, appType, environment, projectType } = ctx;
+export async function buildNextSteps(targetDir: string, ctx: ProjectPlan): Promise<NextStepsResult> {
+  // Always called after the plan has been fully validated/collected, so
+  // projectName is guaranteed present here even though it's optional on the
+  // wider ProjectPlan type (which also describes pre-validation states).
+  const projectName = ctx.projectName!;
+  const { setupType, appType, environment, projectType } = ctx;
   let nextSteps = `  cd ${projectName}\n`;
   let installDir = targetDir;
   let packageManager = await detectPackageManager(targetDir, ctx.packageManager);
@@ -72,12 +81,12 @@ export async function buildNextSteps(targetDir, ctx) {
   };
 }
 
-async function appendThemeSteps(targetDir, projectName) {
+async function appendThemeSteps(targetDir: string, projectName: string) {
   const themeDir = path.join(targetDir, "wp-content", "themes", projectName);
   const hasPkg = await fs.pathExists(path.join(themeDir, "package.json"));
   const hasComposer = await fs.pathExists(path.join(themeDir, "composer.json"));
   let nextSteps = "";
-  let packageManager = null;
+  let packageManager: PackageManager | null = null;
 
   if (hasPkg || hasComposer) {
     nextSteps += `  cd wp-content/themes/${projectName}\n`;

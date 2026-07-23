@@ -3,7 +3,7 @@ import fs from "fs-extra";
 import { confirm, intro, outro, select } from "@clack/prompts";
 import chalk from "chalk";
 import { ask, askMysqlVersion, askWpVersion } from "../utils/prompts.js";
-import { loadConfig } from "../services/ConfigService.js";
+import { loadConfig } from "../services/ConfigService.ts";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.js";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
 import { readLink, writeLink } from "../services/ProjectLinkService.js";

@@ -2,13 +2,19 @@
 // before it is imported locally. Keeping these as a documented list (rather
 // than inline buffer edits) makes it possible to extend the pipeline without
 // re-deriving what each step is for.
-const COLLATION_REPLACEMENTS = [
+const COLLATION_REPLACEMENTS: Array<[Buffer, Buffer]> = [
   [Buffer.from("utf8mb3_uca1400_ai_ci"), Buffer.from("utf8_general_ci")],
   [Buffer.from("utf8mb4_uca1400_ai_ci"), Buffer.from("utf8mb4_unicode_520_ci")],
   [Buffer.from("utf8mb3_"), Buffer.from("utf8_")],
 ];
 
-export const NORMALIZATION_STEPS = [
+interface NormalizationStep {
+  name: string;
+  description: string;
+  apply: (buffer: Buffer) => Buffer;
+}
+
+export const NORMALIZATION_STEPS: NormalizationStep[] = [
   {
     name: "strip-sandbox-marker",
     description: "Removes the MariaDB \"enable the sandbox mode\" marker some dump tools prepend, which is not valid SQL outside that specific server.",
@@ -26,7 +32,12 @@ export const NORMALIZATION_STEPS = [
   },
 ];
 
-export function normalizeSqlDump(buffer, { spinner, normalizeCollations = true } = {}) {
+interface NormalizeSqlDumpOptions {
+  spinner?: { message(text: string): void } | null;
+  normalizeCollations?: boolean;
+}
+
+export function normalizeSqlDump(buffer: Buffer, { spinner, normalizeCollations = true }: NormalizeSqlDumpOptions = {}): Buffer {
   let result = buffer;
   for (const step of NORMALIZATION_STEPS) {
     if (step.name === "normalize-collations" && !normalizeCollations) continue;
@@ -36,7 +47,7 @@ export function normalizeSqlDump(buffer, { spinner, normalizeCollations = true }
   return result;
 }
 
-function stripCreateDatabaseStatements(buffer) {
+function stripCreateDatabaseStatements(buffer: Buffer): Buffer {
   // latin1 is a lossless byte<->codepoint round trip, so this stays
   // binary-safe even though the pass itself works line-by-line as text.
   const lines = buffer.toString("latin1").split("\n");
@@ -47,9 +58,9 @@ function stripCreateDatabaseStatements(buffer) {
   return Buffer.from(filtered.join("\n"), "latin1");
 }
 
-function replaceBuffer(buffer, search, replacement) {
+function replaceBuffer(buffer: Buffer, search: Buffer, replacement: Buffer): Buffer {
   if (search.length === 0) return buffer;
-  const chunks = [];
+  const chunks: Buffer[] = [];
   let offset = 0;
   let index;
   while ((index = buffer.indexOf(search, offset)) !== -1) {

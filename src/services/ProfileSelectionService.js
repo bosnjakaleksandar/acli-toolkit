@@ -1,7 +1,7 @@
 import { confirm, select } from "@clack/prompts";
 import { ask } from "../utils/prompts.js";
-import { loadConfig } from "./ConfigService.js";
-import { loadProfile } from "./PresetService.js";
+import { loadConfig } from "./ConfigService.ts";
+import { loadProfile } from "./PresetService.ts";
 import { createProfileCommand } from "../commands/profile.js";
 
 /**

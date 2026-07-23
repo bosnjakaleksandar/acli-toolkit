@@ -1,5 +1,5 @@
-import { hasPresetValue } from "./PresetService.js";
-import { validateProjectName } from "./ProjectValidationService.js";
+import { hasPresetValue } from "./PresetService.ts";
+import { validateProjectName } from "./ProjectValidationService.ts";
 
 const VALID_ENVIRONMENTS = ["docker", "lando"];
 const VALID_SETUP_TYPES = ["new", "existing-wp"];

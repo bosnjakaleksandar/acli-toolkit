@@ -1,8 +1,8 @@
 import { confirm, intro, multiselect, outro, spinner } from "@clack/prompts";
 import chalk from "chalk";
 import { ask } from "../utils/prompts.js";
-import { loadConfig } from "../services/ConfigService.js";
-import { loadProfile } from "../services/PresetService.js";
+import { loadConfig } from "../services/ConfigService.ts";
+import { loadProfile } from "../services/PresetService.ts";
 import { resolveRemoteProfile } from "../services/RemoteProfileService.js";
 import { readLink } from "../services/ProjectLinkService.js";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.js";
