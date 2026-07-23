@@ -2,7 +2,7 @@ import { confirm, intro, note, outro, select, spinner, text } from "@clack/promp
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
-import { collectProjectContext, editProjectContext } from "../prompts/projectPrompts.js";
+import { collectProjectContext, editProjectContext } from "../prompts/projectPrompts.ts";
 import { maybeInstallDependencies } from "../services/DependencyInstallService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
 import { maybeInitializeGit } from "../services/GitService.ts";

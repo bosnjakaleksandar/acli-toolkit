@@ -6,15 +6,12 @@ import {
   validateProjectContext,
 } from "../services/CliOptionsService.ts";
 import { validateProjectName } from "../services/ProjectValidationService.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 /**
  * Collects project context using interactive prompts, skipping values supplied by a preset.
- *
- * @param {object} preset Loaded preset values.
- * @param {{nonInteractive?: boolean}} options Prompt options.
- * @returns {Promise<object>}
  */
-export async function collectProjectContext(preset = {}, { nonInteractive = false } = {}) {
+export async function collectProjectContext(preset: ProjectPlan = {}, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<ProjectPlan> {
   validateProjectContext(preset);
   if (nonInteractive) {
     assertRequiredProjectContext(preset);
@@ -38,33 +35,33 @@ export async function collectProjectContext(preset = {}, { nonInteractive = fals
         validate: validateProjectName,
       });
 
-  let appType = preset.appType ?? null;
-  let framework = preset.framework ?? null;
+  let appType: ProjectPlan["appType"] = preset.appType;
+  let framework: ProjectPlan["framework"] = preset.framework;
   let useLaravel = preset.useLaravel ?? false;
-  let wpType = preset.wpType ?? null;
-  let projectType = preset.projectType ?? null;
+  let wpType: ProjectPlan["wpType"] = preset.wpType;
+  let projectType: string | undefined = preset.projectType;
 
   if (setupType === "new") {
     appType = hasPresetValue(preset, "appType")
       ? preset.appType
-      : await ask(select, {
+      : ((await ask(select, {
           message: "Are you building an Application or a WordPress project?",
           options: [
             { label: "Application", value: "application" },
             { label: "WordPress", value: "wordpress" },
           ],
-        });
+        })) as ProjectPlan["appType"]);
 
     if (appType === "application") {
       framework = hasPresetValue(preset, "framework")
         ? preset.framework
-        : await ask(select, {
+        : ((await ask(select, {
             message: "Which frontend framework do you want to use?",
             options: [
               { label: "React", value: "react" },
               { label: "Next.js", value: "nextjs" },
             ],
-          });
+          })) as ProjectPlan["framework"]);
 
       useLaravel = hasPresetValue(preset, "useLaravel")
         ? Boolean(preset.useLaravel)
@@ -75,20 +72,20 @@ export async function collectProjectContext(preset = {}, { nonInteractive = fals
               initialValue: false,
             });
 
-      projectType = framework;
+      projectType = framework as string;
     } else {
       wpType = hasPresetValue(preset, "wpType")
         ? preset.wpType
-        : await ask(select, {
+        : ((await ask(select, {
             message: "Which WordPress project setup do you need?",
             options: [
               { label: "Standard Theme", value: "wp-theme" },
               { label: "WordPress + WooCommerce", value: "wp-woo" },
               { label: "WordPress + React", value: "wp-react" },
             ],
-          });
+          })) as ProjectPlan["wpType"]);
 
-      projectType = wpType;
+      projectType = wpType as string;
     }
   } else {
     appType = "wordpress";
@@ -115,16 +112,16 @@ export async function collectProjectContext(preset = {}, { nonInteractive = fals
     ? Boolean(preset.customizeAdvanced)
     : await ask(confirm, { message: "Customize advanced settings (MySQL/WordPress versions)?", initialValue: false });
 
-  const ctx = {
+  const ctx: ProjectPlan = {
     ...preset,
-    setupType,
+    setupType: setupType as ProjectPlan["setupType"],
     projectName,
     projectType,
-    appType,
-    framework,
+    appType: appType as ProjectPlan["appType"],
+    framework: framework as ProjectPlan["framework"],
     useLaravel,
-    wpType,
-    environment,
+    wpType: wpType as ProjectPlan["wpType"],
+    environment: environment as ProjectPlan["environment"],
     customizeAdvanced,
   };
 
@@ -139,26 +136,24 @@ export { validateProjectName };
  * fields survive a switch to/from existing-wp) is unit-testable without
  * mocking @clack/prompts.
  *
- * @param {object} ctx Current project context.
- * @param {string} projectType Selected type: react, nextjs, wp-theme, wp-woo, wp-react, or existing-wp.
- * @returns {object}
+ * @param projectType Selected type: react, nextjs, wp-theme, wp-woo, wp-react, or existing-wp.
  */
-export function applyProjectTypeChange(ctx, projectType) {
+export function applyProjectTypeChange(ctx: ProjectPlan, projectType: string): ProjectPlan {
   if (projectType === "existing-wp") {
     // Preserve any profile/stagingUrl already attached (e.g. the context was
     // already existing-wp and the user is just re-confirming the type), so
     // reopening this menu never silently detaches a linked profile.
-    return { ...ctx, setupType: "existing-wp", appType: "wordpress", projectType: "wp-existing", framework: null, useLaravel: false, wpType: null };
+    return { ...ctx, setupType: "existing-wp", appType: "wordpress", projectType: "wp-existing", framework: null as any, useLaravel: false, wpType: null as any };
   }
   // Switching to a new-project type: a profile/stagingUrl from a prior
   // existing-wp selection no longer applies to a freshly scaffolded project,
   // so drop them explicitly instead of letting them ride along unused.
   const cleared = { ...ctx, profile: undefined, stagingUrl: undefined };
-  if (projectType === "react" || projectType === "nextjs") return { ...cleared, setupType: "new", appType: "application", framework: projectType, projectType, wpType: null };
-  return { ...cleared, setupType: "new", appType: "wordpress", framework: null, useLaravel: false, projectType, wpType: projectType };
+  if (projectType === "react" || projectType === "nextjs") return { ...cleared, setupType: "new", appType: "application", framework: projectType as ProjectPlan["framework"], projectType, wpType: null as any };
+  return { ...cleared, setupType: "new", appType: "wordpress", framework: null as any, useLaravel: false, projectType, wpType: projectType as ProjectPlan["wpType"] };
 }
 
-export async function editProjectContext(ctx) {
+export async function editProjectContext(ctx: ProjectPlan): Promise<ProjectPlan> {
   const section = await ask(select, {
     message: "What do you want to change?",
     options: [
@@ -171,7 +166,7 @@ export async function editProjectContext(ctx) {
   });
   if (section === "done") return ctx;
   if (section === "name") return { ...ctx, projectName: await ask(text, { message: "Project name:", initialValue: ctx.projectName, validate: validateProjectName }) };
-  if (section === "environment") return { ...ctx, environment: await ask(select, { message: "Local environment:", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }], initialValue: ctx.environment }) };
+  if (section === "environment") return { ...ctx, environment: await ask(select, { message: "Local environment:", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }], initialValue: ctx.environment }) as ProjectPlan["environment"] };
   if (section === "git") return { ...ctx, skipGitInit: !(await ask(confirm, { message: "Initialize a Git repository?", initialValue: !ctx.skipGitInit })) };
   const projectType = await ask(select, {
     message: "Project type:",
@@ -185,5 +180,5 @@ export async function editProjectContext(ctx) {
       { label: "Existing WordPress project", value: "existing-wp" },
     ],
   });
-  return applyProjectTypeChange(ctx, projectType);
+  return applyProjectTypeChange(ctx, projectType as string);
 }

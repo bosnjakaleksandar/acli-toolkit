@@ -2,7 +2,7 @@ import { confirm, isCancel } from "@clack/prompts";
 import chalk from "chalk";
 import { BRANDING } from "../config/branding.ts";
 
-export async function confirmUpdate(currentVersion, latestVersion) {
+export async function confirmUpdate(currentVersion: string, latestVersion: string): Promise<boolean> {
   const line = chalk.gray("─".repeat(42));
   console.log(`\n${line}\n`);
   console.log(chalk.bold(`A new version of ${BRANDING.name} is available.\n`));

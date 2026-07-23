@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { checkForUpdate, markUpdateNotified } from "./checkForUpdate.ts";
 import { installLatestVersion } from "./install.ts";
-import { confirmUpdate } from "../prompts/updatePrompt.js";
+import { confirmUpdate } from "../prompts/updatePrompt.ts";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.ts";
 import type { PackageMetadata } from "../utils/packageMetadata.ts";

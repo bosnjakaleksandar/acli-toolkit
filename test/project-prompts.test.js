@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyProjectTypeChange } from "../src/prompts/projectPrompts.js";
+import { applyProjectTypeChange } from "../src/prompts/projectPrompts.ts";
 
 test("re-selecting existing-wp keeps the attached profile and staging URL", () => {
   const ctx = { setupType: "existing-wp", appType: "wordpress", projectType: "wp-existing", projectName: "client-site", profile: "shared-host", stagingUrl: "https://client-site.staging" };
