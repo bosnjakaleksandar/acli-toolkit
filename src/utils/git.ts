@@ -5,7 +5,7 @@ import { resolveTemplateName } from "./templateMap.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export async function getGitignore(type) {
+export async function getGitignore(type: string): Promise<string> {
   const templateName = resolveTemplateName(type);
   const templatePath = path.join(
     __dirname,
@@ -26,7 +26,7 @@ export async function getGitignore(type) {
   return `# Default gitignore\nnode_modules/\n*.log\n.DS_Store\n`;
 }
 
-export async function scaffoldGitignore(targetDir, type) {
+export async function scaffoldGitignore(targetDir: string, type: string): Promise<void> {
   const content = await getGitignore(type);
   await fs.writeFile(path.join(targetDir, ".gitignore"), content);
 }

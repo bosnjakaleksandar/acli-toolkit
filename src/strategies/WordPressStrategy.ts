@@ -3,14 +3,14 @@ import { confirm, multiselect, select, text } from "@clack/prompts";
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
-import { scaffoldGitignore } from "../utils/git.js";
+import { scaffoldGitignore } from "../utils/git.ts";
 import { runCommand } from "../utils/commandRunner.ts";
 import {
   ask,
   askMysqlVersion,
   askWpVersion,
   askSshKeyPath,
-} from "../utils/prompts.js";
+} from "../utils/prompts.ts";
 import { hasPresetValue } from "../services/PresetService.ts";
 import type { Spinner } from "../services/EnvironmentService.ts";
 
@@ -45,8 +45,8 @@ export default class WordPressStrategy extends BaseStrategy {
       if (themeChoice === "custom") {
         themeRepo = await ask(text, {
           message: "Theme repository URL (HTTPS or SSH):",
-          validate: (value: string) => {
-            if (!value.trim()) return "Theme repository URL is required.";
+          validate: (value: string | undefined) => {
+            if (!value?.trim()) return "Theme repository URL is required.";
             return undefined;
           },
         });
@@ -128,7 +128,7 @@ export default class WordPressStrategy extends BaseStrategy {
       required: false,
     });
 
-    return selected || [];
+    return (selected as string[] | undefined) || [];
   }
 
   override async scaffold(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {

@@ -5,7 +5,7 @@ import {
   ACA_DIMENSIONS,
   ACA_STATES,
   AcaCharacter,
-} from "../src/ui/acaCharacter.js";
+} from "../src/ui/acaCharacter.ts";
 
 const EXPECTED_STATES = [
   "startup", "idle", "thinking", "working", "success",

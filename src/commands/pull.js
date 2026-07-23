@@ -1,13 +1,13 @@
 import { confirm, intro, multiselect, outro, spinner } from "@clack/prompts";
 import chalk from "chalk";
-import { ask } from "../utils/prompts.js";
+import { ask } from "../utils/prompts.ts";
 import { loadConfig } from "../services/ConfigService.ts";
 import { loadProfile } from "../services/PresetService.ts";
 import { resolveRemoteProfile } from "../services/RemoteProfileService.ts";
 import { readLink } from "../services/ProjectLinkService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
 import { PullService, resolvePullTargets, ALL_TARGETS } from "../services/PullService.ts";
-import { mascot } from "../ui/acaCharacter.js";
+import { mascot } from "../ui/acaCharacter.ts";
 import { BRANDING } from "../config/branding.ts";
 import { CliError, describeError } from "../core/errors.ts";
 

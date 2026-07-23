@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
 import { BRANDING } from "../config/branding.ts";
-import { mascot } from "../ui/acaCharacter.js";
+import { mascot } from "../ui/acaCharacter.ts";
 import { CliError, TargetExistsError } from "../core/errors.ts";
 import { readStepState } from "../core/StepRunner.ts";
 import { ImportSourceRegistry } from "../features/import/ImportSource.ts";

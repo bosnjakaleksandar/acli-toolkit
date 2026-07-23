@@ -1,5 +1,5 @@
 import { confirm, select } from "@clack/prompts";
-import { ask } from "../utils/prompts.js";
+import { ask } from "../utils/prompts.ts";
 import { loadConfig } from "./ConfigService.ts";
 import { loadProfile } from "./PresetService.ts";
 import { createProfileCommand } from "../commands/profile.js";
@@ -40,7 +40,7 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
   const availableProfiles = Object.keys(config.profiles || {});
   let profileName = options.profile || attachedProfileName || (required && availableProfiles.length === 1 ? availableProfiles[0] : undefined);
   if (required && !profileName && availableProfiles.length > 1 && !nonInteractive) {
-    profileName = await ask(select, { message: "Which staging environment should be used?", options: availableProfiles.map((name) => profileOption(name, config.profiles![name]!)) });
+    profileName = (await ask(select, { message: "Which staging environment should be used?", options: availableProfiles.map((name) => profileOption(name, config.profiles![name]!)) })) as string;
   }
 
   const profile = await loadProfile(profileName, config);

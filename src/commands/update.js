@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { installLatestVersion } from "../update/install.ts";
 import { BRANDING } from "../config/branding.ts";
-import { mascot } from "../ui/acaCharacter.js";
+import { mascot } from "../ui/acaCharacter.ts";
 
 export async function updateCommand(packageName) {
   console.log(chalk.cyan(`Installing the latest version of ${packageName}...\n`));

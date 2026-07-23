@@ -1,6 +1,6 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
 import YAML from "yaml";
-import { ask } from "../utils/prompts.js";
+import { ask } from "../utils/prompts.ts";
 import { loadConfig, redactSecrets, validateProfileConfig } from "../services/ConfigService.ts";
 import { clearDefaultProfile, deleteProfile, saveProfile, setDefaultProfile } from "../services/ProfileService.ts";
 import { getProfileTemplate, listProfileTemplates } from "../config/profileTemplates.ts";

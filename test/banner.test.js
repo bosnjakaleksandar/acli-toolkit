@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
 import figlet from "figlet";
-import { showBanner } from "../src/utils/banner.js";
+import { showBanner } from "../src/utils/banner.ts";
 import { BRANDING } from "../src/config/branding.ts";
 import { getPackageMetadata } from "../src/utils/packageMetadata.ts";
 

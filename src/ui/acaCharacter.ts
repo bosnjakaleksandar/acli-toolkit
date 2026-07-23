@@ -8,12 +8,22 @@ const NAME = "A-CLI Bot";
 const NAME_ROW = 2;
 const MESSAGE_ROW = 3;
 
+export type AcaState = "startup" | "idle" | "thinking" | "working" | "success" | "warning" | "error" | "cancelled" | "offline";
+
 export const ACA_TIMING = Object.freeze({
   frameInterval: 200,
   startupDuration: 1800,
   idleDuration: 1600,
   transitionDuration: 1200,
 });
+
+interface ShapeOptions {
+  antenna?: string;
+  eyes?: string;
+  mouth?: string;
+  lights?: string;
+  arms?: boolean;
+}
 
 // A-CLI's robot mascot: antenna status light, a head with eyes and a mouth,
 // and a torso with indicator lights. Expressions carry the personality;
@@ -24,7 +34,7 @@ const shape = ({
   mouth = "◡",
   lights = "● ● ●",
   arms = false,
-} = {}) => {
+}: ShapeOptions = {}): string[] => {
   const [armLeft, armRight] = arms ? ["▪─", "─▪"] : ["  ", "  "];
   return [
     `         ${antenna}`,
@@ -38,7 +48,7 @@ const shape = ({
   ].map(normalizeLine);
 };
 
-export const ACA_STATES = Object.freeze({
+export const ACA_STATES: Record<AcaState, readonly (readonly string[])[]> = Object.freeze({
   // Boot sequence: antenna wakes, eyes open, lights come online, then a happy blink.
   startup: frames([
     shape({ antenna: "·", eyes: "·   ·", mouth: "─", lights: "     " }),
@@ -87,7 +97,7 @@ export const ACA_STATES = Object.freeze({
   offline: frames([shape({ antenna: "○", eyes: "─   ─", mouth: "─", lights: "○ ○ ○" })]),
 });
 
-const STATE_COLORS = Object.freeze({
+const STATE_COLORS: Record<AcaState, string> = Object.freeze({
   startup: "\x1B[38;5;208m",
   idle: "\x1B[38;5;214m",
   thinking: "\x1B[36m",
@@ -104,8 +114,26 @@ const STATE_COLORS = Object.freeze({
 // settling after a fixed duration. Everything else is a bounded transition.
 const LOOPING_STATES = new Set(["thinking"]);
 
+export interface AcaCharacterOptions {
+  stdout?: NodeJS.WriteStream;
+  env?: Record<string, string | undefined>;
+  processRef?: NodeJS.Process;
+  manageProcess?: boolean;
+}
+
 export class AcaCharacter {
-  constructor({ stdout = process.stdout, env = process.env, processRef = process, manageProcess = true } = {}) {
+  stdout: NodeJS.WriteStream;
+  env: Record<string, string | undefined>;
+  processRef: NodeJS.Process;
+  timer: ReturnType<typeof setInterval> | null;
+  rendered: boolean;
+  cursorHidden: boolean;
+  generation: number;
+  state: AcaState;
+  message: string;
+  signalHandlers: Map<string, () => void>;
+
+  constructor({ stdout = process.stdout, env = process.env, processRef = process, manageProcess = true }: AcaCharacterOptions = {}) {
     this.stdout = stdout;
     this.env = env;
     this.processRef = processRef;
@@ -127,7 +155,7 @@ export class AcaCharacter {
    * async task of unknown duration runs) start animating and resolve
    * immediately; call stop() when the task finishes.
    */
-  async show(state, message = defaultMessage(state)) {
+  async show(state: AcaState, message: string = defaultMessage(state)): Promise<void> {
     this.assertState(state);
     this.stopTimer();
     this.state = state;
@@ -146,7 +174,7 @@ export class AcaCharacter {
     await this.playOnce(state, message, stateFrames, animated);
   }
 
-  async playOnce(state, message, stateFrames, animated) {
+  async playOnce(state: AcaState, message: string, stateFrames: readonly (readonly string[])[], animated: boolean): Promise<void> {
     const generation = this.generation;
     const duration = state === "startup"
       ? ACA_TIMING.startupDuration
@@ -157,74 +185,74 @@ export class AcaCharacter {
     this.hideCursor(animated);
 
     if (!animated) {
-      this.render(stateFrames.at(-1), state, message);
+      this.render(stateFrames.at(-1)!, state, message);
       this.restoreCursor();
       return;
     }
 
-    this.render(stateFrames[0], state, message);
+    this.render(stateFrames[0]!, state, message);
 
     for (let elapsed = ACA_TIMING.frameInterval, index = 1; elapsed < duration; elapsed += ACA_TIMING.frameInterval, index += 1) {
       await this.wait(ACA_TIMING.frameInterval, generation);
       if (generation !== this.generation) return;
-      this.render(stateFrames[index % stateFrames.length], state, message);
+      this.render(stateFrames[index % stateFrames.length]!, state, message);
     }
 
-    this.render(stateFrames.at(-1), state, message);
+    this.render(stateFrames.at(-1)!, state, message);
     this.restoreCursor();
   }
 
-  loopUntilStopped(state, message, stateFrames) {
-    this.render(stateFrames[0], state, message);
+  loopUntilStopped(state: AcaState, message: string, stateFrames: readonly (readonly string[])[]): void {
+    this.render(stateFrames[0]!, state, message);
     this.hideCursor(true);
     let index = 1;
     this.timer = setInterval(() => {
-      this.render(stateFrames[index % stateFrames.length], state, message);
+      this.render(stateFrames[index % stateFrames.length]!, state, message);
       index += 1;
     }, ACA_TIMING.frameInterval);
     this.timer.unref?.();
   }
 
-  stop({ clear = false } = {}) {
+  stop({ clear = false }: { clear?: boolean } = {}): void {
     this.stopTimer();
     if (clear && this.rendered && this.stdout.isTTY) this.clearRegion();
     this.restoreCursor();
     this.rendered = false;
   }
 
-  cleanup() {
+  cleanup(): void {
     this.stop();
     for (const [signal, handler] of this.signalHandlers) {
-      this.processRef.removeListener?.(signal, handler);
+      (this.processRef as any).removeListener?.(signal, handler);
     }
     this.signalHandlers.clear();
   }
 
-  hasActiveAnimation() {
+  hasActiveAnimation(): boolean {
     return this.timer !== null;
   }
 
-  canAnimate() {
+  canAnimate(): boolean {
     if (!this.stdout.isTTY || this.env.CI || this.env.TERM === "dumb") return false;
     return ![this.env.ACLI_REDUCED_MOTION, this.env.A_CLI_REDUCED_MOTION, this.env.REDUCED_MOTION, this.env.NO_MOTION]
       .some(isEnabled);
   }
 
-  attachProcessHandlers() {
-    for (const signal of ["SIGINT", "SIGTERM"]) {
+  attachProcessHandlers(): void {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
       const handler = () => {
         this.stop();
         this.processRef.exitCode = signal === "SIGINT" ? 130 : 143;
       };
       this.signalHandlers.set(signal, handler);
-      this.processRef.on?.(signal, handler);
+      (this.processRef as any).on?.(signal, handler);
     }
     const exitHandler = () => this.stop();
     this.signalHandlers.set("exit", exitHandler);
-    this.processRef.on?.("exit", exitHandler);
+    (this.processRef as any).on?.("exit", exitHandler);
   }
 
-  render(frame, state, message) {
+  render(frame: readonly string[], state: AcaState, message: string): void {
     if (!this.stdout.isTTY) {
       const lines = frame.map((line, row) => this.composeRow(line, row, message, {}).trimEnd());
       this.stdout.write(`${lines.join("\n")}\n\n`);
@@ -242,49 +270,49 @@ export class AcaCharacter {
     this.rendered = true;
   }
 
-  composeRow(line, row, message, { color = "", bold = "", reset = "" }) {
+  composeRow(line: string, row: number, message: string, { color = "", bold = "", reset = "" }: { color?: string; bold?: string; reset?: string }): string {
     const art = `${INDENT}${color}${line}${reset}`;
     if (row === NAME_ROW) return `${art}${GAP}${bold}${NAME}${reset}`;
     if (row === MESSAGE_ROW) return `${art}${GAP}${this.normalizeMessage(message)}`;
     return art;
   }
 
-  normalizeMessage(message) {
+  normalizeMessage(message: string): string {
     const available = Math.max(0, (this.stdout.columns || 80) - INDENT.length - FRAME_WIDTH - GAP.length);
     const width = Math.min(MESSAGE_WIDTH, available);
     return String(message).replace(/[\r\n]/g, " ").slice(0, width).padEnd(width, " ");
   }
 
-  moveToRegionStart() {
+  moveToRegionStart(): void {
     this.stdout.write(`\x1B[${REGION_HEIGHT}A`);
   }
 
-  clearRegion() {
+  clearRegion(): void {
     this.moveToRegionStart();
     for (let index = 0; index < REGION_HEIGHT; index += 1) this.stdout.write("\x1B[2K\r\n");
     this.stdout.write(`\x1B[${REGION_HEIGHT}A`);
   }
 
-  hideCursor(shouldHide) {
+  hideCursor(shouldHide: boolean): void {
     if (!shouldHide || !this.stdout.isTTY || this.cursorHidden) return;
     this.stdout.write("\x1B[?25l");
     this.cursorHidden = true;
   }
 
-  restoreCursor() {
+  restoreCursor(): void {
     if (!this.cursorHidden) return;
     this.stdout.write("\x1B[?25h");
     this.cursorHidden = false;
   }
 
-  stopTimer() {
+  stopTimer(): void {
     this.generation += 1;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.restoreCursor();
   }
 
-  wait(milliseconds, generation) {
+  wait(milliseconds: number, generation: number): Promise<void> {
     return new Promise((resolve) => {
       const timer = setTimeout(resolve, milliseconds);
       if (generation !== this.generation) {
@@ -294,22 +322,22 @@ export class AcaCharacter {
     });
   }
 
-  assertState(state) {
+  assertState(state: AcaState): void {
     if (!Object.hasOwn(ACA_STATES, state)) throw new TypeError(`Unknown Aca state: ${state}`);
   }
 }
 
 export const mascot = new AcaCharacter();
 
-function frames(value) {
+function frames(value: string[][]): readonly (readonly string[])[] {
   return Object.freeze(value.map((frame) => Object.freeze(frame)));
 }
 
-function normalizeLine(line) {
+function normalizeLine(line: string): string {
   return line.slice(0, FRAME_WIDTH).padEnd(FRAME_WIDTH, " ");
 }
 
-function defaultMessage(state) {
+function defaultMessage(state: AcaState): string {
   return {
     startup: "Initializing developer toolkit...",
     idle: "Ready to build something awesome?",
@@ -323,7 +351,7 @@ function defaultMessage(state) {
   }[state];
 }
 
-function isEnabled(value) {
+function isEnabled(value: unknown): boolean {
   return value !== undefined && !["", "0", "false", "no"].includes(String(value).toLowerCase());
 }
 

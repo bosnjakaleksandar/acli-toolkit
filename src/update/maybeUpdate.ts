@@ -3,7 +3,7 @@ import { checkForUpdate, markUpdateNotified } from "./checkForUpdate.ts";
 import { installLatestVersion } from "./install.ts";
 import { confirmUpdate } from "../prompts/updatePrompt.js";
 import { BRANDING } from "../config/branding.ts";
-import { mascot } from "../ui/acaCharacter.js";
+import { mascot } from "../ui/acaCharacter.ts";
 import type { PackageMetadata } from "../utils/packageMetadata.ts";
 
 export async function maybeUpdate(packageMetadata: PackageMetadata): Promise<boolean> {

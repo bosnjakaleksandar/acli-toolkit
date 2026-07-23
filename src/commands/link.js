@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { confirm, intro, outro, select } from "@clack/prompts";
 import chalk from "chalk";
-import { ask, askMysqlVersion, askWpVersion } from "../utils/prompts.js";
+import { ask, askMysqlVersion, askWpVersion } from "../utils/prompts.ts";
 import { loadConfig } from "../services/ConfigService.ts";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";

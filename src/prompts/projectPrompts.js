@@ -1,5 +1,5 @@
 import { confirm, select, text } from "@clack/prompts";
-import { ask } from "../utils/prompts.js";
+import { ask } from "../utils/prompts.ts";
 import { hasPresetValue } from "../services/PresetService.ts";
 import {
   assertRequiredProjectContext,

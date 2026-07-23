@@ -1,7 +1,7 @@
 import BaseStrategy from "./BaseStrategy.ts";
 import fs from "fs-extra";
 import path from "path";
-import { scaffoldGitignore } from "../utils/git.js";
+import { scaffoldGitignore } from "../utils/git.ts";
 import { hasCommand, runCommand } from "../utils/commandRunner.ts";
 import type EnvironmentService from "../services/EnvironmentService.ts";
 import type { ScaffoldStrategy } from "../core/registry/ProjectTypeRegistry.ts";

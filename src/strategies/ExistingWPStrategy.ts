@@ -1,6 +1,6 @@
 import BaseStrategy from "./BaseStrategy.ts";
-import { scaffoldGitignore } from "../utils/git.js";
-import { askMysqlVersion, askWpVersion } from "../utils/prompts.js";
+import { scaffoldGitignore } from "../utils/git.ts";
+import { askMysqlVersion, askWpVersion } from "../utils/prompts.ts";
 import { hasPresetValue } from "../services/PresetService.ts";
 import DatabaseDumpService from "../services/DatabaseDumpService.ts";
 import { PullService } from "../services/PullService.ts";

@@ -4,13 +4,13 @@ import { maybeUpdate } from "../update/maybeUpdate.ts";
 import { registerCommands } from "./registerCommands.js";
 import { BRANDING } from "../config/branding.ts";
 import { select } from "@clack/prompts";
-import { ask } from "../utils/prompts.js";
+import { ask } from "../utils/prompts.ts";
 import { createProjectCommand } from "../commands/createProject.js";
 import { importCommand } from "../commands/import.js";
 import { doctorCommand } from "../commands/doctor.js";
 import { linkCommand } from "../commands/link.js";
 import { pullCommand } from "../commands/pull.js";
-import { showBanner } from "../utils/banner.js";
+import { showBanner } from "../utils/banner.ts";
 
 /**
  * CLI entry point.

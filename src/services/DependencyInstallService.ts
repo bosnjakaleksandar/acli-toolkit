@@ -1,8 +1,8 @@
 import chalk from "chalk";
 import { confirm } from "@clack/prompts";
-import { ask } from "../utils/prompts.js";
+import { ask } from "../utils/prompts.ts";
 import { runCommand } from "../utils/commandRunner.ts";
-import { mascot } from "../ui/acaCharacter.js";
+import { mascot } from "../ui/acaCharacter.ts";
 import type { NextStepsResult } from "./NextStepsService.ts";
 
 /**

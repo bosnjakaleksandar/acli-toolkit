@@ -16,8 +16,8 @@ import {
 } from "../services/CliOptionsService.ts";
 import { resolveStrategy } from "../services/StrategyResolver.ts";
 import { BRANDING } from "../config/branding.ts";
-import { mascot } from "../ui/acaCharacter.js";
-import { ask } from "../utils/prompts.js";
+import { mascot } from "../ui/acaCharacter.ts";
+import { ask } from "../utils/prompts.ts";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
 import { CliError, TargetExistsError } from "../core/errors.ts";
 import { loadLastPlan, saveSuccessfulPlan } from "../services/HistoryService.ts";
