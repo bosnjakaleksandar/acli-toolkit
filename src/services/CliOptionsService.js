@@ -40,8 +40,12 @@ export function normalizeCliOptions(options = {}) {
   assignIfPresent(normalized, "stagingUrl", options.stagingUrl);
   assignIfPresent(normalized, "sshKeyPath", options.sshKey);
 
+  if (options.keepDump) normalized.keepDump = true;
+  if (options.skipFiles) normalized.skipFiles = true;
+  if (options.skipDatabase) normalized.skipDatabase = true;
+  if (options.skipGitLink) normalized.skipGitLink = true;
+
   if (options.skipGit) normalized.skipGitInit = true;
-  if (options.skipKnowledgeBase) normalized.skipKnowledgeBase = true;
   if (options.yes || options.nonInteractive) normalized.nonInteractive = true;
 
   if (hasValue(options.type)) {
@@ -87,6 +91,27 @@ export function mergeProjectContext(preset = {}, cliContext = {}) {
   return validateProjectContext({ ...preset, ...cliContext }, { source: "project context" });
 }
 
+export function parseSetOverrides(values = []) {
+  const result = {};
+  for (const entry of values) {
+    const separator = entry.indexOf("=");
+    if (separator < 1) throw new Error(`Invalid --set value "${entry}". Expected key=value.`);
+    const keys = entry.slice(0, separator).split(".");
+    if (keys.some((key) => !/^[a-zA-Z][a-zA-Z0-9]*$/.test(key))) throw new Error(`Invalid --set key in "${entry}".`);
+    let target = result;
+    for (const key of keys.slice(0, -1)) target = target[key] ||= {};
+    target[keys.at(-1)] = parseScalar(entry.slice(separator + 1));
+  }
+  return result;
+}
+
+function parseScalar(value) {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value);
+  return value;
+}
+
 /**
  * Validates project context fields that are already present.
  *
@@ -125,7 +150,10 @@ export function assertRequiredProjectContext(ctx = {}) {
 
   addMissing(missing, ctx, "setupType", "--type <application|wordpress> or --existing");
   addMissing(missing, ctx, "projectName", "--name <name>");
-  addMissing(missing, ctx, "environment", "--environment <docker|lando>");
+  // Application projects (React/Next.js/Laravel) no longer use Docker/Lando
+  // — they're scaffolded by their official generators and run via their own
+  // dev servers — so --environment isn't required for them.
+  if (ctx.appType !== "application") addMissing(missing, ctx, "environment", "--environment <docker|lando>");
 
   if (ctx.setupType === "new") {
     addMissing(missing, ctx, "appType", "--type <application|wordpress>");

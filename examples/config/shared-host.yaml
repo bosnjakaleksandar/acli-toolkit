@@ -1,0 +1,34 @@
+version: 1
+defaults:
+  environment: docker
+presets:
+  import-wordpress:
+    setupType: existing-wp
+    appType: wordpress
+    projectType: wp-existing
+    profile: shared-host
+profiles:
+  shared-host:
+    type: wordpress
+    ssh:
+      host: staging.example.com
+      port: 22
+      username: "{projectName}"
+      identityFile: "${ACLI_SSH_KEY}"
+      hostKeyPolicy: accept-new
+    remote:
+      projectRoot: "/srv/projects/{projectName}"
+      wordpressRoot: wordpress
+    files:
+      transport: rsync
+      directories: [uploads, plugins, themes]
+      excludes: ["*.log", node_modules]
+    database:
+      driver: wp-cli
+    git:
+      enabled: true
+      discoveryPaths: [".", "wp-content/themes/{projectName}"]
+    urls:
+      staging: "https://{projectName}.staging.example.com"
+    local:
+      url: http://localhost:8080

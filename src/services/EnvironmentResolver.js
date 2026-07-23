@@ -1,12 +1,20 @@
 import DockerComposeService from "./DockerComposeService.js";
 import LandoService from "./LandoService.js";
 
-/**
- * Creates the correct local environment service for a context.
- *
- * @param {string} environment Environment key.
- * @returns {DockerComposeService | LandoService}
- */
+const adapters = new Map([
+  ["docker", () => new DockerComposeService()],
+  ["lando", () => new LandoService()],
+]);
+
+export function registerEnvironmentAdapter(name, factory) {
+  if (!name || typeof factory !== "function") throw new Error("Environment adapters require a name and factory.");
+  adapters.set(name, factory);
+}
+
+export function listEnvironmentAdapters() { return [...adapters.keys()]; }
+
 export function resolveEnvironmentService(environment) {
-  return environment === "lando" ? new LandoService() : new DockerComposeService();
+  const factory = adapters.get(environment);
+  if (!factory) throw new Error(`Unknown local environment "${environment}". Available: ${listEnvironmentAdapters().join(", ")}.`);
+  return factory();
 }

@@ -72,13 +72,13 @@ export default class WordPressStrategy extends BaseStrategy {
 
     const plugins = hasPresetValue(ctx, "plugins")
       ? normalizePlugins(ctx.plugins)
-      : nonInteractive
+      : nonInteractive || !ctx.customizeAdvanced
         ? []
         : await this.#askPlugins();
 
     const installWpCli = hasPresetValue(ctx, "installWpCli")
       ? Boolean(ctx.installWpCli)
-      : nonInteractive
+      : nonInteractive || !ctx.customizeAdvanced
         ? false
         : await ask(confirm, {
             message: "Install WP-CLI inside the local environment when supported?",

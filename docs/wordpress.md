@@ -5,6 +5,6 @@ WordPress projects support Docker Compose or Lando, configurable MySQL and WordP
 Use:
 
 ```bash
-create-project --preset wordpress
-create-project --preset wordpress-woo
+acli create --preset wordpress
+acli create --preset wordpress-woo
 ```

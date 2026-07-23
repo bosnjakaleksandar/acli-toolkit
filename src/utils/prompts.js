@@ -1,9 +1,12 @@
 import { text, select, confirm, isCancel, cancel } from "@clack/prompts";
 import fs from "fs-extra";
+import { mascot } from "../ui/acaCharacter.js";
 
 export async function ask(promptFn, options) {
   const result = await promptFn(options);
   if (isCancel(result)) {
+    await mascot.show("cancelled", "Operation cancelled.");
+    mascot.stop();
     cancel("Operation cancelled.");
     process.exit(0);
   }
