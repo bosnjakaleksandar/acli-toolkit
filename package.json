@@ -1,5 +1,5 @@
 {
-  "name": "a-cli",
+  "name": "acli-toolkit",
   "version": "2.0.0",
   "description": "A-CLI Developer Toolkit for project scaffolding and local development workflows.",
   "main": "dist/cli/run.js",

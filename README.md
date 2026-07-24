@@ -20,13 +20,13 @@ Node.js 20 or newer is required.
 Run without installing:
 
 ```bash
-npx a-cli
+npx acli-toolkit
 ```
 
 Or install the command globally:
 
 ```bash
-npm install --global a-cli
+npm install --global acli-toolkit
 acli create
 ```
 
@@ -259,7 +259,7 @@ Documents require `version: 1`. A-CLI does not load repository `.env` files. Pro
 
 Run `acli doctor` first. It catches most missing local tools.
 
-If a global update fails with a permissions error, configure an npm user-owned global directory (recommended by npm) or use `npx a-cli` instead. Check the installed copy with `acli --version` and the registry release with `npm view a-cli version`.
+If a global update fails with a permissions error, configure an npm user-owned global directory (recommended by npm) or use `npx acli-toolkit` instead. Check the installed copy with `acli --version` and the registry release with `npm view acli-toolkit version`.
 
 If an update check is stale or its cache is damaged, remove `update.json` from the directory printed by `acli config path` (User); it will be recreated on the next successful check. Offline update checks fail silently by design and never prevent project creation.
 
