@@ -74,7 +74,7 @@ test("waitForDb throws instead of proceeding once the timeout elapses", async ()
 
 test("ensureWpCli verifies via `lando wp --version` and throws a clear error when unavailable", async () => {
   const runner = async (command, args = []) => {
-    if (args.join(" ") === "wp --version") throw new Error("app not started");
+    if (args.join(" ") === "wp --skip-plugins --skip-themes --version") throw new Error("app not started");
     return "";
   };
   const lando = new LandoService({ runner });
@@ -109,7 +109,7 @@ test("recoverDb probes the app-path DB connection after rebuilding, before verif
   const probeIndex = calls.indexOf("probe");
   assert.notEqual(probeIndex, -1, "recoverDb must probe the app-path DB connection");
   const rebuildIndex = calls.indexOf("rebuild -y");
-  const verifyIndex = calls.indexOf("wp --version");
+  const verifyIndex = calls.indexOf("wp --skip-plugins --skip-themes --version");
   assert.ok(rebuildIndex < probeIndex, "probe must happen after the app rebuilds");
   assert.ok(probeIndex < verifyIndex, "probe must happen before wp-cli is verified");
 });
@@ -121,5 +121,5 @@ test("searchReplace runs wp search-replace with --all-tables", async () => {
 
   const wpCall = calls.find((call) => call.args.includes("search-replace"));
   assert.ok(wpCall, "expected a wp search-replace invocation");
-  assert.deepEqual(wpCall.args, ["wp", "search-replace", "https://old.example.com", "https://app.lndo.site", "--all-tables"]);
+  assert.deepEqual(wpCall.args, ["wp", "--skip-plugins", "--skip-themes", "search-replace", "https://old.example.com", "https://app.lndo.site", "--all-tables"]);
 });

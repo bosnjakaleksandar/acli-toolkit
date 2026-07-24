@@ -1,5 +1,22 @@
 # CLI Options
 
+## Global options
+
+These apply to every command, not just `create`:
+
+- `-v, --version` — print the installed version
+- `-h, --help` — list commands and options
+- `--skip-update` — bypass the automatic update check for this run
+- `--verbose` — show commands and detailed progress
+- `--debug` — show debug details and stack traces on failure
+- `--quiet` — suppress decorative output
+
+Running `acli` with no arguments (in an interactive terminal) opens a menu to create, import, link, pull, or run doctor.
+
+`acli update` installs the latest published version globally. `acli update --check` reports whether one is available (exit code 1 if so) without installing anything — useful for scripting.
+
+## `create` options
+
 Interactive mode is still the default:
 
 ```bash

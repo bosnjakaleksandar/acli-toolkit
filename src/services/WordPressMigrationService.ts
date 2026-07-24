@@ -48,7 +48,7 @@ export default class WordPressMigrationService {
       // <argv>" with no explanation. Fold the real output into the message
       // so it survives being wrapped, instead of silently dropping it.
       throw new CliError(
-        `${describeError(error)}\nDatabase dump preserved at ${dumpPath}. Resume with: acli create --preset ${ctx.presetName || "<preset>"} --profile ${ctx.profile?.profileName || "<profile>"} --name ${ctx.projectName} --skip-files --keep-dump`,
+        `${describeError(error)}\nDatabase dump preserved at ${dumpPath}. Resume with: acli create --resume --preset ${ctx.presetName || "<preset>"} --profile ${ctx.profile?.profileName || "<profile>"} --name ${ctx.projectName} --skip-files --keep-dump`,
         { code: error.code || "MIGRATION_FAILED", hint: error.hint },
       );
     }

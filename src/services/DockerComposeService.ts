@@ -200,9 +200,15 @@ export default class DockerComposeService extends EnvironmentService {
     await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", `{ echo "[client]"; echo "user=root"; echo "password=$MYSQL_ROOT_PASSWORD"; } > /tmp/my.cnf && (mariadb --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${sqlFile} 2>/dev/null || mysql --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${sqlFile}); status=$?; rm -f /tmp/my.cnf; exit $status`], { cwd: targetDir }, onProgress);
   }
 
+  // --skip-plugins/--skip-themes: every call site here (siteurl reads,
+  // search-replace, version checks) is a core/DB-level operation that never
+  // needs plugin or theme code loaded. Skipping them avoids bootstrapping a
+  // site's full plugin stack just to run wp-cli — on real client databases
+  // that stack can be large enough to exhaust PHP's default memory_limit
+  // during plugin init, crashing an import that had nothing to do with them.
   async wp(targetDir: string, args: string[], spinner: Spinner | null = null): Promise<string> {
     const onProgress = spinner ? (line: string) => spinner.message(`WP-CLI: ${line}`) : null;
-    return (await this.run("docker", ["compose", "exec", "-T", "-u", "www-data", "wordpress", "wp", ...args], { cwd: targetDir }, onProgress)) as string;
+    return (await this.run("docker", ["compose", "exec", "-T", "-u", "www-data", "wordpress", "wp", "--skip-plugins", "--skip-themes", ...args], { cwd: targetDir }, onProgress)) as string;
   }
 
   async searchReplace(targetDir: string, from: string, to: string, spinner: Spinner | null = null): Promise<string> {

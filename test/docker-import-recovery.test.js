@@ -176,7 +176,7 @@ test("searchReplace runs wp search-replace with --all-tables", async () => {
 
   const wpCall = calls.find((call) => call.args.includes("search-replace"));
   assert.ok(wpCall, "expected a wp search-replace invocation");
-  assert.deepEqual(wpCall.args.slice(wpCall.args.indexOf("wp")), ["wp", "search-replace", "https://old.example.com", "http://localhost:8080", "--all-tables"]);
+  assert.deepEqual(wpCall.args.slice(wpCall.args.indexOf("wp")), ["wp", "--skip-plugins", "--skip-themes", "search-replace", "https://old.example.com", "http://localhost:8080", "--all-tables"]);
 });
 
 test("regression: the post-import connection check must not depend on the mysql/mysqlcheck/mysqldump client binaries", async () => {

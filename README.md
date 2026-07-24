@@ -60,6 +60,7 @@ Project generation is one A-CLI command rather than the entire application. Comm
 
 ```bash
 acli create
+acli import
 acli doctor
 acli update
 acli config
@@ -77,6 +78,12 @@ When an update is available, accept the prompt to install it globally, then reru
 
 ```bash
 acli update
+```
+
+To check whether an update is available without installing it — e.g. in a script, exits 1 if one is available:
+
+```bash
+acli update --check
 ```
 
 To bypass the automatic check for a single run:
@@ -101,6 +108,8 @@ List commands and options:
 ```bash
 acli --help
 ```
+
+Global flags available on every command: `--verbose` (show commands and detailed progress), `--debug` (show stack traces on failure), `--quiet` (suppress decorative output).
 
 ## Requirements
 
@@ -159,7 +168,7 @@ acli create --name salon --preset wordpress --environment lando
 For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required values are reported as errors instead of prompts:
 
 ```bash
-acli create --existing --name client-site --environment lando --yes
+acli import --name client-site --environment lando --yes
 acli create --type application --framework nextjs --laravel --name booking-app --yes
 ```
 
@@ -169,42 +178,24 @@ Presets and CLI options can be combined. CLI options override preset values, so 
 acli create --preset wordpress --name my-site --environment lando
 ```
 
-Common options:
+A few of the most common `create` options — see [docs/cli-options.md](docs/cli-options.md) for the full reference (every `create`/`import` flag, plus global options like `--verbose`, `--debug`, and `--skip-update`):
 
 - `--name <name>`
 - `--environment <docker|lando>` or `--env <docker|lando>`
 - `--preset <preset>`
-- `--existing`
 - `--type <application|wordpress>`
 - `--framework <react|nextjs|next>`
 - `--laravel`
 - `--wp-type <theme|woo|react|wp-theme|wp-woo|wp-react>`
-- `--mysql <version>`
-- `--wp-version <version>`
-- `--theme-repo <url>`
-- `--theme-branch <branch>`
-- `--staging-url <url>`
-- `--ssh-key <path>`
-- `--skip-git`
 - `--yes` or `--non-interactive`
-- `--skip-update`
+- `--dry-run`
+- `--resume`
 
 ## Doctor
 
-`acli doctor` verifies:
+`acli doctor` only checks what the selected workflow needs: Node.js/npm/Git always; Docker Compose or Lando if a local environment is selected; Composer/PHP for Laravel presets; SSH plus rsync or SCP if a staging profile applies. Pass `--preset`/`--profile`/`--environment` to check exactly what a specific `acli create`/`acli import` run would need. WP-CLI is never checked — it's optional locally; Docker/Lando workflows run `wp` inside the environment.
 
-- Node.js
-- npm
-- Git
-- Docker
-- Docker Compose
-- Lando
-- Composer
-- PHP
-- SSH
-- WP-CLI, optional
-
-Missing tools are reported with suggested fixes.
+Missing tools are reported with suggested fixes. See [docs/doctor.md](docs/doctor.md) for the full breakdown.
 
 ## Presets
 
@@ -246,7 +237,7 @@ Laravel combinations create a real Laravel application in `backend/` using `comp
 
 WordPress projects generate the selected Docker or Lando environment, support starter or custom theme repositories, optional branch selection, and optional plugin setup scripts.
 
-Existing WordPress projects sync staging files, export the staging database, scaffold the local environment, detect Git remotes, import the database, and run search-replace — and are linked to their staging profile automatically, so `acli pull` can re-sync them afterward. Use `acli link` to attach a profile to a directory you didn't create with `acli create` (e.g. a checked-out repo). See [docs/existing-wp.md](docs/existing-wp.md) for the daily `acli link`/`acli pull` workflow, and [docs/supported-matrix.md](docs/supported-matrix.md) for exactly what's supported and its known limitations.
+`acli import` brings an existing WordPress site into a new local project: syncs staging files, exports the staging database, scaffolds the local environment, detects Git remotes, imports the database, and runs search-replace — linked to its staging profile automatically, so `acli pull` can re-sync it afterward. Besides a saved profile (the default), `--source` also accepts a one-off `ssh` target, a `local` folder, a `git` repo, a `.zip` export, or a bare `sql` dump. Use `acli link` to attach a profile to a directory you didn't create with `acli create`/`acli import` (e.g. a checked-out repo). `acli create --existing` still works as a deprecated alias for `acli import --source profile`. See [docs/existing-wp.md](docs/existing-wp.md) for every source and the daily `acli link`/`acli pull` workflow, and [docs/supported-matrix.md](docs/supported-matrix.md) for exactly what's supported and its known limitations.
 
 ## A-CLI v2 configuration
 
@@ -259,7 +250,7 @@ acli preset list
 acli profile create
 acli profile use agency
 acli profile current
-acli create --existing --name client-site --profile agency --dry-run --yes
+acli import --name client-site --profile agency --dry-run --yes
 ```
 
 Documents require `version: 1`. A-CLI does not load repository `.env` files. Profiles may explicitly reference environment variables or command-based secret providers; resolved output redacts secrets. Generic profiles ship in `examples/config`.
@@ -276,7 +267,7 @@ If Laravel generation fails, install Composer and PHP, then rerun the command.
 
 If a theme clone fails, verify the repository URL, selected branch, and SSH key access.
 
-If an existing WordPress sync fails, run a dry run and verify the selected profile, SSH access, transfer tool, and remote WordPress path.
+If an existing WordPress sync fails, run a dry run and verify the selected profile, SSH access, transfer tool, and remote WordPress path. A failed `create`/`import` never deletes what it already fetched — it prints an exact `--resume` command to continue from the step that failed instead of starting over.
 
 If Docker database import fails, start the environment manually and inspect container logs:
 

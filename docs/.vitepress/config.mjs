@@ -15,6 +15,7 @@ export default {
       { text: "Home", link: "/" },
       { text: "Installation", link: "/installation" },
       { text: "Quick Start", link: "/quick-start" },
+      { text: "CLI Options", link: "/cli-options" },
       { text: "Supported Matrix", link: "/supported-matrix" },
       { text: "WordPress", link: "/wordpress" },
       { text: "React", link: "/react" },
