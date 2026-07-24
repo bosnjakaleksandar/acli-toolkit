@@ -3,14 +3,14 @@
 Install A-CLI globally with Node.js 20 or newer:
 
 ```bash
-npm install --global a-cli
+npm install --global acli-toolkit
 acli
 ```
 
 Or run it without installing:
 
 ```bash
-npx a-cli
+npx acli-toolkit
 ```
 
 For development from a source checkout:
