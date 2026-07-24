@@ -31,6 +31,39 @@ test("writeLink rejects a link missing required fields", async () => {
   await fs.remove(root);
 });
 
+test("writeLink rejects a project name with characters unsafe for a filesystem/package name", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-"));
+  await assert.rejects(() => writeLink(root, { name: "../evil; rm -rf", environment: "docker" }), /Project name can only contain/);
+  await fs.remove(root);
+});
+
+test("writeLink adds .acli/ to the project's .gitignore when linking into an existing, already-tracked repo", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-gitignore-"));
+  await fs.writeFile(path.join(root, ".gitignore"), "node_modules/\n");
+  await writeLink(root, { name: "client-site", environment: "docker" });
+  const gitignore = await fs.readFile(path.join(root, ".gitignore"), "utf8");
+  assert.match(gitignore, /node_modules\//);
+  assert.match(gitignore, /(^|\n)\.acli\/(\n|$)/);
+  await fs.remove(root);
+});
+
+test("writeLink creates a .gitignore excluding .acli/ when none exists yet", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-no-gitignore-"));
+  await writeLink(root, { name: "client-site", environment: "docker" });
+  const gitignore = await fs.readFile(path.join(root, ".gitignore"), "utf8");
+  assert.match(gitignore, /(^|\n)\.acli\/(\n|$)/);
+  await fs.remove(root);
+});
+
+test("writeLink does not duplicate the .acli/ entry if the .gitignore already excludes it", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-dup-gitignore-"));
+  await fs.writeFile(path.join(root, ".gitignore"), ".acli/\nnode_modules/\n");
+  await writeLink(root, { name: "client-site", environment: "docker" });
+  const gitignore = await fs.readFile(path.join(root, ".gitignore"), "utf8");
+  assert.equal(gitignore.match(/\.acli\//g).length, 1);
+  await fs.remove(root);
+});
+
 test("findProjectRoot finds the linked project from a nested subdirectory", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-"));
   await writeLink(root, { name: "client-site", environment: "docker" });

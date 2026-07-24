@@ -77,7 +77,9 @@ async function importViaRemote(source: string, options: any): Promise<void> {
     ...(options.remoteUrl ? { urls: { staging: options.remoteUrl } } : {}),
   };
   const tempPath = path.join(os.tmpdir(), `acli-import-ssh-${process.pid}-${Date.now()}.yaml`);
-  await fs.writeFile(tempPath, YAML.stringify(tempProfile));
+  // Contains an SSH host/user/identityFile path in a shared, predictably-named
+  // temp directory — keep it private rather than at the default umask.
+  await fs.writeFile(tempPath, YAML.stringify(tempProfile), { mode: 0o600 });
   try {
     return await createProjectCommand({ ...options, existing: true, profile: tempPath, _viaImportCommand: true });
   } finally {

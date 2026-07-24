@@ -7,6 +7,18 @@ interface CommandResultLike {
   stderr?: string | Buffer;
 }
 
+// Matches a credential value concatenated (no space) directly onto a known
+// secret-bearing flag/prefix — e.g. mysqldump's `-p<password>` or a
+// `MYSQL_PWD=<password>` env-var prefix built into a remote command string.
+// Deliberately requires no whitespace before the value so unrelated flags
+// that take a *separate* argument (ssh's `-p 2222` for a port) never match.
+const SECRET_ARG_PATTERN = /(-p|--password=|MYSQL_PWD=)('[^']*'|"[^"]*"|\S+)/g;
+
+/** Best-effort redaction of known credential patterns from a command line before it's logged or surfaced in an error message. Not a substitute for not passing secrets as process arguments in the first place — see RemoteProfileService's MYSQL_PWD usage — but keeps A-CLI's own diagnostic output from gratuitously repeating a secret that's already unavoidably present in local process argv. */
+function redactCommandLine(command: string, args: string[]): string {
+  return [command, ...args].join(" ").replace(SECRET_ARG_PATTERN, (_match, flag) => `${flag}[REDACTED]`);
+}
+
 /**
  * Error thrown when a child process exits unsuccessfully.
  */
@@ -20,7 +32,7 @@ export class CommandError extends Error {
   constructor(command: string, args: string[], result: CommandResultLike) {
     const stderr = result.stderr?.toString?.() || (result.stderr as string) || "";
     const stdout = result.stdout?.toString?.() || (result.stdout as string) || "";
-    super(`Command failed: ${[command, ...args].join(" ")}`);
+    super(`Command failed: ${redactCommandLine(command, args)}`);
     this.name = "CommandError";
     this.command = command;
     this.args = args;
@@ -44,7 +56,7 @@ export async function runCommand(
   options: RunCommandOptions = {},
   onProgress: ((line: string) => void) | null = null,
 ): Promise<string | Buffer> {
-  if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${[command, ...args].join(" ")}`);
+  if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${redactCommandLine(command, args)}`);
   return new Promise((resolve, reject) => {
     const { encoding = "utf8", ...spawnOptions } = options;
     const child = spawn(command, args, {

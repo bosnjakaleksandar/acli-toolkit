@@ -22,6 +22,47 @@ test("template interpolation rejects unsafe values and unknown variables", () =>
   assert.throws(() => renderTemplate("/srv/{company}", { projectName: "demo" }), /Unknown profile template/);
 });
 
+test("resolveRemoteProfile rejects an ssh.username that would be parsed as an ssh/rsync/scp option (leading '-')", () => {
+  assert.throws(
+    () => resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, username: "-oProxyCommand=x" } }, { projectName: "demo" }),
+    /Unsafe value for profile field "ssh.username"/,
+  );
+});
+
+test("resolveRemoteProfile rejects an ssh.host containing shell metacharacters", () => {
+  assert.throws(
+    () => resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, host: "evil.com; rm -rf ~" } }, { projectName: "demo" }),
+    /Unsafe value for profile field "ssh.host"/,
+  );
+});
+
+test("resolveRemoteProfile rejects an identityFile containing spaces/shell metacharacters (rsync -e is a single word-split string, not an argv array)", () => {
+  assert.throws(
+    () => resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, identityFile: "/tmp/k -o ProxyCommand=sh -c id" } }, { projectName: "demo" }),
+    /Unsafe value for profile field "ssh.identityFile"/,
+  );
+});
+
+test("rsync's -e transport honors hostKeyPolicy the same way buildSshArgs does for direct ssh calls", async () => {
+  const calls = [];
+  const runner = async (command, args) => { calls.push({ command, args }); return ""; };
+  const insecureProfile = resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, hostKeyPolicy: "insecure" }, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads" } } } }, { projectName: "demo" });
+  const service = new RemoteProfileService(insecureProfile, runner);
+  const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-hostkey-");
+  await service.syncFiles(directory, null);
+  const rsyncCall = calls.find((call) => call.command === "rsync");
+  const transport = rsyncCall.args[rsyncCall.args.indexOf("-e") + 1];
+  assert.match(transport, /StrictHostKeyChecking=no/);
+  assert.match(transport, /UserKnownHostsFile=\/dev\/null/);
+});
+
+test("databaseCommand for the direct driver passes the password via MYSQL_PWD, never as a -p<password> argument", () => {
+  const resolved = resolveRemoteProfile({ ...profile, database: { driver: "direct", host: "db.example.com", port: 3306, user: "dbuser", password: "s3cr3t", name: "wp" } }, { projectName: "demo" });
+  const command = databaseCommand(resolved);
+  assert.match(command, /MYSQL_PWD='s3cr3t'/);
+  assert.doesNotMatch(command, /-p'?s3cr3t/);
+});
+
 test("Docker container discovery uses the declared remote env mapping", () => {
   const resolved = resolveRemoteProfile({ ...profile, database: { driver: "docker", discovery: "container-name", containerPattern: "{projectName}", envFile: ".env", userEnv: "DB_USER", passwordEnv: "DB_PASSWORD", nameEnv: "DB_NAME" } }, { projectName: "demo" });
   const command = databaseCommand(resolved);
@@ -39,6 +80,18 @@ test("database exports request binary-safe command output", async () => {
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-binary-");
   await service.exportDatabase(directory);
   assert.deepEqual(receivedOptions, { encoding: null });
+});
+
+test("exportDatabase writes staging.sql at mode 0600 (a full DB dump may include real password hashes)", async () => {
+  const fs = (await import("fs-extra")).default;
+  const service = new RemoteProfileService(
+    resolveRemoteProfile(profile, { projectName: "demo" }),
+    async () => Buffer.alloc(128, 1),
+  );
+  const directory = await fs.mkdtemp("/tmp/acli-dump-mode-");
+  await service.exportDatabase(directory);
+  const stat = await fs.stat(`${directory}/staging.sql`);
+  assert.equal(stat.mode & 0o777, 0o600);
 });
 
 test("getRemoteFacts fetches table prefix and siteurl via wp-cli over SSH", async () => {

@@ -7,6 +7,7 @@ import { PullService } from "../services/PullService.ts";
 import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.ts";
 import { writeLink } from "../services/ProjectLinkService.ts";
 import { runCommand } from "../utils/commandRunner.ts";
+import { isSafeGitUrl } from "../utils/safety.ts";
 import type EnvironmentService from "../services/EnvironmentService.ts";
 import type { Spinner } from "../services/EnvironmentService.ts";
 import type { ResolvedProfile } from "../core/model/ResolvedProfile.ts";
@@ -126,6 +127,14 @@ export default class ExistingWPStrategy extends BaseStrategy {
     spinner?.message("Discovering remote Git repository...");
     const found = await remote.discoverGit();
     if (!found) return;
+    // found.url is the remote server's own `git config --get
+    // remote.origin.url` output — untrusted server-controlled data. Skip
+    // linking rather than write something unsafe into the new project's git
+    // config or hand it to `git remote add` as a positional argument.
+    if (!isSafeGitUrl(found.url)) {
+      spinner?.message(`Skipping Git link: remote origin URL looked unsafe (${found.url}).`);
+      return;
+    }
     ctx.stagingRepoUrl = found.url;
     ctx.skipGitInit = true;
     await runCommand("git", ["init"], { cwd: targetDir });

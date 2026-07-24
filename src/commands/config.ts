@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import YAML from "yaml";
 import type { Command } from "commander";
 import { getProjectConfigPath, getUserConfigPath, loadConfig, redactSecrets } from "../services/ConfigService.ts";
+import { trustConfig } from "../services/ConfigTrustService.ts";
 import { CONFIG_VERSION } from "../config/defaults.ts";
 
 const STARTER_CONFIG_HEADER = `# A-CLI configuration
@@ -40,10 +41,25 @@ export function registerConfigCommand(program: Command): void {
         return;
       }
       const starter = { version: CONFIG_VERSION, defaults: {}, presets: {}, profiles: {} };
+      const content = STARTER_CONFIG_HEADER + YAML.stringify(starter);
       await fs.ensureDir(path.dirname(filePath));
-      await fs.writeFile(filePath, STARTER_CONFIG_HEADER + YAML.stringify(starter), { mode: 0o600 });
+      await fs.writeFile(filePath, content, { mode: 0o600 });
+      await trustConfig(filePath, content);
       console.log(`Configuration initialized at ${filePath}.`);
       console.log("Next: `acli profile create` to add a staging environment, or `acli create` to scaffold a project.");
+    });
+  command.command("trust").description("Mark the current project's .acli/config.yaml as trusted, allowing its secret references to be resolved")
+    .option("--config <path>", "Trust an explicit configuration file instead")
+    .action(async (options: any) => {
+      const filePath = options.config ? path.resolve(process.cwd(), options.config) : getProjectConfigPath();
+      if (!(await fs.pathExists(filePath))) {
+        console.log(`No configuration file found at ${filePath}.`);
+        process.exitCode = 1;
+        return;
+      }
+      const content = await fs.readFile(filePath, "utf8");
+      await trustConfig(filePath, content);
+      console.log(`Trusted ${filePath}. Its secret references will be resolved until the file's contents change.`);
     });
   command.command("show").option("--resolved", "Resolve layered configuration and secret references").option("--config <path>", "Use an explicit configuration file").action(async (options: any) => {
     const result = await loadConfig({ configPath: options.config, resolveSecrets: Boolean(options.resolved) });

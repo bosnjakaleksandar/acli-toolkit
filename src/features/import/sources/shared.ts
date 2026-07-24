@@ -41,6 +41,10 @@ export async function copySqlFile(sqlFile: string | undefined, targetDir: string
   if (!(await fs.pathExists(resolved))) {
     throw new CliError(`SQL dump file was not found: ${sqlFile}`, { code: "SQL_FILE_NOT_FOUND" });
   }
-  await fs.copy(resolved, path.join(targetDir, "staging.sql"));
+  const destination = path.join(targetDir, "staging.sql");
+  await fs.copy(resolved, destination);
+  // A full database dump may include real user password hashes — tighten
+  // permissions regardless of the source file's own mode or umask.
+  await fs.chmod(destination, 0o600);
   return { hasDump: true };
 }

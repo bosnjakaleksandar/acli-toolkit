@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { getProjectConfigPath, validateProjectLinkConfig } from "./ConfigService.ts";
 import { readWritableConfig, writeConfigAtomic } from "./ConfigFileService.ts";
+import { validateProjectName } from "./ProjectValidationService.ts";
 import type { ProjectLink } from "../core/model/AcliConfig.ts";
 
 /**
@@ -30,10 +31,28 @@ export async function readLink(root: string): Promise<ProjectLink | null> {
 }
 
 export async function writeLink(root: string, link: ProjectLink): Promise<string> {
+  const nameError = validateProjectName(link?.name);
+  if (nameError) throw new Error(nameError);
   validateProjectLinkConfig(link, `project link for "${link?.name}"`);
   const configPath = getProjectConfigPath(root);
   const config = await readWritableConfig(configPath, { allowProjectKey: true });
   config.project = link;
   await writeConfigAtomic(configPath, config);
+  await ensureGitignoreExcludesAcli(root);
   return configPath;
+}
+
+/**
+ * `link` (and `create --existing`) write .acli/config.yaml into a directory
+ * that may already be a tracked git repo the user didn't scaffold with
+ * A-CLI — nothing else would ever add `.acli/` to that repo's .gitignore.
+ * Idempotent: does nothing if the file already excludes it (however it's
+ * written) or doesn't exist yet, in which case it's just created.
+ */
+async function ensureGitignoreExcludesAcli(root: string): Promise<void> {
+  const gitignorePath = path.join(root, ".gitignore");
+  const content = (await fs.pathExists(gitignorePath)) ? await fs.readFile(gitignorePath, "utf8") : "";
+  if (/(^|\n)\.acli\/?\s*($|\n)/.test(content)) return;
+  const prefix = content.length === 0 ? "" : content.endsWith("\n") ? "" : "\n";
+  await fs.appendFile(gitignorePath, `${prefix}.acli/\n`);
 }

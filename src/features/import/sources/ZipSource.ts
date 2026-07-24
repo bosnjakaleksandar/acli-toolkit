@@ -11,6 +11,29 @@ interface ZipContext extends ImportSourceContext {
   zipFile?: string;
 }
 
+/**
+ * `unzip` already strips `../`-traversal entries by default on the systems
+ * this tool targets, so this is defense-in-depth rather than the primary
+ * guard — but a zip file is untrusted input by design (a hosting-panel
+ * export from anywhere), so checking its entry list before extraction costs
+ * little and doesn't depend on assumptions about `unzip`'s current defaults.
+ */
+async function assertSafeZipEntries(zipPath: string, originalPath: string): Promise<void> {
+  let listing: string;
+  try {
+    listing = (await runCommand("unzip", ["-Z1", zipPath])) as string;
+  } catch (error) {
+    throw new CliError(`Failed to read zip entry list for ${originalPath}: ${describeError(error)}`, { code: "ZIP_EXTRACT_FAILED" });
+  }
+  const unsafeEntries = listing
+    .split("\n")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry && (entry.startsWith("/") || entry.split("/").includes("..")));
+  if (unsafeEntries.length) {
+    throw new CliError(`Refusing to extract ${originalPath}: it contains path-traversal entries (${unsafeEntries.slice(0, 3).join(", ")}${unsafeEntries.length > 3 ? ", ..." : ""}).`, { code: "ZIP_UNSAFE_ENTRIES" });
+  }
+}
+
 /** Extracts a WordPress site's wp-content directory from a .zip archive (e.g. a hosting-panel export). */
 export const ZipSource: ImportSource = {
   id: "zip",
@@ -23,6 +46,8 @@ export const ZipSource: ImportSource = {
     }
     const zipPath = path.resolve(ctx.zipFile.replace(/^~/, process.env.HOME || ""));
     if (!(await fs.pathExists(zipPath))) throw new CliError(`Zip file was not found: ${ctx.zipFile}`, { code: "ZIP_FILE_NOT_FOUND" });
+
+    await assertSafeZipEntries(zipPath, ctx.zipFile);
 
     const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-zip-"));
     try {

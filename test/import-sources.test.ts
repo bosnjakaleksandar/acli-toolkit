@@ -65,6 +65,10 @@ test("SqlManualSource has a no-op fetchFiles and copies the given .sql file to s
 
   assert.deepEqual(result, { hasDump: true });
   assert.equal(await fs.readFile(path.join(target, "staging.sql"), "utf8"), "CREATE TABLE wp_options (id INT);");
+  // A database dump may contain real user password hashes — regardless of
+  // the source file's own permissions or the process umask, the copy this
+  // tool makes should not be left world/group-readable.
+  assert.equal((await fs.stat(path.join(target, "staging.sql"))).mode & 0o777, 0o600);
   await fs.remove(sqlFile);
   await fs.remove(target);
 });
@@ -103,6 +107,27 @@ test("GitSource clones a repository and copies its wp-content directory into tar
   await fs.remove(target);
 });
 
+test("GitSource rejects a git ext::/leading-dash --repo value before ever invoking git", async () => {
+  const target = await tempDir("acli-import-git-target-");
+  await assert.rejects(
+    () => GitSource.fetchFiles({ targetDir: target, repositoryUrl: 'ext::sh -c "id>/tmp/x"' }),
+    (error: unknown) => {
+      assert.ok(error instanceof CliError);
+      assert.equal(error.code, "USAGE");
+      return true;
+    },
+  );
+  await assert.rejects(
+    () => GitSource.fetchFiles({ targetDir: target, repositoryUrl: "--upload-pack=touch /tmp/pwned" }),
+    (error: unknown) => {
+      assert.ok(error instanceof CliError);
+      assert.equal(error.code, "USAGE");
+      return true;
+    },
+  );
+  await fs.remove(target);
+});
+
 test("GitSource throws a clear, wrapped error when the clone fails", async () => {
   const target = await tempDir("acli-import-git-target-");
   await assert.rejects(
@@ -130,6 +155,30 @@ test("ZipSource extracts an archive and copies its wp-content directory into tar
   assert.ok(await fs.pathExists(path.join(target, "wp-content", "uploads", "photo.jpg")));
   await fs.remove(stageDir);
   await fs.remove(zipPath);
+  await fs.remove(target);
+});
+
+test("ZipSource refuses to extract a zip containing path-traversal entries, before ever running unzip's actual extraction", async () => {
+  // `zip` stores whatever relative path it's given verbatim, including a
+  // leading ../ — simulating a maliciously hand-crafted archive (a normal
+  // `zip -r wp-content` from inside a WordPress export never produces one).
+  const trickyDir = await tempDir("acli-import-zip-traversal-src-");
+  await fs.ensureDir(path.join(trickyDir, "outer", "inner"));
+  await fs.writeFile(path.join(trickyDir, "outer", "payload.txt"), "escaped");
+  const zipPath = path.join(os.tmpdir(), `acli-import-traversal-${process.pid}.zip`);
+  await fs.remove(zipPath).catch(() => {});
+  execFileSync("zip", ["-q", zipPath, "../payload.txt"], { cwd: path.join(trickyDir, "outer", "inner") });
+  assert.match(execFileSync("unzip", ["-Z1", zipPath], { encoding: "utf8" }), /\.\./);
+
+  const target = await tempDir("acli-import-zip-traversal-target-");
+  await assert.rejects(() => ZipSource.fetchFiles({ targetDir: target, zipFile: zipPath }), (error: unknown) => {
+    assert.ok(error instanceof CliError);
+    assert.equal(error.code, "ZIP_UNSAFE_ENTRIES");
+    return true;
+  });
+
+  await fs.remove(trickyDir);
+  await fs.remove(zipPath).catch(() => {});
   await fs.remove(target);
 });
 

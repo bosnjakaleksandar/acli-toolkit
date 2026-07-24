@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { redactSecrets } from "./ConfigService.ts";
+import { trustConfig } from "./ConfigTrustService.ts";
 import YAML from "yaml";
 import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
@@ -54,8 +55,10 @@ export async function savePlanAsPreset(name: string, ctx: ProjectPlan, { cwd = p
   config.presets ||= {};
   const safeCtx = toSafeCtx(ctx);
   config.presets[name] = redactSecrets(Object.fromEntries(Object.entries(safeCtx).filter(([key, value]) => SAFE_KEYS.has(key) && key !== "projectName" && value !== undefined)));
+  const content = YAML.stringify(config);
   await fs.ensureDir(path.dirname(filePath));
-  await fs.writeFile(filePath, YAML.stringify(config), { mode: 0o600 });
+  await fs.writeFile(filePath, content, { mode: 0o600 });
+  await trustConfig(filePath, content);
   return filePath;
 }
 

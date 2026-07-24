@@ -2,7 +2,7 @@ import EnvironmentService, { type Spinner, type WaitOptions, type WaitForAppDbOp
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.ts";
+import { resolveTemplateName, resolveDbImage, assertSafeTablePrefix, assertSafeWpVersion } from "../utils/templateMap.ts";
 import { runCommand } from "../utils/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
 
@@ -47,11 +47,10 @@ export default class DockerComposeService extends EnvironmentService {
     }
 
     if (wpVersion) {
-      const wpImageTag = wpVersion === "latest" ? "latest" : wpVersion;
-      content = content.replace(/{{WP_VERSION}}/g, wpImageTag);
+      content = content.replace(/{{WP_VERSION}}/g, assertSafeWpVersion(wpVersion));
     }
 
-    const tablePrefixValue = tablePrefix || "wp_";
+    const tablePrefixValue = assertSafeTablePrefix(tablePrefix || "wp_");
     content = content.replace(/{{TABLE_PREFIX}}/g, tablePrefixValue);
 
     content = content.replace(/{{PROJECT_NAME}}/g, projectName);

@@ -2,7 +2,7 @@ import EnvironmentService, { type Spinner, type WaitOptions, type WaitForAppDbOp
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveTemplateName, resolveDbImage } from "../utils/templateMap.ts";
+import { resolveTemplateName, resolveDbImage, assertSafeTablePrefix } from "../utils/templateMap.ts";
 import { runCommand } from "../utils/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
 
@@ -40,7 +40,7 @@ export default class LandoService extends EnvironmentService {
       content = content.replace(/{{DB_IMAGE}}/g, resolveDbImage(mysqlVersion));
     }
 
-    const tablePrefixValue = tablePrefix || "wp_";
+    const tablePrefixValue = assertSafeTablePrefix(tablePrefix || "wp_");
     content = content.replace(/{{TABLE_PREFIX}}/g, tablePrefixValue);
 
     content = content.replace(/{{PROJECT_NAME}}/g, projectName);

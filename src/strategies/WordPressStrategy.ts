@@ -5,6 +5,7 @@ import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../utils/git.ts";
 import { runCommand } from "../utils/commandRunner.ts";
+import { isSafeGitUrl, isSafePluginSlug, isSafeSshKeyPath } from "../utils/safety.ts";
 import {
   ask,
   askMysqlVersion,
@@ -153,8 +154,17 @@ export default class WordPressStrategy extends BaseStrategy {
             /^~/,
             process.env.HOME,
           );
+          // git executes GIT_SSH_COMMAND through a shell, so an unquoted
+          // key path with shell metacharacters (or one crafted to look like
+          // an extra ssh option) would be interpreted rather than passed
+          // through literally. Reject anything but a plain path up front.
+          if (!isSafeSshKeyPath(resolvedKeyPath)) {
+            throw new Error(`Unsafe SSH key path: ${resolvedKeyPath}`);
+          }
           envVars.GIT_SSH_COMMAND = `ssh -i ${resolvedKeyPath} -o IdentitiesOnly=yes`;
         }
+
+        if (!isSafeGitUrl(themeRepo)) throw new Error(`Unsafe theme repository URL: ${themeRepo}`);
 
         const args = ["clone"];
         if (themeBranch) args.push("--branch", themeBranch);
@@ -209,7 +219,7 @@ export default class WordPressStrategy extends BaseStrategy {
       "set -euo pipefail",
       "",
       ctx.installWpCli && ctx.environment === "docker"
-        ? "docker compose exec -T wordpress bash -lc 'command -v wp >/dev/null || (curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp)'"
+        ? "docker compose exec -T wordpress bash -lc 'command -v wp >/dev/null || (curl -fsSL -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp)'"
         : "",
       ...ctx.plugins.map((plugin: string) => `${wpCommand} plugin install ${plugin} --activate`),
       "",
@@ -225,13 +235,17 @@ export default class WordPressStrategy extends BaseStrategy {
   }
 }
 
-function normalizePlugins(plugins: unknown): string[] {
-  if (Array.isArray(plugins)) return plugins;
-  if (typeof plugins === "string") {
-    return plugins
-      .split(",")
-      .map((plugin) => plugin.trim())
-      .filter(Boolean);
-  }
-  return [];
+export function normalizePlugins(plugins: unknown): string[] {
+  const list = Array.isArray(plugins)
+    ? plugins
+    : typeof plugins === "string"
+      ? plugins.split(",").map((plugin) => plugin.trim()).filter(Boolean)
+      : [];
+  // Plugin slugs are written verbatim into a generated, executable shell
+  // script (#writeWordPressSetupScript) — validating against WordPress.org's
+  // slug grammar here, before that script is ever created, keeps a
+  // maliciously-crafted preset/--set value from injecting shell commands.
+  const invalid = list.filter((plugin) => !isSafePluginSlug(plugin));
+  if (invalid.length) throw new Error(`Invalid plugin slug(s): ${invalid.join(", ")}. Plugin slugs may only contain lowercase letters, digits, and hyphens.`);
+  return list;
 }
