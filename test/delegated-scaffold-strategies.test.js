@@ -59,7 +59,12 @@ test("LaravelStrategy scaffolds the frontend via the wrapped strategy, then dele
   const { runner, calls } = makeFakeRunner();
   const frontendCalls = [];
   const fakeFrontend = { scaffold: async (dir, ctx) => { frontendCalls.push({ dir, ctx }); } };
-  const strategy = new LaravelStrategy(null, fakeFrontend, { runner });
+  // hasCommand is injected (not just `runner`) so this test never depends on
+  // whether Composer is actually installed on the machine running it — it
+  // previously did, which passed by coincidence on machines/runners that
+  // happen to have Composer (e.g. GitHub's ubuntu-latest) and failed on ones
+  // that don't (macos-latest).
+  const strategy = new LaravelStrategy(null, fakeFrontend, { runner, hasCommand: () => true });
 
   const fs = (await import("fs-extra")).default;
   const os = (await import("node:os")).default;

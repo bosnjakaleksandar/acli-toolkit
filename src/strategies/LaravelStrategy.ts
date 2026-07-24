@@ -7,15 +7,18 @@ import type EnvironmentService from "../services/EnvironmentService.ts";
 import type { ScaffoldStrategy } from "../core/registry/ProjectTypeRegistry.ts";
 
 type Runner = typeof runCommand;
+type HasCommand = typeof hasCommand;
 
 export default class LaravelStrategy extends BaseStrategy {
   frontendStrategy: ScaffoldStrategy;
   run: Runner;
+  hasCommand: HasCommand;
 
-  constructor(envService: EnvironmentService | null, frontendStrategy: ScaffoldStrategy, { runner = runCommand }: { runner?: Runner } = {}) {
+  constructor(envService: EnvironmentService | null, frontendStrategy: ScaffoldStrategy, { runner = runCommand, hasCommand: hasCommandCheck = hasCommand }: { runner?: Runner; hasCommand?: HasCommand } = {}) {
     super(envService);
     this.frontendStrategy = frontendStrategy;
     this.run = runner;
+    this.hasCommand = hasCommandCheck;
   }
 
   override async askQuestions(ctx: any, options: { nonInteractive?: boolean } = {}): Promise<any> {
@@ -29,7 +32,7 @@ export default class LaravelStrategy extends BaseStrategy {
     await fs.ensureDir(frontendDir);
     await this.frontendStrategy.scaffold(frontendDir, ctx);
 
-    if (!hasCommand("composer")) {
+    if (!this.hasCommand("composer")) {
       throw new Error(
         "Composer is required to generate a Laravel application. Install Composer and run this command again.",
       );
