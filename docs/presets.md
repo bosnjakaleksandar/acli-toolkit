@@ -18,12 +18,26 @@ acli profile inspect agency-staging
 acli profile validate agency-staging
 acli profile use agency-staging
 acli profile current
+acli profile rename agency-staging agency-cloud
 acli profile delete agency-staging
 ```
 
-`profile create` starts an interactive wizard. Use `--scope user` to make it globally available or `--scope project` to save it in `.acli/config.yaml`.
+`profile create` starts an interactive wizard. Use `--scope user` to make it globally available or `--scope project` to save it in `.acli/config.yaml`. `profile delete`/`rename`/`import` default to `--scope project`; pass `--scope user` to target the global config instead. `profile rename` also repoints `defaults.profile` and any preset's `profile` field in that same file, so renaming can't leave a dangling reference behind.
 
 A profile describes only the remote staging environment. Docker or Lando remains a separate local-environment choice. `profile list` marks the default with `*`; `profile use` changes it and `profile current` explains what will be selected by default.
+
+## Sharing a profile with colleagues
+
+`profile export` prints (or writes) a profile as a portable YAML file — the same shape a `--preset ./path.yaml` or `--profile ./path.yaml` file already accepts directly, or that a colleague can save as a named profile of their own with `profile import`:
+
+```bash
+acli profile export agency-cloud --output agency-cloud.profile.yaml
+# ...share the file...
+acli profile import ./agency-cloud.profile.yaml         # name inferred from the filename
+acli profile import ./agency-cloud.profile.yaml agency  # or choose the saved name explicitly
+```
+
+`export` warns (without altering the file) if a sensitive-looking field — like `ssh.identityFile` — holds a literal, machine-specific value instead of a `${ENV_VAR}` reference; replace it before sharing so each colleague can point it at their own key. `import` also accepts a full exported/portable config with multiple `profiles:` entries — pass the one to import as the second argument if the file has more than one.
 
 ## Starting from a built-in template
 
