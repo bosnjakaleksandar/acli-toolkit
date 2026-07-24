@@ -4,3 +4,4 @@ node_modules/
 .acli/
 dist/
 *.tsbuildinfo
+.claude/

@@ -16,7 +16,15 @@
     "rootDir": "src",
     "outDir": "dist",
     "declaration": false,
-    "sourceMap": true,
+    // Source maps here would ship in the published npm package (dist/ is
+    // listed whole in package.json's "files", and npm's files allowlist
+    // can't be filtered further by .npmignore) pointing at a src/ tree that
+    // isn't included in the tarball, and without sourcesContent embedded
+    // they wouldn't resolve to anything useful even if it were. That's dead
+    // weight roughly doubling the package size for zero benefit — see
+    // `npm run build` locally (src/ sits next to dist/) if you need to
+    // debug against source temporarily.
+    "sourceMap": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },

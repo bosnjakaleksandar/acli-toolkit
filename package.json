@@ -34,6 +34,10 @@
     "type": "git",
     "url": "git+https://github.com/bosnjakaleksandar/project-setup.git"
   },
+  "homepage": "https://bosnjakaleksandar.github.io/project-setup/",
+  "bugs": {
+    "url": "https://github.com/bosnjakaleksandar/project-setup/issues"
+  },
   "publishConfig": {
     "access": "public"
   },

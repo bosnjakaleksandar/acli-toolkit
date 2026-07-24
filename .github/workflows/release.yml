@@ -22,6 +22,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history (not the default shallow clone) is required for the
+          # merge-base ancestry check below.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -32,6 +36,18 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+      # A tag matching v*.*.* triggers this workflow regardless of which
+      # commit it points at — without this check, anyone able to push a tag
+      # could publish a release built from a commit that never went through
+      # a reviewed PR into main. Requires the fetch-depth: 0 checkout above.
+      - name: Verify the tagged commit is reachable from main
+        run: |
+          git fetch origin main --quiet
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME points at a commit that is not an ancestor of main. Refusing to publish."
+            exit 1
+          fi
 
       # Fails clearly if package.json's version doesn't match the pushed tag,
       # instead of silently publishing whatever version happens to be checked
@@ -47,9 +63,9 @@ jobs:
           fi
 
       # Requires an NPM_TOKEN secret (Settings → Secrets and variables →
-      # Actions) with publish rights on the `a-cli` package. --provenance
-      # works regardless of how npm authenticates, as long as id-token:
-      # write is granted above and the npm CLI is >=9.5.0.
+      # Actions) with publish rights on the `acli-toolkit` package.
+      # --provenance works regardless of how npm authenticates, as long as
+      # id-token: write is granted above and the npm CLI is >=9.5.0.
       - run: npm publish --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
