@@ -17,7 +17,7 @@ services:
     volumes:
       - .:/var/www/html
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     restart: always
     environment:
       WORDPRESS_DB_HOST: db
@@ -32,12 +32,10 @@ services:
     depends_on:
       - db
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     restart: always
     environment:
       PMA_HOST: db
-      PMA_USER: wordpress
-      PMA_PASSWORD: wordpress
 
 volumes:
   db_data:
