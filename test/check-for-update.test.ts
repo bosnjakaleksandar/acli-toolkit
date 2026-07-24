@@ -52,6 +52,49 @@ test("returns no pending update when the cached version is not newer than the cu
   await fs.remove(path.dirname(cachePath));
 });
 
+test("a 404 from the registry (package not published yet) is cached as 'no update' and does not report offline", async () => {
+  const cachePath = await tempCachePath();
+  const fakeFetch = (async () => new Response(null, { status: 404 })) as typeof fetch;
+  let offlineCalled = false;
+
+  const result = await checkForUpdate({
+    packageName: "a-cli",
+    currentVersion: "2.0.0",
+    cachePath,
+    fetchImplementation: fakeFetch,
+    onOffline: () => { offlineCalled = true; },
+  });
+
+  assert.equal(result.latestVersion, null);
+  assert.equal(offlineCalled, false, "a 404 is a normal result, not an offline/network failure");
+
+  // The negative result must be cached, or every subsequent run would
+  // re-issue the same network call and eventually re-check unnecessarily.
+  const cached = await fs.readJSON(cachePath);
+  assert.equal(cached.latestVersion, "2.0.0");
+  assert.ok(cached.lastChecked);
+
+  await fs.remove(path.dirname(cachePath));
+});
+
+test("a genuine network failure (not a 404) still reports offline and is not cached", async () => {
+  const cachePath = await tempCachePath();
+  const fakeFetch = (async () => { throw new Error("network unreachable"); }) as unknown as typeof fetch;
+  let offlineError: unknown = null;
+
+  const result = await checkForUpdate({
+    packageName: "a-cli",
+    currentVersion: "2.0.0",
+    cachePath,
+    fetchImplementation: fakeFetch,
+    onOffline: (error) => { offlineError = error; },
+  });
+
+  assert.equal(result.latestVersion, null);
+  assert.ok(offlineError instanceof Error);
+  assert.equal(await fs.pathExists(cachePath), false, "a genuine failure should not be cached, so the next run retries instead of waiting out the 24h window");
+});
+
 test("markUpdateNotified preserves the existing lastChecked timestamp (does not reset the network-fetch throttle)", async () => {
   const cachePath = await tempCachePath();
   const originalLastChecked = Date.now() - 1000;

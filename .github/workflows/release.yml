@@ -1,0 +1,55 @@
+name: Release
+
+# Fires on an annotated version tag (e.g. v2.0.0) pushed to the repo — it does
+# not run on every push to a branch, so merging to main or pushing to
+# refactor never triggers a publish attempt on its own.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  # Required for npm provenance: lets npm attach a signed, publicly verifiable
+  # attestation (via Sigstore) proving this exact tarball was built by this
+  # exact workflow run from this exact commit, without needing a long-lived
+  # signing key stored as a secret.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      # Fails clearly if package.json's version doesn't match the pushed tag,
+      # instead of silently publishing whatever version happens to be checked
+      # in — a tag is supposed to be the deliberate trigger for a specific
+      # release, not just "whatever's on this commit".
+      - name: Verify package.json version matches the tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      # Requires an NPM_TOKEN secret (Settings → Secrets and variables →
+      # Actions) with publish rights on the `a-cli` package. --provenance
+      # works regardless of how npm authenticates, as long as id-token:
+      # write is granted above and the npm CLI is >=9.5.0.
+      - run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

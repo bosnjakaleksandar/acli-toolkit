@@ -1,5 +1,5 @@
 import { readUpdateCache, isCacheFresh, writeUpdateCache } from "./cache.ts";
-import { fetchLatestVersion } from "./registry.ts";
+import { fetchLatestVersion, PackageNotFoundError } from "./registry.ts";
 import { isNewerVersion } from "./semver.ts";
 
 export interface CheckForUpdateOptions {
@@ -8,6 +8,7 @@ export interface CheckForUpdateOptions {
   now?: number;
   onOffline?: (error: unknown) => void | Promise<void>;
   cachePath?: string;
+  fetchImplementation?: typeof fetch;
 }
 
 export interface CheckForUpdateResult {
@@ -24,7 +25,7 @@ export interface CheckForUpdateResult {
  * update five times. `alreadyNotified` lets the caller downgrade to a quiet
  * one-line reminder instead of a blocking confirm prompt.
  */
-export async function checkForUpdate({ packageName, currentVersion, now = Date.now(), onOffline, cachePath }: CheckForUpdateOptions): Promise<CheckForUpdateResult> {
+export async function checkForUpdate({ packageName, currentVersion, now = Date.now(), onOffline, cachePath, fetchImplementation }: CheckForUpdateOptions): Promise<CheckForUpdateResult> {
   const cache = await readUpdateCache(cachePath);
   let latestVersion: string;
   let notifiedVersion = cache?.notifiedVersion ?? null;
@@ -32,10 +33,20 @@ export async function checkForUpdate({ packageName, currentVersion, now = Date.n
     latestVersion = cache!.latestVersion;
   } else {
     try {
-      latestVersion = await fetchLatestVersion(packageName);
+      latestVersion = fetchImplementation ? await fetchLatestVersion(packageName, fetchImplementation) : await fetchLatestVersion(packageName);
       notifiedVersion = null; // a fresh check window is a fresh chance to notify
       await writeUpdateCache({ lastChecked: now, latestVersion, notifiedVersion }, cachePath).catch(() => {});
     } catch (error) {
+      // A package that isn't published yet (or was unpublished) isn't
+      // "offline" — it's a normal, cacheable "no update available" result.
+      // Without this, every single command run would re-attempt the network
+      // call and show an "update check unavailable" message, since a 404
+      // response is never cached below and gets treated as a fresh failure
+      // every time.
+      if (error instanceof PackageNotFoundError) {
+        await writeUpdateCache({ lastChecked: now, latestVersion: currentVersion, notifiedVersion: null }, cachePath).catch(() => {});
+        return { latestVersion: null, alreadyNotified: false };
+      }
       await onOffline?.(error);
       return { latestVersion: null, alreadyNotified: false };
     }

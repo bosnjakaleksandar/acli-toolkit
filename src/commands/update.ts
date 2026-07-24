@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import type { Command } from "commander";
 import { installLatestVersion } from "../update/install.ts";
+import { checkForUpdate } from "../update/checkForUpdate.ts";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.ts";
 import type { PackageMetadata } from "../utils/packageMetadata.ts";
@@ -22,9 +23,25 @@ export async function updateCommand(packageName: string): Promise<void> {
   console.log(`Please run:\n\n${chalk.cyan(BRANDING.command)}\n`);
 }
 
+/** Report-only variant for scripting: prints the result and sets exit code 1 if an update is available, without installing anything. */
+export async function checkUpdateCommand(packageMetadata: PackageMetadata): Promise<void> {
+  const { latestVersion } = await checkForUpdate({
+    packageName: packageMetadata.name,
+    currentVersion: packageMetadata.version,
+    onOffline: () => { console.log(chalk.gray("Update check unavailable (offline or registry unreachable).")); },
+  });
+  if (latestVersion) {
+    console.log(`${BRANDING.name} ${latestVersion} is available (current: ${packageMetadata.version}). Run \`acli update\` to install.`);
+    process.exitCode = 1;
+  } else {
+    console.log(`${BRANDING.name} ${packageMetadata.version} is up to date.`);
+  }
+}
+
 export function registerUpdateCommand(program: Command, { packageMetadata }: { packageMetadata: PackageMetadata }): void {
   program
     .command("update")
     .description("Install the latest published version globally")
-    .action(() => updateCommand(packageMetadata.name));
+    .option("--check", "Report whether an update is available without installing it (exit 1 if one is)")
+    .action((options: { check?: boolean }) => options.check ? checkUpdateCommand(packageMetadata) : updateCommand(packageMetadata.name));
 }
