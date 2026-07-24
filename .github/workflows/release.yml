@@ -30,8 +30,8 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - run: npm ci
-      - run: npm test
       - run: npm run build
+      - run: npm test
 
       # Fails clearly if package.json's version doesn't match the pushed tag,
       # instead of silently publishing whatever version happens to be checked
