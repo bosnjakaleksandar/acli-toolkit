@@ -30,8 +30,8 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm test
       - run: npm run build
+      - run: npm test
       - run: npm pack --dry-run
 
   dist-smoke:
