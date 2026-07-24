@@ -26,8 +26,8 @@ async function withEnv(overrides, run) {
 test("reproduces the legacy SSH convention: username = project name, remote path <project>/wordpress", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-legacy-"));
   await withEnv({ STAGING_SSH_HOST: undefined, STAGING_SUFFIX: undefined }, async () => {
-    const { profile } = await importLegacyProfileCommand("legacy", { host: "popart.cloud", yes: true, config: path.join(directory, "config.yaml") });
-    assert.equal(profile.ssh.host, "popart.cloud");
+    const { profile } = await importLegacyProfileCommand("legacy", { host: "staging.example.com", yes: true, config: path.join(directory, "config.yaml") });
+    assert.equal(profile.ssh.host, "staging.example.com");
     assert.equal(profile.ssh.username, "{projectName}");
     assert.equal(profile.remote.projectRoot, "{projectName}");
     assert.equal(profile.remote.wordpressRoot, "wordpress");

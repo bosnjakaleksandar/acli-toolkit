@@ -127,7 +127,9 @@ export function registerProfileCommand(program: Command): void {
       const yaml = YAML.stringify(profile);
       if (!options.output) { console.log(yaml); return; }
       const outputPath = path.resolve(process.cwd(), options.output);
-      await fs.writeFile(outputPath, yaml);
+      // May contain literal secrets (see the warning above) — write it
+      // private by default rather than at the default umask.
+      await fs.writeFile(outputPath, yaml, { mode: 0o600 });
       console.log(`Profile "${name}" exported to ${outputPath}.`);
     });
   command.command("import <path> [name]").description("Save a portable profile YAML file (e.g. one produced by `profile export`) as a named profile")

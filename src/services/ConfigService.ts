@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import YAML from "yaml";
 import { BUILT_IN_CONFIG, CONFIG_VERSION } from "../config/defaults.ts";
 import { getProjectConfigPath, getUserConfigPath } from "../config/paths.ts";
+import { isConfigTrusted } from "./ConfigTrustService.ts";
 import type { AcliConfig, ProjectLink } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/ResolvedProfile.ts";
 
@@ -34,12 +35,17 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
   // Only the project-scoped file (or an explicit --config, which behaves like
   // one) may declare a `project:` link — the user-level config is shared
   // across every project on the machine, so a link there could never be
-  // meaningful.
+  // meaningful. `autoDiscovered` marks the one candidate that A-CLI reads
+  // without being asked to: the project config found by walking up from cwd.
+  // Unlike an explicit --config (the user pointed at it on purpose) or the
+  // user-level config (lives on this machine, not in a repo someone else
+  // wrote), an auto-discovered project config may have arrived via `git
+  // clone` — see the trust check below.
   const candidates = configPath
-    ? [{ name: `explicit config (${path.resolve(cwd, configPath)})`, path: path.resolve(cwd, configPath), required: true, allowProjectKey: true }]
+    ? [{ name: `explicit config (${path.resolve(cwd, configPath)})`, path: path.resolve(cwd, configPath), required: true, allowProjectKey: true, autoDiscovered: false }]
     : [
-        { name: `user config (${getUserConfigPath()})`, path: getUserConfigPath(), required: false, allowProjectKey: false },
-        { name: `project config (${getProjectConfigPath(cwd)})`, path: getProjectConfigPath(cwd), required: false, allowProjectKey: true },
+        { name: `user config (${getUserConfigPath()})`, path: getUserConfigPath(), required: false, allowProjectKey: false, autoDiscovered: false },
+        { name: `project config (${getProjectConfigPath(cwd)})`, path: getProjectConfigPath(cwd), required: false, allowProjectKey: true, autoDiscovered: true },
       ];
 
   for (const candidate of candidates) {
@@ -47,8 +53,21 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
       if (candidate.required) throw new Error(`Configuration file not found: ${candidate.path}`);
       continue;
     }
-    const value = await readConfigFile(candidate.path);
+    const rawText = await fs.readFile(candidate.path, "utf8");
+    const value = parseConfigText(rawText, candidate.path);
     validateConfig(value, candidate.name, { allowProjectKey: candidate.allowProjectKey });
+
+    if (resolveSecrets && candidate.autoDiscovered && (hasSecretReference(value.profiles) || hasSecretReference(value.project?.profile))) {
+      const trusted = env.ACLI_TRUST_PROJECT_CONFIG === "1" || (await isConfigTrusted(candidate.path, rawText, env));
+      if (!trusted) {
+        throw new Error(
+          `Refusing to resolve secrets from ${candidate.path}: it declares a secret command or environment-variable reference inside "profiles"/"project.profile".\n` +
+            `This file lives in the current project directory, which may have come from somewhere else (e.g. git clone) rather than from you — A-CLI will not execute commands from it automatically.\n` +
+            `If you trust this file, run "acli config trust" to approve it, or set ACLI_TRUST_PROJECT_CONFIG=1 to bypass this check for a single command.`,
+        );
+      }
+    }
+
     sources.push({ name: candidate.name, value });
   }
 
@@ -59,14 +78,30 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
 }
 
 export async function readConfigFile(filePath: string): Promise<AcliConfig> {
+  return parseConfigText(await fs.readFile(filePath, "utf8"), filePath);
+}
+
+function parseConfigText(text: string, filePath: string): AcliConfig {
   let parsed;
   try {
-    parsed = YAML.parse(await fs.readFile(filePath, "utf8"));
+    parsed = YAML.parse(text);
   } catch (error) {
     throw new Error(`Cannot parse configuration ${filePath}: ${(error as Error).message}`);
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`Configuration ${filePath} must be an object.`);
   return parsed;
+}
+
+/** True if `value` contains a `{command: "..."}` secret reference or a `${ENV_VAR}` string anywhere within it — used to decide whether an auto-discovered project config needs to be trusted before its secrets are resolved. */
+function hasSecretReference(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (Array.isArray(value)) return value.some(hasSecretReference);
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return true;
+    return entries.some(([, item]) => hasSecretReference(item));
+  }
+  return typeof value === "string" && /\$\{[A-Z_][A-Z0-9_]*\}/.test(value);
 }
 
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
@@ -76,6 +111,19 @@ export function validateConfig(config: AcliConfig, source = "configuration", { a
   for (const key of Object.keys(config)) if (!allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
   for (const group of ["defaults", "presets", "profiles"] as const) {
     if (config[group] !== undefined && (!config[group] || typeof config[group] !== "object" || Array.isArray(config[group]))) errors.push(`${source}: ${group} must be a mapping.`);
+  }
+  // `defaults`/`presets` are a free-form bag of ProjectPlan scaffolding
+  // fields (mysqlVersion, plugins, setupType, ...) — never a place secrets
+  // belong. Restricting them to plain scalars (rather than accepting any
+  // nested object) closes off hiding a `{command: "..."}` secret reference
+  // under an arbitrary preset/default key, where resolveReferences would
+  // otherwise execute it unconditionally.
+  if (isObject(config.defaults)) validatePlanFields(config.defaults, `${source}: defaults`, errors);
+  if (isObject(config.presets)) {
+    for (const [name, preset] of Object.entries(config.presets)) {
+      if (!isObject(preset)) { errors.push(`${source}: presets.${name} must be a mapping.`); continue; }
+      validatePlanFields(preset, `${source}: presets.${name}`, errors);
+    }
   }
   for (const [name, profile] of Object.entries(config.profiles || {})) validateProfile(profile, `${source} profile "${name}"`, errors);
   if (config.project !== undefined) validateProjectLink(config.project, `${source} project`, errors);
@@ -111,6 +159,18 @@ function validateProfile(profile: Profile, label: string, errors: string[]): voi
   if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
   if (profile.database?.tablePrefix !== undefined && typeof profile.database.tablePrefix !== "string") errors.push(`${label}: database.tablePrefix must be a string.`);
   if (profile.database?.normalizeCollations !== undefined && typeof profile.database.normalizeCollations !== "boolean") errors.push(`${label}: database.normalizeCollations must be a boolean.`);
+}
+
+function validatePlanFields(fields: Record<string, unknown>, label: string, errors: string[]): void {
+  for (const [key, value] of Object.entries(fields)) {
+    if (!isPlainScalar(value)) errors.push(`${label}.${key}: must be a string, number, or boolean (or an array of those) — nested objects, including secret "command" references, are not allowed here.`);
+  }
+}
+
+function isPlainScalar(value: unknown): boolean {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isPlainScalar);
+  return false;
 }
 
 function validateFileTargets(targets: Record<string, { path: string }>, label: string, errors: string[]): void {
@@ -178,7 +238,7 @@ function defaultSecretCommand(command: string): string {
   return execFileSync(program, args, { encoding: "utf8", shell: false, stdio: ["ignore", "pipe", "ignore"] }).trim();
 }
 
-function splitCommand(command: string): string[] {
+export function splitCommand(command: string): string[] {
   const matches = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
   return matches.map((part) => part.replace(/^(["'])|(["'])$/g, ""));
 }

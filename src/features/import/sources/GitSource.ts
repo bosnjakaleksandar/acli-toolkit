@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import { runCommand } from "../../../utils/commandRunner.ts";
 import { CliError, describeError } from "../../../core/errors.ts";
+import { isSafeGitUrl } from "../../../utils/safety.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import { copyWordPressContent, copySqlFile } from "./shared.ts";
 
@@ -18,6 +19,10 @@ export const GitSource: ImportSource = {
 
   async fetchFiles(ctx: GitContext, spinner?: any) {
     if (!ctx.repositoryUrl) throw new CliError("Git import requires --repo <url>.", { code: "USAGE" });
+    // Rejects git's ext::/fd:: remote-helper schemes (documented git RCE
+    // vectors — the "URL" is actually a shell command git will run) and any
+    // value starting with "-" (git would parse it as an option, not a URL).
+    if (!isSafeGitUrl(ctx.repositoryUrl)) throw new CliError(`Unsafe or invalid git repository URL: ${ctx.repositoryUrl}`, { code: "USAGE" });
     const cloneDir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-git-"));
     try {
       spinner?.message?.(`Cloning ${ctx.repositoryUrl}...`);

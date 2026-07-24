@@ -6,21 +6,26 @@
 # Core / Dependencies                    #
 # -------------------------------------- #
 
-/vendor/
+# The Laravel app lives in backend/ (this project also has a separate
+# frontend/), so paths meant to anchor at the app root must be prefixed
+# accordingly — a bare /vendor/ here would only ever match a vendor/
+# directory at the *project* root, which never exists.
+/backend/vendor/
 node_modules/
+auth.json
 
 # -------------------------------------- #
 # Storage / Cache                        #
 # -------------------------------------- #
 
-/public/hot
-/public/storage
-/storage/*.key
-/storage/framework/cache/data/*
-/storage/framework/sessions/*
-/storage/framework/testing/*
-/storage/framework/views/*
-/storage/logs/*
+/backend/public/hot
+/backend/public/storage
+/backend/storage/*.key
+/backend/storage/framework/cache/data/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/testing/*
+/backend/storage/framework/views/*
+/backend/storage/logs/*
 
 # -------------------------------------- #
 # IDE / EDITOR                           #
@@ -46,12 +51,18 @@ Thumbs.db
 # -------------------------------------- #
 
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
 .phpunit.result.cache
 docker-compose.override.yml
 Homestead.json
 Homestead.yaml
+
+# -------------------------------------- #
+# A-CLI                                  #
+# -------------------------------------- #
+
+.acli/
 
 # -------------------------------------- #
 # SQL / Logs                             #

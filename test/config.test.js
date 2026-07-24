@@ -4,6 +4,40 @@ import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
 import { deepMerge, getUserConfigPath, loadConfig, normalizeProfile, redactSecrets, resolveReferences, validateConfig, validateProfileConfig } from "../src/services/ConfigService.ts";
+import { writeConfigAtomic } from "../src/services/ConfigFileService.ts";
+import { isConfigTrusted, trustConfig } from "../src/services/ConfigTrustService.ts";
+
+async function withEnv(overrides, run) {
+  const original = {};
+  for (const key of Object.keys(overrides)) {
+    original[key] = process.env[key];
+    if (overrides[key] === undefined) delete process.env[key];
+    else process.env[key] = overrides[key];
+  }
+  try {
+    await run();
+  } finally {
+    for (const key of Object.keys(overrides)) {
+      if (original[key] === undefined) delete process.env[key];
+      else process.env[key] = original[key];
+    }
+  }
+}
+
+const attackerProfileYaml = `version: 1
+profiles:
+  attacker:
+    type: wordpress
+    ssh:
+      host: h.example.com
+      username: u
+    remote:
+      projectRoot: /r
+      wordpressRoot: w
+    database:
+      driver: direct
+      password: { command: "echo pwned" }
+`;
 
 test("deep configuration merge preserves lower layers and overrides nested values", () => {
   assert.deepEqual(deepMerge({ defaults: { environment: "docker", mysqlVersion: "8.0" } }, { defaults: { environment: "lando" } }), { defaults: { environment: "lando", mysqlVersion: "8.0" } });
@@ -27,6 +61,63 @@ test("redactSecrets still redacts the actual password/identityFile/token/secret 
 
 test("configuration validation rejects missing versions and unknown fields", () => {
   assert.throws(() => validateConfig({ presets: {}, legacyHost: "x" }), /version must be 1.*unknown top-level field/s);
+});
+
+test("configuration validation rejects a secret command reference hidden under an arbitrary defaults/presets key", () => {
+  assert.throws(() => validateConfig({ version: 1, defaults: { evil: { command: "id" } } }), /nested objects, including secret "command" references, are not allowed/);
+  assert.throws(() => validateConfig({ version: 1, presets: { p: { evil: { command: "id" } } } }), /nested objects, including secret "command" references, are not allowed/);
+});
+
+test("configuration validation accepts plain scalars and arrays of scalars in defaults/presets", () => {
+  const config = { version: 1, defaults: { mysqlVersion: "8.0", flag: true, count: 3 }, presets: { p: { plugins: ["a", "b"], useLaravel: false } } };
+  assert.deepEqual(validateConfig(config), config);
+});
+
+test("loadConfig refuses to resolve secrets from an untrusted, auto-discovered project config", async () => {
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acli-trust-cwd-"));
+  const configHome = await fs.mkdtemp(path.join(os.tmpdir(), "acli-trust-home-"));
+  const projectConfigPath = path.join(cwd, ".acli", "config.yaml");
+  await fs.ensureDir(path.dirname(projectConfigPath));
+  await fs.writeFile(projectConfigPath, attackerProfileYaml);
+  const env = { ...process.env, ACLI_CONFIG_HOME: configHome };
+
+  await assert.rejects(() => loadConfig({ cwd, env }), /Refusing to resolve secrets/);
+
+  // resolveSecrets:false (used by `config validate`/`show` without --resolved) never triggers the check.
+  const unresolved = await loadConfig({ cwd, env, resolveSecrets: false });
+  assert.ok(unresolved.rawConfig.profiles.attacker);
+
+  // ACLI_TRUST_PROJECT_CONFIG=1 bypasses the check for a single run.
+  const bypassed = await loadConfig({ cwd, env: { ...env, ACLI_TRUST_PROJECT_CONFIG: "1" } });
+  assert.equal(bypassed.config.profiles.attacker.database.password, "pwned");
+
+  // Trusting the file's current content (as `acli config trust` would) allows it through, without the bypass flag.
+  await trustConfig(projectConfigPath, attackerProfileYaml, env);
+  const trusted = await loadConfig({ cwd, env });
+  assert.equal(trusted.config.profiles.attacker.database.password, "pwned");
+
+  // Editing the file after trusting it invalidates the previous approval (content-hash pinning, like direnv).
+  await fs.writeFile(projectConfigPath, attackerProfileYaml.replace("echo pwned", "echo pwned2"));
+  await assert.rejects(() => loadConfig({ cwd, env }), /Refusing to resolve secrets/);
+
+  await fs.remove(cwd);
+  await fs.remove(configHome);
+});
+
+test("writeConfigAtomic trusts the config it just wrote, so A-CLI's own writes never trigger the project-config trust check", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-trust-write-"));
+  const configHome = await fs.mkdtemp(path.join(os.tmpdir(), "acli-trust-home-"));
+  await withEnv({ ACLI_CONFIG_HOME: configHome }, async () => {
+    const filePath = path.join(dir, "config.yaml");
+    await writeConfigAtomic(filePath, {
+      version: 1,
+      profiles: { p: { type: "wordpress", ssh: { host: "h", username: "u" }, remote: { projectRoot: "/r", wordpressRoot: "w" }, database: { driver: "direct", password: { command: "echo x" } } } },
+    });
+    const content = await fs.readFile(filePath, "utf8");
+    assert.equal(await isConfigTrusted(filePath, content), true);
+  });
+  await fs.remove(dir);
+  await fs.remove(configHome);
 });
 
 test("explicit config overrides built-in defaults", async () => {

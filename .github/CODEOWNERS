@@ -1,0 +1,3 @@
+# Default owner for everything in the repository.
+# Pairs with branch protection requiring review before merge to main.
+*       @bosnjakaleksandar
