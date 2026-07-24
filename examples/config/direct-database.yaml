@@ -1,0 +1,26 @@
+version: 1
+profiles:
+  direct-database:
+    type: wordpress
+    ssh:
+      host: web.example.com
+      username: deploy
+    remote:
+      projectRoot: "/home/deploy/sites/{projectName}"
+      wordpressRoot: web
+    files:
+      transport: sftp
+      directories: [uploads, themes]
+    database:
+      driver: direct
+      host: db.internal
+      port: 3306
+      user: "${STAGING_DB_USER}"
+      password:
+        command: op read op://wordpress/staging/password
+      name: "${STAGING_DB_NAME}"
+    git:
+      enabled: true
+    urls:
+      staging: "https://{projectName}.example.com"
+      additionalSearchReplace: ["http://{projectName}.example.com"]

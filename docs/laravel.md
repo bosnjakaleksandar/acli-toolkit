@@ -1,10 +1,12 @@
 # Laravel
 
-Laravel combinations create a real Laravel application with Composer in `backend/` and a React or Next.js frontend in `frontend/`.
+Laravel combinations create a real Laravel application via `composer create-project laravel/laravel` in `backend/`, and a React or Next.js frontend (scaffolded by its own official generator, see [React](./react.md)/[Next.js](./nextjs.md)) in `frontend/`. Composer and PHP are required; no Docker or Lando environment is created — run each side with its own dev server.
 
 ```bash
-create-project --preset laravel-react
-create-project --preset laravel-next
-```
+acli create --preset laravel-react
+acli create --preset laravel-next
 
-Composer and PHP are required.
+cd <project>/backend && php artisan serve
+# new terminal
+cd <project>/frontend && npm install && npm run dev
+```

@@ -1,16 +1,49 @@
 {
-  "name": "project-setup",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "a-cli",
+  "version": "2.0.0",
+  "description": "A-CLI Developer Toolkit for project scaffolding and local development workflows.",
+  "main": "dist/cli/run.js",
+  "exports": "./dist/cli/run.js",
+  "files": [
+    "bin",
+    "dist",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "cli",
+    "developer-toolkit",
+    "scaffolding",
+    "wordpress",
+    "laravel",
+    "react",
+    "nextjs"
+  ],
+  "author": "Aleksandar Bosnjak",
+  "license": "MIT",
   "type": "module",
   "bin": {
-    "create-project": "./index.js"
+    "acli": "./bin/acli",
+    "create-project": "./bin/create-project"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bosnjakaleksandar/project-setup.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/copy-templates.mjs",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "npm run typecheck && node --test",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm test && npm pack --dry-run",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
@@ -19,12 +52,15 @@
     "@clack/prompts": "^1.1.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
-    "dotenv": "^17.3.1",
     "figlet": "^1.11.0",
     "fs-extra": "^11.3.4",
-    "gradient-string": "^3.0.0"
+    "gradient-string": "^3.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
     "vitepress": "^1.6.0"
   }
 }

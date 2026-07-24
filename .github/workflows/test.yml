@@ -1,0 +1,56 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Full suite (typecheck + node:test, including .test.ts files) requires
+    # Node's native TypeScript type-stripping, stable since Node 22.18.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [22]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm pack --dry-run
+
+  dist-smoke:
+    # The published artifact is plain compiled JS (engines >=20), so verify
+    # the built dist/ actually runs on the declared floor version — this
+    # doesn't need native TS execution, just tsc + node running plain JS.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: node bin/acli --help
+      - run: CI=1 node bin/acli doctor
+      - run: CI=1 node bin/acli create --dry-run --yes --name smoke-test --type application --framework react --environment docker

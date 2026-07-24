@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+
+import os from "node:os";
+
+let recoveredDirectory = false;
+try { process.cwd(); } catch {
+  process.chdir(os.homedir());
+  recoveredDirectory = true;
+}
+
+try {
+  const [{ run }, { BRANDING }] = await Promise.all([import("../dist/cli/run.js"), import("../dist/config/branding.js")]);
+  if (recoveredDirectory) console.warn(`Warning: the previous working directory no longer exists or is inaccessible. Continuing from ${process.cwd()}.`);
+  console.warn(`Warning: 'create-project' is deprecated. Use '${BRANDING.command} create' instead.\n`);
+  await run(process.argv, { legacyExecutable: true });
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+}

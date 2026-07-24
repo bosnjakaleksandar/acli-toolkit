@@ -1,5 +1,20 @@
 # Installation
 
+Install A-CLI globally with Node.js 20 or newer:
+
+```bash
+npm install --global a-cli
+acli
+```
+
+Or run it without installing:
+
+```bash
+npx a-cli
+```
+
+For development from a source checkout:
+
 ```bash
 npm install
 npm link
@@ -8,5 +23,5 @@ npm link
 Run the CLI:
 
 ```bash
-create-project
+acli create
 ```

@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+
+import os from "node:os";
+
+let recoveredDirectory = false;
+try { process.cwd(); } catch {
+  process.chdir(os.homedir());
+  recoveredDirectory = true;
+}
+
+try {
+  if (recoveredDirectory) console.warn(`Warning: the previous working directory no longer exists or is inaccessible. Continuing from ${process.cwd()}.`);
+  const { run } = await import("../dist/cli/run.js");
+  await run();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+}
