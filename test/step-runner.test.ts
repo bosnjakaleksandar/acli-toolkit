@@ -127,11 +127,75 @@ test("without resume: true, a fresh run re-executes every step even if a stale s
   const runner1 = new StepRunner([{ id: "a", title: "Step A", run: async () => {} }], dir);
   await runner1.run();
   // Simulate a leftover state file from an unrelated prior run.
-  await fs.writeJSON(getStateFilePath(dir), { version: 1, completedSteps: ["a"], updatedAt: new Date().toISOString() });
+  await fs.writeJSON(getStateFilePath(dir), { version: 2, completedSteps: ["a"], stepData: {}, updatedAt: new Date().toISOString() });
 
   const ran: string[] = [];
   const runner2 = new StepRunner([{ id: "a", title: "Step A", run: async () => { ran.push("a"); } }], dir);
   await runner2.run();
   assert.deepEqual(ran, ["a"], "non-resumed run ignores any existing state file");
+  await fs.remove(dir);
+});
+
+test("a StepFailedError carries the resumeCommand supplied to the StepRunner constructor, not a hardcoded 'acli create' string", async () => {
+  const dir = await tempDir();
+  const runner = new StepRunner(
+    [{ id: "a", title: "Step A", run: async () => { throw new Error("boom"); } }],
+    dir,
+    { resumeCommand: "acli import --source git --resume --name demo" },
+  );
+  await assert.rejects(
+    () => runner.run(),
+    (error: unknown) => {
+      assert.ok(error instanceof StepFailedError);
+      assert.equal(error.resumeCommand, "acli import --source git --resume --name demo");
+      return true;
+    },
+  );
+  await fs.remove(dir);
+});
+
+test("a StepFailedError has no resumeCommand when the StepRunner was constructed without one", async () => {
+  const dir = await tempDir();
+  const runner = new StepRunner([{ id: "a", title: "Step A", run: async () => { throw new Error("boom"); } }], dir);
+  await assert.rejects(
+    () => runner.run(),
+    (error: unknown) => {
+      assert.ok(error instanceof StepFailedError);
+      assert.equal(error.resumeCommand, undefined);
+      return true;
+    },
+  );
+  await fs.remove(dir);
+});
+
+test("a step's return value is persisted under its id and handed to onSkip when that step is skipped on resume", async () => {
+  const dir = await tempDir();
+  const onSkipCalls: unknown[] = [];
+  const firstAttempt = new StepRunner(
+    [
+      { id: "detect", title: "Detect", run: async () => "xyz_" },
+      { id: "fail", title: "Fail", run: async () => { throw new Error("boom"); } },
+    ],
+    dir,
+  );
+  await assert.rejects(() => firstAttempt.run());
+
+  const secondAttempt = new StepRunner(
+    [
+      { id: "detect", title: "Detect", run: async () => { throw new Error("must not re-run a completed step"); }, onSkip: (data) => onSkipCalls.push(data) },
+      { id: "fail", title: "Fail", run: async () => {} },
+    ],
+    dir,
+  );
+  const result = await secondAttempt.run({ resume: true });
+  assert.deepEqual(onSkipCalls, ["xyz_"], "onSkip must receive the value 'detect' returned in the prior run");
+  assert.deepEqual(result.stepData, { detect: "xyz_", fail: undefined });
+  await fs.remove(dir);
+});
+
+test("readStepState treats a pre-v2 state file (no stepData, predating the current step sequence) as unresumable", async () => {
+  const dir = await tempDir();
+  await fs.outputJSON(getStateFilePath(dir), { version: 1, completedSteps: ["scaffold"], updatedAt: new Date().toISOString() });
+  assert.equal(await readStepState(dir), null);
   await fs.remove(dir);
 });

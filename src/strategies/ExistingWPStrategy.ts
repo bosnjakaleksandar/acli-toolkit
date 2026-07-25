@@ -7,7 +7,7 @@ import { PullService } from "../services/PullService.ts";
 import { RemoteProfileService, resolveRemoteProfile } from "../services/RemoteProfileService.ts";
 import { writeLink } from "../services/ProjectLinkService.ts";
 import { runCommand } from "../utils/commandRunner.ts";
-import { isSafeGitUrl } from "../utils/safety.ts";
+import { isSafeGitUrl, redactUrlCredentials } from "../utils/safety.ts";
 import type EnvironmentService from "../services/EnvironmentService.ts";
 import type { Spinner } from "../services/EnvironmentService.ts";
 import type { ResolvedProfile } from "../core/model/ResolvedProfile.ts";
@@ -132,7 +132,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     // linking rather than write something unsafe into the new project's git
     // config or hand it to `git remote add` as a positional argument.
     if (!isSafeGitUrl(found.url)) {
-      spinner?.message(`Skipping Git link: remote origin URL looked unsafe (${found.url}).`);
+      spinner?.message(`Skipping Git link: remote origin URL looked unsafe (${redactUrlCredentials(found.url)}).`);
       return;
     }
     ctx.stagingRepoUrl = found.url;

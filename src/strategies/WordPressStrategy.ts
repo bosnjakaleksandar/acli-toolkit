@@ -5,7 +5,7 @@ import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../utils/git.ts";
 import { runCommand } from "../utils/commandRunner.ts";
-import { isSafeGitUrl, isSafePluginSlug, isSafeSshKeyPath } from "../utils/safety.ts";
+import { isSafeGitUrl, isSafePluginSlug, isSafeSshKeyPath, redactUrlCredentials } from "../utils/safety.ts";
 import {
   ask,
   askMysqlVersion,
@@ -144,7 +144,7 @@ export default class WordPressStrategy extends BaseStrategy {
     if (themeRepo) {
       console.log(
         chalk.cyan(
-          `\nCloning theme from ${themeRepo}${themeBranch ? ` (${themeBranch})` : ""}...`,
+          `\nCloning theme from ${redactUrlCredentials(themeRepo)}${themeBranch ? ` (${themeBranch})` : ""}...`,
         ),
       );
       try {
@@ -180,7 +180,7 @@ export default class WordPressStrategy extends BaseStrategy {
       } catch (e: any) {
         await fs.remove(themeDir);
         throw new Error(
-          `Failed to clone theme repository: ${themeRepo}\n${e.message}`,
+          `Failed to clone theme repository: ${redactUrlCredentials(themeRepo)}\n${redactUrlCredentials(e.message)}`,
         );
       }
     } else {

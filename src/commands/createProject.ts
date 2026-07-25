@@ -155,6 +155,7 @@ export async function createProjectCommand(options: any = {}): Promise<void> {
         },
       ],
       targetDir,
+      { resumeCommand: `acli create --resume --name ${finalCtx.projectName}` },
     );
 
     await stepRunner.run({ resume: Boolean(options.resume) });

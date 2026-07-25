@@ -57,14 +57,17 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
     const value = parseConfigText(rawText, candidate.path);
     validateConfig(value, candidate.name, { allowProjectKey: candidate.allowProjectKey });
 
-    if (resolveSecrets && candidate.autoDiscovered && (hasSecretReference(value.profiles) || hasSecretReference(value.project?.profile))) {
-      const trusted = env.ACLI_TRUST_PROJECT_CONFIG === "1" || (await isConfigTrusted(candidate.path, rawText, env));
-      if (!trusted) {
-        throw new Error(
-          `Refusing to resolve secrets from ${candidate.path}: it declares a secret command or environment-variable reference inside "profiles"/"project.profile".\n` +
-            `This file lives in the current project directory, which may have come from somewhere else (e.g. git clone) rather than from you — A-CLI will not execute commands from it automatically.\n` +
-            `If you trust this file, run "acli config trust" to approve it, or set ACLI_TRUST_PROJECT_CONFIG=1 to bypass this check for a single command.`,
-        );
+    if (resolveSecrets && candidate.autoDiscovered) {
+      const secretPath = findSecretReferencePath(value);
+      if (secretPath) {
+        const trusted = env.ACLI_TRUST_PROJECT_CONFIG === "1" || (await isConfigTrusted(candidate.path, rawText, env));
+        if (!trusted) {
+          throw new Error(
+            `Refusing to resolve secrets from ${candidate.path}: it declares a secret command or environment-variable reference at "${secretPath}".\n` +
+              `This file lives in the current project directory, which may have come from somewhere else (e.g. git clone) rather than from you — A-CLI will not execute commands from it automatically.\n` +
+              `If you trust this file, run "acli config trust" to approve it, or set ACLI_TRUST_PROJECT_CONFIG=1 to bypass this check for a single command.`,
+          );
+        }
       }
     }
 
@@ -92,16 +95,36 @@ function parseConfigText(text: string, filePath: string): AcliConfig {
   return parsed;
 }
 
-/** True if `value` contains a `{command: "..."}` secret reference or a `${ENV_VAR}` string anywhere within it — used to decide whether an auto-discovered project config needs to be trusted before its secrets are resolved. */
-function hasSecretReference(value: unknown): boolean {
-  if (value === undefined || value === null) return false;
-  if (Array.isArray(value)) return value.some(hasSecretReference);
+/**
+ * Finds the first `{command: "..."}` secret reference or `${ENV_VAR}` string
+ * anywhere within `value`, returning its dotted key path (or null if none is
+ * found) — used to decide whether an auto-discovered project config needs to
+ * be trusted before its secrets are resolved. Scans the *entire* document
+ * (every root key, not just "profiles"/"project.profile"): resolveReferences
+ * below walks the whole merged config, so anything it would resolve must be
+ * covered here too, or a `${ENV_VAR}` reference tucked into e.g.
+ * `defaults.themeRepo` would resolve — and then get embedded in a `git
+ * clone` URL — without ever tripping the trust check.
+ */
+function findSecretReferencePath(value: unknown, keyPath: string[] = []): string | null {
+  if (value === undefined || value === null) return null;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const found = findSecretReferencePath(value[index], [...keyPath, String(index)]);
+      if (found) return found;
+    }
+    return null;
+  }
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return true;
-    return entries.some(([, item]) => hasSecretReference(item));
+    if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return [...keyPath, "command"].join(".");
+    for (const [key, item] of entries) {
+      const found = findSecretReferencePath(item, [...keyPath, key]);
+      if (found) return found;
+    }
+    return null;
   }
-  return typeof value === "string" && /\$\{[A-Z_][A-Z0-9_]*\}/.test(value);
+  return typeof value === "string" && /\$\{[A-Z_][A-Z0-9_]*\}/.test(value) ? keyPath.join(".") : null;
 }
 
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {

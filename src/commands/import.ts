@@ -94,6 +94,7 @@ async function importViaLocalSource(sourceId: string, options: any): Promise<voi
   let ownsTargetDir = false;
   let ctx: any = null;
   let s: ReturnType<typeof spinner> | null = null;
+  let resumeCommand: string | null = null;
 
   try {
     const source = importSourceRegistry.get(sourceId);
@@ -128,6 +129,7 @@ async function importViaLocalSource(sourceId: string, options: any): Promise<voi
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;
+    resumeCommand = `acli import --source ${sourceId} --resume --name ${ctx.projectName}`;
 
     if (options.dryRun) {
       note(
@@ -161,7 +163,7 @@ async function importViaLocalSource(sourceId: string, options: any): Promise<voi
     await fs.ensureDir(targetDir);
     ownsTargetDir = true;
 
-    await runImportWorkflow({ source, ctx, targetDir, envService, spinner: s, resume: Boolean(options.resume) });
+    await runImportWorkflow({ source, ctx, targetDir, envService, spinner: s, resume: Boolean(options.resume), resumeCommand });
     s.stop("2/3 Import complete.");
 
     const installPlan = await buildNextSteps(targetDir, ctx);
@@ -176,10 +178,9 @@ async function importViaLocalSource(sourceId: string, options: any): Promise<voi
     outro(buildSuccessSummary(targetDir, ctx, nextSteps));
   } catch (error: any) {
     if (s) s.stop(chalk.red("A critical error occurred."));
-    const resumeCommand = ownsTargetDir && ctx?.projectName ? `acli import --source ${sourceId} --resume --name ${ctx.projectName}` : null;
     await mascot.show("error", "Import failed.");
     mascot.stop();
-    console.log(formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand, action: "Import" }));
+    console.log(formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand: ownsTargetDir ? resumeCommand : null, action: "Import" }));
     if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
     process.exitCode = error.exitCode || 1;
   }
