@@ -10,7 +10,8 @@ import { runCommand } from "../utils/commandRunner.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../utils/safety.ts";
 import type EnvironmentService from "../services/EnvironmentService.ts";
 import type { Spinner } from "../services/EnvironmentService.ts";
-import type { ResolvedProfile } from "../core/model/ResolvedProfile.ts";
+import type { ResolvedProfile, Profile } from "../core/model/ResolvedProfile.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 type RemoteProfileServiceFactory = (profile: ResolvedProfile) => RemoteProfileService;
 
@@ -26,7 +27,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     this.pullService = new PullService(envService!, remoteProfileServiceFactory);
   }
 
-  override async askQuestions(ctx: any, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<any> {
+  override async askQuestions(ctx: ProjectPlan, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<ProjectPlan> {
     // "Customize advanced settings?" (asked earlier, for every project type)
     // used to be a dead end here: this strategy always asked the MySQL/WP
     // version questions regardless of the answer, so declining had no
@@ -38,34 +39,44 @@ export default class ExistingWPStrategy extends BaseStrategy {
     const wpVersion = ctx.environment === "docker"
       ? hasPresetValue(ctx, "wpVersion") ? ctx.wpVersion : skipAdvancedPrompts ? "latest" : await askWpVersion()
       : "latest";
-    const profile = resolveRemoteProfile(ctx.profile, ctx);
+    const profile = resolveRemoteProfile(ctx.profile as unknown as Profile, ctx as { projectName: string });
     // A staging URL is a helpful extra search-replace source but is no
     // longer required: importAndReplace reads the real siteurl back out of
     // the imported database, which works regardless of whether the profile
     // documents urls.staging or follows any particular naming convention.
     const stagingUrl = ctx.stagingUrl || profile.urls?.staging || null;
-    return { ...ctx, mysqlVersion, wpVersion, stagingUrl, profile };
+    // ProjectPlan.profile is documented as "never the resolved connection
+    // details" (see ResolvedProfileRef) — but this strategy's whole downstream
+    // (buildPlan/preflight/scaffold/#linkGit) depends on ctx.profile actually
+    // holding one from here on. That tension is real and pre-existing;
+    // resolving it properly needs a discriminated ProjectPlan union (planned,
+    // not yet done) rather than a strategy-local workaround. This cast is the
+    // single place that widening happens, so it can be found and removed then.
+    return { ...ctx, mysqlVersion, wpVersion, stagingUrl, profile } as ProjectPlan;
   }
 
-  buildPlan(ctx: any): unknown {
-    const remote = this.remoteProfileServiceFactory(ctx.profile);
+  buildPlan(ctx: ProjectPlan): unknown {
+    const profile = resolvedProfile(ctx);
+    const remote = this.remoteProfileServiceFactory(profile);
     return {
-      preset: ctx.presetName || null, profile: ctx.profile.profileName || null, project: ctx.projectName,
-      localEnvironment: ctx.environment, remoteHost: ctx.profile.ssh.host, remoteWordPressRoot: ctx.profile.remote.wordpressRoot,
-      databaseDriver: ctx.skipDatabase ? "skipped" : ctx.profile.database.driver,
-      fileTransfer: ctx.skipFiles ? "skipped" : ctx.profile.files?.transport || "rsync",
-      gitLink: !ctx.skipGitLink && ctx.profile.git?.enabled !== false,
-      requiredTools: remote.requiredTools(ctx), localUrl: this.envService!.getLocalUrl(ctx),
+      preset: ctx.presetName || null, profile: profile.profileName || null, project: ctx.projectName,
+      localEnvironment: ctx.environment, remoteHost: profile.ssh.host, remoteWordPressRoot: profile.remote.wordpressRoot,
+      databaseDriver: ctx.skipDatabase ? "skipped" : profile.database.driver,
+      fileTransfer: ctx.skipFiles ? "skipped" : profile.files?.transport || "rsync",
+      gitLink: !ctx.skipGitLink && profile.git?.enabled !== false,
+      requiredTools: remote.requiredTools(ctx as { environment?: string; skipFiles?: boolean }), localUrl: this.envService!.getLocalUrl(ctx),
     };
   }
 
-  async preflight(ctx: any, spinner: Spinner | null = null): Promise<void> {
+  async preflight(ctx: ProjectPlan, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Preflight: validating local and remote capabilities...");
-    await this.remoteProfileServiceFactory(ctx.profile).preflight(ctx);
+    const profile = resolvedProfile(ctx);
+    await this.remoteProfileServiceFactory(profile).preflight(ctx as { environment?: string; skipFiles?: boolean });
   }
 
-  override async scaffold(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
-    const remote = this.remoteProfileServiceFactory(ctx.profile);
+  override async scaffold(targetDir: string, ctx: ProjectPlan, spinner: Spinner | null = null): Promise<void> {
+    const profile = resolvedProfile(ctx);
+    const remote = this.remoteProfileServiceFactory(profile);
     let step = 1;
     const total = 7;
     await scaffoldGitignore(targetDir, "wp-existing");
@@ -78,11 +89,11 @@ export default class ExistingWPStrategy extends BaseStrategy {
     // step below reuses that same already-exported dump — no second export.
     if (!ctx.skipFiles) {
       spinner?.message(`${step++}/${total} Transferring WordPress files...`);
-      await this.#step("transfer files", () => this.pullService.syncFiles(targetDir, ctx.profile, undefined, spinner));
+      await this.#step("transfer files", () => this.pullService.syncFiles(targetDir, profile, undefined, spinner));
     }
     if (!ctx.skipDatabase) {
       spinner?.message(`${step++}/${total} Exporting remote database...`);
-      await this.#step("export database", () => this.pullService.exportDatabase(targetDir, ctx.profile, spinner));
+      await this.#step("export database", () => this.pullService.exportDatabase(targetDir, profile, spinner));
       const remoteFacts = await remote.getRemoteFacts();
       ctx.tablePrefix = await this.#step("detect table prefix", () => this.databaseDumpService.detectTablePrefix(targetDir, spinner, remoteFacts));
     }
@@ -91,7 +102,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     await this.#step("start local environment", () => this.scaffoldEnvironment(targetDir, ctx, spinner));
 
     spinner?.message(`${step++}/${total} Linking project to its staging profile...`);
-    await this.#step("link project to profile", () => writeLink(targetDir, { name: ctx.projectName, type: "wordpress", environment: ctx.environment, profile: ctx.profile.profileName, linkedAt: new Date().toISOString() }));
+    await this.#step("link project to profile", () => writeLink(targetDir, { name: ctx.projectName!, type: "wordpress", environment: ctx.environment!, profile: profile.profileName, linkedAt: new Date().toISOString() }));
 
     if (!ctx.skipGitLink) {
       spinner?.message(`${step++}/${total} Linking Git repository...`);
@@ -99,7 +110,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     }
     if (!ctx.skipDatabase) {
       spinner?.message(`${step++}/${total} Importing database and replacing URLs...`);
-      await this.#step("import database", () => this.pullService.importDatabase(targetDir, ctx, spinner, { keepDump: ctx.keepDump }));
+      await this.#step("import database", () => this.pullService.importDatabase(targetDir, ctx, spinner, { keepDump: ctx.keepDump as boolean | undefined }));
     }
     spinner?.message(`${Math.min(step, total)}/${total} Finalizing migration...`);
   }
@@ -123,7 +134,7 @@ export default class ExistingWPStrategy extends BaseStrategy {
     }
   }
 
-  async #linkGit(targetDir: string, ctx: any, remote: RemoteProfileService, spinner: Spinner | null): Promise<void> {
+  async #linkGit(targetDir: string, ctx: ProjectPlan, remote: RemoteProfileService, spinner: Spinner | null): Promise<void> {
     spinner?.message("Discovering remote Git repository...");
     const found = await remote.discoverGit();
     if (!found) return;
@@ -142,4 +153,13 @@ export default class ExistingWPStrategy extends BaseStrategy {
   }
 
   override getTemplateType(): string { return "wordpress"; }
+}
+
+// ProjectPlan.profile is typed as the raw, unresolved reference (string |
+// ResolvedProfileRef) — see the comment in askQuestions() above for why
+// ctx.profile is actually a ResolvedProfile by the time every method below
+// this point runs. Centralizes that one cast so each call site doesn't
+// repeat it.
+function resolvedProfile(ctx: ProjectPlan): ResolvedProfile {
+  return ctx.profile as unknown as ResolvedProfile;
 }

@@ -55,7 +55,7 @@ export function normalizeCliOptions(options: any = {}): ProjectPlan {
     normalized.setupType = "new";
     normalized.appType = "application";
     normalized.framework = normalizeFramework(options.framework) as ProjectPlan["framework"];
-    normalized.projectType = normalized.framework;
+    normalized.projectType = normalized.framework!;
   }
 
   if (options.laravel) {
@@ -66,7 +66,7 @@ export function normalizeCliOptions(options: any = {}): ProjectPlan {
     normalized.setupType = "new";
     normalized.appType = "wordpress";
     normalized.wpType = normalizeWpType(options.wpType) as ProjectPlan["wpType"];
-    normalized.projectType = normalized.wpType;
+    normalized.projectType = normalized.wpType!;
   }
 
   if (options.existing) {

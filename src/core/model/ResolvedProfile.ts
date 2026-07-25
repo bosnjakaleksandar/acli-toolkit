@@ -5,6 +5,8 @@
  * `resolveRemoteProfile()` first.
  */
 export interface Profile {
+  /** Defaults to "wordpress" when absent — see ConfigService's schema validation. The only value it may currently hold. */
+  type?: "wordpress";
   profileName?: string;
   ssh: {
     host: string;

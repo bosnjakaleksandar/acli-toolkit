@@ -4,29 +4,40 @@ import DatabaseDumpService from "../../services/DatabaseDumpService.ts";
 import WordPressMigrationService from "../../services/WordPressMigrationService.ts";
 import { StepRunner } from "../../core/StepRunner.ts";
 import type { ImportSource, ImportSourceContext } from "./ImportSource.ts";
+import type EnvironmentService from "../../services/EnvironmentService.ts";
+import type { Spinner } from "../../services/EnvironmentService.ts";
 
 export interface ImportWorkflowOptions {
   source: ImportSource;
-  ctx: ImportSourceContext & { environment?: string; skipFiles?: boolean; skipDatabase?: boolean };
+  ctx: ImportSourceContext & { environment?: string; skipFiles?: boolean; skipDatabase?: boolean; skipGitLink?: boolean };
   targetDir: string;
-  envService: any;
-  spinner?: any;
+  envService: EnvironmentService;
+  spinner?: Spinner | null;
   resume?: boolean;
   resumeCommand?: string;
 }
 
 /**
- * Runs the source-agnostic half of an import: fetch files, fetch a database
- * dump, detect its table prefix, scaffold the local environment, then (if a
- * dump was fetched) run the same import/search-replace pipeline the
- * profile-based `create --existing` flow uses (DatabaseDumpService,
- * WordPressMigrationService) — unmodified, so the two paths stay consistent.
+ * Runs the source-agnostic half of an import: preflight, fetch files, fetch
+ * a database dump, detect its table prefix, scaffold the local environment,
+ * link the project to its source (profile/git, when the source supports
+ * it), then (if a dump was fetched) run the same import/search-replace
+ * pipeline every import source shares (DatabaseDumpService,
+ * WordPressMigrationService).
  *
- * Prefix detection runs *before* scaffolding, matching
- * ExistingWPStrategy.scaffold: the prefix gets templated into
+ * The `preflight`/`getRemoteFacts`/`linkProfile`/`linkGit` steps are no-ops
+ * for sources that don't implement the matching optional ImportSource
+ * method (local/git/zip/sql today) — this is the one executor for every
+ * source, remote or local; a source opts into the steps it needs rather
+ * than the workflow branching on which source it's running.
+ *
+ * Prefix detection runs *before* scaffolding, matching what a source-level
+ * import always required: the prefix gets templated into
  * docker-compose.yaml/.lando.yml, so detecting it after the environment is
  * already scaffolded would leave those files pointed at the wrong tables
- * (silently falling back to the "wp_" default).
+ * (silently falling back to the "wp_" default). When available, an
+ * authoritative remote-reported prefix (getRemoteFacts) wins over guessing
+ * from the dump's own contents.
  *
  * Whether a dump exists is checked on disk (`<targetDir>/staging.sql`)
  * rather than tracked in an in-memory flag, so it stays correct across a
@@ -45,6 +56,13 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
   const hasDump = () => fs.pathExists(dumpPath);
 
   const steps = [
+    {
+      id: "preflight",
+      title: "Validating requirements",
+      run: async () => {
+        await source.preflight?.(ctx);
+      },
+    },
     {
       id: "fetch-files",
       title: "Fetching WordPress files",
@@ -68,7 +86,8 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       run: async () => {
         if (!(await hasDump())) return null;
         spinner?.message?.("Detecting table prefix...");
-        const tablePrefix = await databaseDumpService.detectTablePrefix(targetDir, spinner);
+        const remoteFacts = source.getRemoteFacts ? await source.getRemoteFacts(ctx) : null;
+        const tablePrefix = await databaseDumpService.detectTablePrefix(targetDir, spinner, remoteFacts);
         ctx.tablePrefix = tablePrefix;
         return tablePrefix;
       },
@@ -84,6 +103,24 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       run: async () => {
         spinner?.message?.("Scaffolding local WordPress environment...");
         await envService.scaffold(targetDir, "wordpress", ctx, spinner);
+      },
+    },
+    {
+      id: "link-profile",
+      title: "Linking project to its source",
+      run: async () => {
+        if (!source.linkProfile) return null;
+        spinner?.message?.("Linking project to its staging profile...");
+        return source.linkProfile(targetDir, ctx);
+      },
+    },
+    {
+      id: "link-git",
+      title: "Linking Git repository",
+      run: async () => {
+        if (!source.linkGit || ctx.skipGitLink) return;
+        spinner?.message?.("Discovering remote Git repository...");
+        await source.linkGit(targetDir, ctx, spinner);
       },
     },
     {

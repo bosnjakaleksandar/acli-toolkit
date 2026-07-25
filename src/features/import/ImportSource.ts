@@ -16,6 +16,11 @@ export interface ImportSourceContext {
   [key: string]: unknown;
 }
 
+export interface RemoteFacts {
+  tablePrefix: string | null;
+  siteUrl: string | null;
+}
+
 export interface ImportSource {
   id: string;
   label: string;
@@ -27,6 +32,20 @@ export interface ImportSource {
    * pipeline every import source shares. Returns whether a dump is present.
    */
   fetchDatabase(ctx: ImportSourceContext, spinner?: unknown): Promise<{ hasDump: boolean }>;
+  /** Remote sources only: verifies required tools/connectivity are available before any work starts. */
+  preflight?(ctx: ImportSourceContext): Promise<void>;
+  /**
+   * Remote sources only: authoritative table prefix / site URL read directly
+   * from the remote site (e.g. via wp-cli over SSH), used in place of
+   * guessing the prefix from the dump's own contents when available.
+   */
+  getRemoteFacts?(ctx: ImportSourceContext): Promise<RemoteFacts>;
+  /** Remote sources only: writes the `.acli` project link so a later `acli pull` can re-sync from the same source. Returns the linked profile's name, or null if nothing meaningful to name. */
+  linkProfile?(targetDir: string, ctx: ImportSourceContext): Promise<string | null>;
+  /** Remote sources only: discovers and links the remote site's own git origin into the new local project, if any and if it looks safe to use. */
+  linkGit?(targetDir: string, ctx: ImportSourceContext, spinner?: unknown): Promise<void>;
+  /** Optional richer --dry-run plan (e.g. remote host, required tools) — falls back to the generic {source, project, localEnvironment} plan when absent. */
+  buildPlan?(ctx: ImportSourceContext): unknown;
 }
 
 export class ImportSourceRegistry {

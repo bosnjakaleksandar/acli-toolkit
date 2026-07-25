@@ -1,5 +1,6 @@
 import type EnvironmentService from "../services/EnvironmentService.ts";
 import type { Spinner } from "../services/EnvironmentService.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 export default class BaseStrategy {
   envService: EnvironmentService | null;
@@ -8,11 +9,11 @@ export default class BaseStrategy {
     this.envService = envService;
   }
 
-  async askQuestions(ctx: any, options?: { nonInteractive?: boolean }): Promise<any> {
+  async askQuestions(ctx: ProjectPlan, options?: { nonInteractive?: boolean }): Promise<ProjectPlan> {
     return ctx;
   }
 
-  async scaffold(targetDir: string, ctx: any, spinner?: Spinner | null): Promise<void> {
+  async scaffold(targetDir: string, ctx: ProjectPlan, spinner?: Spinner | null): Promise<void> {
     throw new Error("scaffold must be implemented by the strategy subclass");
   }
 
@@ -20,7 +21,7 @@ export default class BaseStrategy {
     throw new Error("getTemplateType must be implemented");
   }
 
-  async scaffoldEnvironment(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
+  async scaffoldEnvironment(targetDir: string, ctx: ProjectPlan, spinner: Spinner | null = null): Promise<void> {
     if (this.envService) {
       await this.envService.scaffold(targetDir, this.getTemplateType(), ctx, spinner);
     }

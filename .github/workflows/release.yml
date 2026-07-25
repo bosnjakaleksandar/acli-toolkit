@@ -21,13 +21,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Full history (not the default shallow clone) is required for the
           # merge-base ancestry check below.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -36,6 +36,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+      # npm Trusted Publishing (OIDC) needs npm CLI >=11.5.0 — newer than
+      # what Node 22's bundled npm ships. `npm ci`/`npm test` above still run
+      # under the Node-bundled npm; only the publish step needs the upgrade.
+      - run: npm install -g npm@latest
 
       # A tag matching v*.*.* triggers this workflow regardless of which
       # commit it points at — without this check, anyone able to push a tag
@@ -62,10 +67,16 @@ jobs:
             exit 1
           fi
 
-      # Requires an NPM_TOKEN secret (Settings → Secrets and variables →
-      # Actions) with publish rights on the `acli-toolkit` package.
-      # --provenance works regardless of how npm authenticates, as long as
-      # id-token: write is granted above and the npm CLI is >=9.5.0.
+      # Publishes via npm Trusted Publishing (OIDC) — no NPM_TOKEN secret
+      # needed. npm exchanges this job's GitHub Actions OIDC token
+      # (id-token: write, granted above) for a short-lived publish
+      # credential, scoped to this exact repo + workflow file, with no
+      # long-lived secret stored anywhere. Requires a one-time, manual setup
+      # step this workflow file cannot do on its own: on npmjs.com, under
+      # the `acli-toolkit` package's Settings → Trusted Publisher, add a
+      # GitHub Actions publisher pointing at this repo and at
+      # `.github/workflows/release.yml`. Until that's configured, this step
+      # fails outright (no fallback) — do the npmjs.com setup, publish a
+      # prerelease tag (e.g. v2.0.1-rc.1) to confirm it works, and only then
+      # remove the now-unused NPM_TOKEN secret from the repo.
       - run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

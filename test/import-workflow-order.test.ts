@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { runImportWorkflow } from "../src/features/import/ImportWorkflow.ts";
 import type { ImportSource, ImportSourceContext } from "../src/features/import/ImportSource.ts";
+import type EnvironmentService from "../src/services/EnvironmentService.ts";
 
 /**
  * Regression coverage for phase 1b: ImportWorkflow used to scaffold the
@@ -31,7 +32,7 @@ function makeFakeSource(sql: string): ImportSource {
   };
 }
 
-function makeFakeEnvService(scaffoldSpy: (options: any) => void) {
+function makeFakeEnvService(scaffoldSpy: (options: any) => void): EnvironmentService {
   return {
     scaffold: async (_dir: string, _type: string, options: any) => { scaffoldSpy(options); },
     start: async () => {},
@@ -39,7 +40,7 @@ function makeFakeEnvService(scaffoldSpy: (options: any) => void) {
     getLocalUrl: () => "http://localhost:8080",
     wp: async (_dir: string, args: string[]) => (args.join(" ") === "option get siteurl" ? "http://localhost:8080" : ""),
     searchReplace: async () => {},
-  };
+  } as unknown as EnvironmentService;
 }
 
 test("detects the table prefix before scaffolding, so the local environment is templated with the real prefix instead of defaulting to wp_", async () => {

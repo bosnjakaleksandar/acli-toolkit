@@ -143,14 +143,14 @@ export function applyProjectTypeChange(ctx: ProjectPlan, projectType: string): P
     // Preserve any profile/stagingUrl already attached (e.g. the context was
     // already existing-wp and the user is just re-confirming the type), so
     // reopening this menu never silently detaches a linked profile.
-    return { ...ctx, setupType: "existing-wp", appType: "wordpress", projectType: "wp-existing", framework: null as any, useLaravel: false, wpType: null as any };
+    return { ...ctx, setupType: "existing-wp", appType: "wordpress", projectType: "wp-existing", framework: null, useLaravel: false, wpType: null };
   }
   // Switching to a new-project type: a profile/stagingUrl from a prior
   // existing-wp selection no longer applies to a freshly scaffolded project,
   // so drop them explicitly instead of letting them ride along unused.
   const cleared = { ...ctx, profile: undefined, stagingUrl: undefined };
-  if (projectType === "react" || projectType === "nextjs") return { ...cleared, setupType: "new", appType: "application", framework: projectType as ProjectPlan["framework"], projectType, wpType: null as any };
-  return { ...cleared, setupType: "new", appType: "wordpress", framework: null as any, useLaravel: false, projectType, wpType: projectType as ProjectPlan["wpType"] };
+  if (projectType === "react" || projectType === "nextjs") return { ...cleared, setupType: "new", appType: "application", framework: projectType as ProjectPlan["framework"], projectType, wpType: null };
+  return { ...cleared, setupType: "new", appType: "wordpress", framework: null, useLaravel: false, projectType, wpType: projectType as ProjectPlan["wpType"] };
 }
 
 export async function editProjectContext(ctx: ProjectPlan): Promise<ProjectPlan> {

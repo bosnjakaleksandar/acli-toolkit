@@ -10,10 +10,11 @@ import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
 import { readLink, writeLink } from "../services/ProjectLinkService.ts";
 import { BRANDING } from "../config/branding.ts";
 import { CliError, describeError } from "../core/errors.ts";
+import type { LinkCommandOptions } from "../cli/options.ts";
 
 const ENV_FILE_NAMES: Record<string, string> = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 
-export async function linkCommand(options: any = {}): Promise<void> {
+export async function linkCommand(options: LinkCommandOptions = {}): Promise<void> {
   const cwd = process.cwd();
   const nonInteractive = Boolean(options.yes || options.nonInteractive);
   intro(chalk.bgCyan(chalk.black(` 🔗 ${BRANDING.name} LINK `)));
@@ -28,7 +29,7 @@ export async function linkCommand(options: any = {}): Promise<void> {
     }
 
     const projectName = options.name || path.basename(cwd);
-    const environment: string = options.environment || (nonInteractive ? "docker" : await ask(select, { message: "Which local environment does this project use?", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }] }));
+    const environment: string = options.environment || (nonInteractive ? "docker" : await ask(select, { message: "Which local environment does this project use?", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }] }) as string);
     if (!["docker", "lando"].includes(environment)) throw new CliError(`Unknown local environment "${environment}".`, { code: "INVALID_ENVIRONMENT", hint: "Use docker or lando." });
 
     let { config } = await loadConfig({ configPath: options.config });

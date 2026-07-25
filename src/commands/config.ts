@@ -5,6 +5,7 @@ import type { Command } from "commander";
 import { getProjectConfigPath, getUserConfigPath, loadConfig, redactSecrets } from "../services/ConfigService.ts";
 import { trustConfig } from "../services/ConfigTrustService.ts";
 import { CONFIG_VERSION } from "../config/defaults.ts";
+import type { ConfigCommandOptions } from "../cli/options.ts";
 
 const STARTER_CONFIG_HEADER = `# A-CLI configuration
 #
@@ -29,7 +30,7 @@ export function registerConfigCommand(program: Command): void {
     .option("--scope <scope>", "Storage scope: user or project", "user")
     .option("--config <path>", "Write to an explicit path instead")
     .option("--force", "Overwrite an existing configuration file")
-    .action(async (options: any) => {
+    .action(async (options: ConfigCommandOptions) => {
       const filePath = options.config
         ? path.resolve(process.cwd(), options.config)
         : options.scope === "project"
@@ -50,7 +51,7 @@ export function registerConfigCommand(program: Command): void {
     });
   command.command("trust").description("Mark the current project's .acli/config.yaml as trusted, allowing its secret references to be resolved")
     .option("--config <path>", "Trust an explicit configuration file instead")
-    .action(async (options: any) => {
+    .action(async (options: ConfigCommandOptions) => {
       const filePath = options.config ? path.resolve(process.cwd(), options.config) : getProjectConfigPath();
       if (!(await fs.pathExists(filePath))) {
         console.log(`No configuration file found at ${filePath}.`);
@@ -61,11 +62,11 @@ export function registerConfigCommand(program: Command): void {
       await trustConfig(filePath, content);
       console.log(`Trusted ${filePath}. Its secret references will be resolved until the file's contents change.`);
     });
-  command.command("show").option("--resolved", "Resolve layered configuration and secret references").option("--config <path>", "Use an explicit configuration file").action(async (options: any) => {
+  command.command("show").option("--resolved", "Resolve layered configuration and secret references").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {
     const result = await loadConfig({ configPath: options.config, resolveSecrets: Boolean(options.resolved) });
     console.log(YAML.stringify(redactSecrets(options.resolved ? result.config : result.rawConfig)));
   });
-  command.command("validate").option("--config <path>", "Use an explicit configuration file").action(async (options: any) => {
+  command.command("validate").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {
     const result = await loadConfig({ configPath: options.config, resolveSecrets: false });
     console.log(`Configuration is valid (${result.sources.map((source) => source.name).join(", ")}).`);
   });
