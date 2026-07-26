@@ -3,8 +3,13 @@ import assert from "node:assert/strict";
 import { parseSetOverrides } from "../src/services/CliOptionsService.ts";
 
 test("parseSetOverrides builds a nested object from dotted key=value pairs", () => {
-  const result = parseSetOverrides(["database.host=localhost", "database.port=3306", "verbose=true"]);
-  assert.deepEqual(result, { database: { host: "localhost", port: 3306 }, verbose: true });
+  // The result's objects are Object.create(null) (see the prototype-pollution
+  // fix below), so compare fields rather than assert.deepEqual against a
+  // {}-literal — the two have different (but functionally irrelevant) prototypes.
+  const result = parseSetOverrides(["database.host=localhost", "database.port=3306", "verbose=true"]) as any;
+  assert.equal(result.database.host, "localhost");
+  assert.equal(result.database.port, 3306);
+  assert.equal(result.verbose, true);
 });
 
 test("parseSetOverrides rejects __proto__/constructor/prototype segments instead of polluting Object.prototype", () => {
