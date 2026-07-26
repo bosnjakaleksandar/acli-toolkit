@@ -88,7 +88,14 @@ export function mergeProjectContext(preset: ProjectPlan = {}, cliContext: Projec
 const UNSAFE_SET_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export function parseSetOverrides(values: string[] = []): Record<string, unknown> {
-  const result: Record<string, any> = {};
+  // Object.create(null) (rather than {}) means these objects have no
+  // Object.prototype in their chain at all, so even if a key like
+  // "__proto__"/"constructor" ever reached an assignment here, it would
+  // just become an inert own property — never Object.prototype itself.
+  // Belt-and-suspenders alongside the explicit UNSAFE_SET_KEYS rejection
+  // above, which also gives the caller a clear error instead of silently
+  // doing nothing.
+  const result: Record<string, any> = Object.create(null);
   for (const entry of values) {
     const separator = entry.indexOf("=");
     if (separator < 1) throw new Error(`Invalid --set value "${entry}". Expected key=value.`);
@@ -97,7 +104,7 @@ export function parseSetOverrides(values: string[] = []): Record<string, unknown
       throw new Error(`Invalid --set key in "${entry}".`);
     }
     let target = result;
-    for (const key of keys.slice(0, -1)) target = target[key] ||= {};
+    for (const key of keys.slice(0, -1)) target = target[key] ||= Object.create(null);
     target[keys.at(-1)!] = parseScalar(entry.slice(separator + 1));
   }
   return result;
