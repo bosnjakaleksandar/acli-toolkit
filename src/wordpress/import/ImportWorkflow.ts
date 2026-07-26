@@ -46,7 +46,7 @@ export interface ImportWorkflowOptions {
  * prior run.
  *
  * Dependency install, Git init, and success/error rendering are the caller's
- * job (src/commands/import.ts), mirroring how createProjectCommand handles
+ * job (src/cli/commands/import.ts), mirroring how createProjectCommand handles
  * those same generic post-scaffold steps.
  */
 export async function runImportWorkflow({ source, ctx, targetDir, envService, spinner, resume, resumeCommand }: ImportWorkflowOptions): Promise<void> {

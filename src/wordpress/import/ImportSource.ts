@@ -2,16 +2,10 @@ import { Registry } from "../../core/Registry.ts";
 import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
 
 /**
- * A pluggable way to fetch an existing WordPress site's files and database
- * dump onto disk, before the shared migration pipeline (table-prefix
- * detection, environment scaffold, import + search-replace) takes over.
- *
- * `profile` and `ssh` (a saved staging profile, or a one-off SSH target)
- * delegate to the existing, already-proven `acli create --existing`
- * machinery unchanged — see src/commands/import.ts. The sources registered
- * here (local, git, sql, zip) are new: they don't need a remote host at
- * all, just files that already exist somewhere reachable from this
- * machine.
+ * Union of every `acli import` flag. Declared here rather than with the
+ * command because each source reads its own fields out of it in
+ * `resolveOptions` — see src/cli/options.ts, which re-exports it under its
+ * CLI-facing name.
  */
 export interface ImportOptions {
   source?: string;
@@ -51,6 +45,18 @@ export interface ImportSourceContext {
   [key: string]: unknown;
 }
 
+/**
+ * A pluggable way to fetch an existing WordPress site's files and database
+ * dump onto disk, before the shared migration pipeline (table-prefix
+ * detection, environment scaffold, import + search-replace) takes over.
+ *
+ * `profile` and `ssh` (a saved staging profile, or a one-off SSH target)
+ * reach a remote host over SSH; `local`, `git`, `sql` and `zip` need no
+ * remote at all, just files already reachable from this machine. Every one
+ * of them runs through the same ImportWorkflow — a source opts into the
+ * steps it needs by implementing the optional methods below rather than the
+ * workflow branching on which source it is running.
+ */
 export interface ImportSource {
   id: string;
   label: string;

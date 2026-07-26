@@ -35,16 +35,16 @@ export function resolvePullTargets(requested: string[]): string[] {
 
 /**
  * Orchestrates a selective sync from a linked profile into an already
- * scaffolded local project. This is the same machinery `acli create` uses
- * for its existing-wp sync — daily re-syncs and the sync that happens at
- * creation time are the same code path.
+ * scaffolded local project. Shares RemoteHost with the import pipeline, so
+ * a daily re-sync and the initial import pull files and databases the same
+ * way.
  *
  * IMPORTANT: every method here expects `profile` (or `ctx.profile`) to
  * already be the *resolved* profile (i.e. already passed through
  * `resolveRemoteProfile`). Resolving is not idempotent — `remote.wordpressRoot`
  * becomes an already-joined absolute path after the first resolution, so
  * resolving twice would join it onto itself. Callers resolve exactly once,
- * at their own entry point (ExistingWPStrategy.askQuestions for `create`,
+ * at their own entry point (RemoteSource.resolveOptions for an import,
  * the `pull` command for a standalone pull) and pass the resolved profile
  * through from there.
  */

@@ -12,7 +12,7 @@ import { saveProfile } from "../src/profiles/ProfileStore.ts";
 // call mascot.show()) back to back in one node:test file risks corrupting
 // this runner's own IPC-based TAP reporting ("Unable to deserialize cloned
 // data"). --quiet's ACLI_QUIET=1 suppresses that decorative output
-// entirely (see acaCharacter.ts) — the same thing a real non-TTY/CI run
+// entirely (see ui/mascot.ts) — the same thing a real non-TTY/CI run
 // already gets in practice.
 process.env.ACLI_QUIET = "1";
 
