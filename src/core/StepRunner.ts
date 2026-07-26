@@ -5,7 +5,18 @@ import { StepFailedError } from "./errors.ts";
 export interface Step {
   id: string;
   title: string;
-  run: () => Promise<void>;
+  /** May return data to persist under this step's id in state.json's `stepData` — see `onSkip`. */
+  run: () => Promise<unknown>;
+  /**
+   * Called instead of `run()` when this step was already completed in a
+   * prior run and is being skipped on resume, with whatever `run()` returned
+   * last time (or undefined, for older state / steps that returned nothing).
+   * Lets a step's caller-side effects (e.g. setting a field on a shared
+   * context object) happen on resume without re-executing the step itself —
+   * without this, any step whose result only ever lived in an in-memory
+   * closure would silently lose that result when skipped on resume.
+   */
+  onSkip?: (data: unknown) => void;
 }
 
 export interface StepRunnerCallbacks {
@@ -14,8 +25,9 @@ export interface StepRunnerCallbacks {
 }
 
 export interface StepState {
-  version: 1;
+  version: 2;
   completedSteps: string[];
+  stepData: Record<string, unknown>;
   updatedAt: string;
 }
 
@@ -23,22 +35,31 @@ export function getStateFilePath(targetDir: string): string {
   return path.join(targetDir, ".acli", "state.json");
 }
 
+/**
+ * Reads a persisted run's state, or null if none exists / it's unreadable /
+ * it predates the current state shape. A `version: 1` file (no `stepData`,
+ * and written before step IDs were reordered for the import workflow) is
+ * deliberately treated as unresumable rather than partially trusted — resuming
+ * against it could skip steps that never actually ran under the current step
+ * sequence. Callers surface this as "nothing to resume"; the fix is to
+ * restart the run.
+ */
 export async function readStepState(targetDir: string): Promise<StepState | null> {
   const statePath = getStateFilePath(targetDir);
   if (!(await fs.pathExists(statePath))) return null;
   try {
     const value = await fs.readJSON(statePath);
-    if (value?.version === 1 && Array.isArray(value.completedSteps)) return value;
+    if (value?.version === 2 && Array.isArray(value.completedSteps) && value.stepData && typeof value.stepData === "object") return value;
     return null;
   } catch {
     return null;
   }
 }
 
-async function writeStepState(targetDir: string, completedSteps: string[]): Promise<void> {
+async function writeStepState(targetDir: string, completedSteps: string[], stepData: Record<string, unknown>): Promise<void> {
   const statePath = getStateFilePath(targetDir);
   await fs.ensureDir(path.dirname(statePath));
-  const state: StepState = { version: 1, completedSteps, updatedAt: new Date().toISOString() };
+  const state: StepState = { version: 2, completedSteps, stepData, updatedAt: new Date().toISOString() };
   await fs.writeJSON(statePath, state, { spaces: 2 });
 }
 
@@ -61,34 +82,47 @@ export async function clearStepState(targetDir: string): Promise<void> {
 export class StepRunner {
   #steps: Step[];
   #targetDir: string;
+  #resumeCommand?: string;
 
-  constructor(steps: Step[], targetDir: string) {
+  /**
+   * @param resumeCommand The exact command the user should run to continue
+   * a failed run from where it left off — surfaced via StepFailedError. Left
+   * undefined to omit the hint entirely rather than guess it; StepRunner has
+   * no way to know which CLI command (create, import, ...) is driving it.
+   */
+  constructor(steps: Step[], targetDir: string, { resumeCommand }: { resumeCommand?: string } = {}) {
     this.#steps = steps;
     this.#targetDir = targetDir;
+    this.#resumeCommand = resumeCommand;
   }
 
-  async run(options: StepRunnerCallbacks & { resume?: boolean } = {}): Promise<{ completedSteps: string[] }> {
+  async run(options: StepRunnerCallbacks & { resume?: boolean } = {}): Promise<{ completedSteps: string[]; stepData: Record<string, unknown> }> {
     const priorState = options.resume ? await readStepState(this.#targetDir) : null;
     const alreadyDone = new Set(priorState?.completedSteps ?? []);
     const completedSteps = [...alreadyDone];
+    const stepData: Record<string, unknown> = { ...(priorState?.stepData ?? {}) };
 
     for (let index = 0; index < this.#steps.length; index += 1) {
       const step = this.#steps[index]!;
-      if (alreadyDone.has(step.id)) continue;
+      if (alreadyDone.has(step.id)) {
+        step.onSkip?.(stepData[step.id]);
+        continue;
+      }
 
       options.onStepStart?.(step, index, this.#steps.length);
+      let result: unknown;
       try {
-        await step.run();
+        result = await step.run();
       } catch (error) {
-        const resumeCommand = `acli create --resume --name <project-name>`;
-        throw new StepFailedError(step.title, error, { resumeCommand });
+        throw new StepFailedError(step.title, error, { resumeCommand: this.#resumeCommand });
       }
+      stepData[step.id] = result;
       completedSteps.push(step.id);
-      await writeStepState(this.#targetDir, completedSteps);
+      await writeStepState(this.#targetDir, completedSteps, stepData);
       options.onStepComplete?.(step, index, this.#steps.length);
     }
 
     await clearStepState(this.#targetDir);
-    return { completedSteps };
+    return { completedSteps, stepData };
   }
 }

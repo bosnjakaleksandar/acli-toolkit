@@ -1,21 +1,14 @@
-import EnvironmentService, { type Spinner, type WaitOptions, type WaitForAppDbOptions } from "./EnvironmentService.ts";
+import EnvironmentService, { type Spinner } from "./EnvironmentService.ts";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
 import { resolveTemplateName, resolveDbImage, assertSafeTablePrefix, assertSafeWpVersion } from "../utils/templateMap.ts";
 import { runCommand } from "../utils/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
+import { applyPlaceholders, readTemplate } from "./environment/renderTemplate.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Matches both the raw MySQL/MariaDB client's auth failure (seen during the
-// direct SQL import, which authenticates as root) and WordPress's own
-// connection-error message (seen when wp-cli/wp-config.php authenticates as
-// the app user). A persistent db_data volume from an older run — e.g. one
-// created before a template's credentials changed — can leave the app
-// user's password stale even though root (used for the SQL import itself)
-// still works, so the import step alone can succeed while wp-cli's later
-// connection attempt fails. Recovering on either symptom catches both cases.
-const STALE_CREDENTIALS_PATTERN = /ERROR\s+1045|access denied|error establishing a database connection/i;
+const TEMPLATES_ROOT = path.join(__dirname, "..", "templates");
 
 type Runner = typeof runCommand;
 
@@ -32,29 +25,12 @@ export default class DockerComposeService extends EnvironmentService {
   async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
     const { projectName, mysqlVersion, wpVersion, tablePrefix } = options;
     const templateName = resolveTemplateName(type);
-
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "templates",
-      "docker",
-      `${templateName}.yaml.tpl`,
-    );
-    let content = await fs.readFile(templatePath, "utf-8");
-
-    if (mysqlVersion) {
-      content = content.replace(/{{DB_IMAGE}}/g, resolveDbImage(mysqlVersion));
-    }
-
-    if (wpVersion) {
-      content = content.replace(/{{WP_VERSION}}/g, assertSafeWpVersion(wpVersion));
-    }
-
-    const tablePrefixValue = assertSafeTablePrefix(tablePrefix || "wp_");
-    content = content.replace(/{{TABLE_PREFIX}}/g, tablePrefixValue);
-
-    content = content.replace(/{{PROJECT_NAME}}/g, projectName);
-
+    const content = applyPlaceholders(await readTemplate(TEMPLATES_ROOT, "docker", templateName), {
+      DB_IMAGE: mysqlVersion ? resolveDbImage(mysqlVersion) : undefined,
+      WP_VERSION: wpVersion ? assertSafeWpVersion(wpVersion) : undefined,
+      TABLE_PREFIX: assertSafeTablePrefix(tablePrefix || "wp_"),
+      PROJECT_NAME: projectName,
+    });
     await fs.writeFile(path.join(targetDir, "docker-compose.yaml"), content);
   }
 
@@ -69,22 +45,6 @@ export default class DockerComposeService extends EnvironmentService {
       return true;
     } catch {
       return false;
-    }
-  }
-
-  async waitForDb(targetDir: string, { timeoutSeconds = 60 }: WaitOptions = {}, spinner: Spinner | null = null): Promise<void> {
-    spinner?.message("Waiting for database to be ready...");
-    let waited = 0;
-    while (!(await this.isDbReady(targetDir))) {
-      if (waited >= timeoutSeconds) {
-        throw new CliError(`Database did not become ready after ${timeoutSeconds}s.`, {
-          code: "DB_NOT_READY",
-          hint: "Run `docker compose logs db` to see why the database container did not come up, then retry.",
-        });
-      }
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      waited += 2;
-      spinner?.message(`Waiting for database... ${waited}s`);
     }
   }
 
@@ -105,22 +65,6 @@ export default class DockerComposeService extends EnvironmentService {
     }
   }
 
-  async waitForAppDb(targetDir: string, { timeoutSeconds = 120, pollIntervalMs = 2000 }: WaitForAppDbOptions = {}, spinner: Spinner | null = null): Promise<void> {
-    spinner?.message("Waiting for WordPress to reach the database over the network...");
-    let waited = 0;
-    while (!(await this.isAppDbReady(targetDir))) {
-      if (waited >= timeoutSeconds) {
-        throw new CliError(`WordPress could not reach the database over the network after ${timeoutSeconds}s.`, {
-          code: "APP_DB_NOT_READY",
-          hint: "Run `docker compose logs db wordpress` to see why, then retry.",
-        });
-      }
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-      waited += pollIntervalMs / 1000;
-      spinner?.message(`Waiting for WordPress to reach the database... ${waited}s`);
-    }
-  }
-
   async ensureWpCli(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Installing WP-CLI...");
     try {
@@ -131,41 +75,6 @@ export default class DockerComposeService extends EnvironmentService {
         hint: "Check the container's network access (it needs to reach raw.githubusercontent.com), then retry.",
       });
     }
-  }
-
-  async importDb(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
-    await this.waitForDb(targetDir, {}, spinner);
-    await this.waitForAppDb(targetDir, {}, spinner);
-    await this.ensureWpCli(targetDir, spinner);
-
-    try {
-      await this.#importDbOnce(targetDir, sqlFile, spinner);
-      await this.#verifyDbConnection(targetDir, spinner);
-    } catch (error: any) {
-      const details = `${error?.stderr || ""}\n${error?.stdout || ""}\n${error?.message || ""}`;
-      if (!STALE_CREDENTIALS_PATTERN.test(details)) throw error;
-
-      await this.recoverDb(targetDir, spinner);
-      await this.#importDbOnce(targetDir, sqlFile, spinner);
-      await this.#verifyDbConnection(targetDir, spinner);
-    }
-  }
-
-  // The raw SQL import authenticates as root, which a stale db_data volume's
-  // password never affects — so it can succeed even when the app user's
-  // credentials (used by wp-config.php, and therefore every wp-cli command)
-  // are stale. This surfaces that mismatch immediately, inside the same
-  // try/catch as the import, so the existing stale-credential recovery
-  // catches it too instead of it resurfacing later with no recovery path.
-  // Deliberately `option get` (goes through $wpdb/PHP's own mysqli
-  // extension), not `wp db check`/`db export` — those shell out to the
-  // mysql/mysqlcheck/mysqldump *binaries*, which the official wordpress
-  // image does not include, so they fail with "command not found"
-  // regardless of whether the DB connection itself is fine. --debug still
-  // surfaces the actual underlying PHP/mysqli error when it isn't.
-  async #verifyDbConnection(targetDir: string, spinner: Spinner | null = null): Promise<void> {
-    spinner?.message("Verifying WordPress can connect to the imported database...");
-    await this.wp(targetDir, ["option", "get", "siteurl", "--debug"], spinner);
   }
 
   async recoverDb(targetDir: string, spinner: Spinner | null = null): Promise<void> {
@@ -190,7 +99,7 @@ export default class DockerComposeService extends EnvironmentService {
     await this.ensureWpCli(targetDir, spinner);
   }
 
-  async #importDbOnce(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
+  protected async importDbOnce(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
     const onProgress = spinner ? (line: string) => spinner.message(`Importing DB: ${line}`) : null;
 
     spinner?.message("Copying DB to container...");
@@ -210,7 +119,21 @@ export default class DockerComposeService extends EnvironmentService {
     return (await this.run("docker", ["compose", "exec", "-T", "-u", "www-data", "wordpress", "wp", "--skip-plugins", "--skip-themes", ...args], { cwd: targetDir }, onProgress)) as string;
   }
 
-  async searchReplace(targetDir: string, from: string, to: string, spinner: Spinner | null = null): Promise<string> {
-    return this.wp(targetDir, ["search-replace", from, to, "--all-tables"], spinner);
+  protected override describeDbWaitStart(): string { return "Waiting for database to be ready..."; }
+  protected override describeDbWaitTick(waitedSeconds: number): string { return `Waiting for database... ${waitedSeconds}s`; }
+  protected override dbNotReadyError(timeoutSeconds: number): CliError {
+    return new CliError(`Database did not become ready after ${timeoutSeconds}s.`, {
+      code: "DB_NOT_READY",
+      hint: "Run `docker compose logs db` to see why the database container did not come up, then retry.",
+    });
+  }
+
+  protected override describeAppDbWaitStart(): string { return "Waiting for WordPress to reach the database over the network..."; }
+  protected override describeAppDbWaitTick(waitedSeconds: number): string { return `Waiting for WordPress to reach the database... ${waitedSeconds}s`; }
+  protected override appDbNotReadyError(timeoutSeconds: number): CliError {
+    return new CliError(`WordPress could not reach the database over the network after ${timeoutSeconds}s.`, {
+      code: "APP_DB_NOT_READY",
+      hint: "Run `docker compose logs db wordpress` to see why, then retry.",
+    });
   }
 }

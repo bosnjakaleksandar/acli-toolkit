@@ -123,8 +123,8 @@ export class RemoteProfileService {
 
   async exportDatabase(targetDir: string, spinner: Spinner | null): Promise<void> {
     spinner?.message(`Exporting database with ${this.profile.database.driver} driver...`);
-    const command = databaseCommand(this.profile);
-    const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null });
+    const { command, stdin } = databaseCommand(this.profile);
+    const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null, ...(stdin !== undefined ? { stdin } : {}) });
     if (!dump || dump.length < 100) throw new Error(`Remote database dump is empty or invalid (${dump?.length || 0} bytes).`);
     // A full database dump — likely including real user password hashes —
     // should not be left world/group-readable at the default umask.
@@ -172,10 +172,17 @@ export class RemoteProfileService {
   }
 }
 
-export function databaseCommand(profile: ResolvedProfile): string {
+export interface RemoteCommand {
+  /** The remote command string, passed as ssh's trailing positional argument. Never contains a secret value — see `stdin`. */
+  command: string;
+  /** When present, written to the ssh child process's stdin (then closed) before it runs — lets the remote script `read` a secret instead of it being embedded in `command`'s argv. */
+  stdin?: string;
+}
+
+export function databaseCommand(profile: ResolvedProfile): RemoteCommand {
   const db = profile.database;
   const root = shellQuote(profile.remote.wordpressRoot);
-  if (db.driver === "wp-cli") return `cd ${root} && wp db export - --quiet`;
+  if (db.driver === "wp-cli") return { command: `cd ${root} && wp db export - --quiet` };
   if (db.driver === "docker") {
     if (db.discovery === "container-name") {
       const pattern = safeIdentifier(db.containerPattern || profile.projectName, "database.containerPattern");
@@ -185,24 +192,31 @@ export function databaseCommand(profile: ResolvedProfile): string {
       const passwordEnv = safeEnv(db.passwordEnv || "DB_PASSWORD");
       const nameEnv = safeEnv(db.nameEnv || "DB_NAME");
       const dump = executable === "auto" ? `DUMP=$(docker exec "$DBCONTAINER" sh -c 'command -v mariadb-dump || command -v mysqldump') && docker exec "$DBCONTAINER" "$DUMP"` : `docker exec "$DBCONTAINER" ${executable}`;
-      return `cd ${shellQuote(profile.remote.projectRoot)} && DBCONTAINER=$(docker ps --format '{{.Names}}' | grep -i ${shellQuote(pattern)} | grep -iE 'db|mariadb|mysql' | head -n 1) && test -n "$DBCONTAINER" && USER=$(grep -E ${shellQuote(`^(${userEnv}|MYSQL_USER)=`)} ${shellQuote(envFile)} | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'") && PASS=$(grep -E ${shellQuote(`^(${passwordEnv}|MYSQL_PASSWORD)=`)} ${shellQuote(envFile)} | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'") && NAME=$(grep -E ${shellQuote(`^(${nameEnv}|MYSQL_DATABASE)=`)} ${shellQuote(envFile)} | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'") && ${dump} -u"$USER" -p"$PASS" "$NAME"`;
+      return { command: `cd ${shellQuote(profile.remote.projectRoot)} && DBCONTAINER=$(docker ps --format '{{.Names}}' | grep -i ${shellQuote(pattern)} | grep -iE 'db|mariadb|mysql' | head -n 1) && test -n "$DBCONTAINER" && USER=$(grep -E ${shellQuote(`^(${userEnv}|MYSQL_USER)=`)} ${shellQuote(envFile)} | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'") && PASS=$(grep -E ${shellQuote(`^(${passwordEnv}|MYSQL_PASSWORD)=`)} ${shellQuote(envFile)} | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'") && NAME=$(grep -E ${shellQuote(`^(${nameEnv}|MYSQL_DATABASE)=`)} ${shellQuote(envFile)} | head -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'") && ${dump} -u"$USER" -p"$PASS" "$NAME"` };
     }
     const service = safeIdentifier(db.service || "db", "database.service");
     const compose = db.composeFile ? `-f ${shellQuote(path.posix.join(profile.remote.projectRoot, db.composeFile))}` : "";
     const executable = safeIdentifier(db.executable || "mariadb-dump", "database.executable");
-    return `cd ${shellQuote(profile.remote.projectRoot)} && docker compose ${compose} exec -T ${service} ${executable} -u"$${safeEnv(db.userEnv || "MYSQL_USER")}" -p"$${safeEnv(db.passwordEnv || "MYSQL_PASSWORD")}" "$${safeEnv(db.nameEnv || "MYSQL_DATABASE")}"`;
+    return { command: `cd ${shellQuote(profile.remote.projectRoot)} && docker compose ${compose} exec -T ${service} ${executable} -u"$${safeEnv(db.userEnv || "MYSQL_USER")}" -p"$${safeEnv(db.passwordEnv || "MYSQL_PASSWORD")}" "$${safeEnv(db.nameEnv || "MYSQL_DATABASE")}"` };
   }
   const executable = safeIdentifier(db.executable || "mysqldump", "database.executable");
   const host = shellQuote(db.host || "127.0.0.1");
   const port = Number(db.port || 3306);
-  // MYSQL_PWD keeps the password out of the mysqldump/mariadb-dump process's
-  // own argv on the remote host — a plain `-p<password>` flag (the previous
-  // approach) is visible to any local user on that host via `ps`/`ps aux`
-  // for as long as the dump runs. (The literal value is still embedded in
-  // this locally-built ssh command string either way; commandRunner redacts
-  // it from A-CLI's own verbose/error output, but the OS-level exposure of
-  // ssh's own argv on *this* machine is inherent to `ssh host "command"`.)
-  return `MYSQL_PWD=${shellQuote(db.password || "")} ${executable} -h ${host} -P ${port} -u ${shellQuote(db.user || "")} ${shellQuote(db.name || "")}`;
+  // The password travels over the ssh channel's stdin, read by this script's
+  // `read -r` before the dump runs, rather than being embedded in this
+  // command string — that string becomes ssh's own local argv (visible via
+  // `ps`/`ps aux` on *this* machine for as long as the export runs) and, on
+  // the remote side, the literal argument sshd hands to `sh -c` (visible to
+  // any local user on the remote host the same way). MYSQL_PWD keeps the
+  // password out of the mysqldump/mariadb-dump child's own argv too, same as
+  // before — only now it's set from a variable populated via `read`, not a
+  // literal baked into the script.
+  const password = db.password || "";
+  // `read -r` reads exactly one line, so a literal newline in the password
+  // would silently truncate it instead of being delivered intact.
+  if (password.includes("\n")) throw new Error("database.password cannot contain a newline: the direct driver delivers it as a single line over stdin.");
+  const command = `IFS= read -r ACLI_DB_PASS && MYSQL_PWD="$ACLI_DB_PASS" ${executable} -h ${host} -P ${port} -u ${shellQuote(db.user || "")} ${shellQuote(db.name || "")}`;
+  return { command, stdin: `${password}\n` };
 }
 
 function safeIdentifier(value: string, label: string): string { if (!/^[a-zA-Z0-9_.-]+$/.test(value)) throw new Error(`Unsafe ${label}.`); return value; }

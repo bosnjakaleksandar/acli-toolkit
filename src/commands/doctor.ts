@@ -6,13 +6,15 @@ import { mascot } from "../ui/acaCharacter.ts";
 import { loadConfig } from "../services/ConfigService.ts";
 import { loadPreset, loadProfile } from "../services/PresetService.ts";
 import { checkTool, type ToolCheckResult } from "../services/ToolCheckService.ts";
+import type { DoctorCommandOptions } from "../cli/options.ts";
 
-export async function doctorCommand(options: any = {}): Promise<void> {
+export async function doctorCommand(options: DoctorCommandOptions = {}): Promise<void> {
   if (!options.json) intro(chalk.bgCyan(chalk.black(` 🩺 ${BRANDING.name} DOCTOR `)));
   if (!options.json) { await mascot.show("thinking", "Checking workflow requirements..."); mascot.stop(); }
   const { config } = await loadConfig({ configPath: options.config });
   const preset = await loadPreset(options.preset, config);
-  const profile = await loadProfile(options.profile || preset.profile, config);
+  const presetProfileName = typeof preset.profile === "string" ? preset.profile : preset.profile?.profileName;
+  const profile = await loadProfile(options.profile || presetProfileName, config);
   const requirements = new Set(["node", "npm", "git"]);
   const environment = options.environment || preset.environment || config.defaults?.environment;
   if (environment) requirements.add(environment as string);

@@ -1,150 +1,33 @@
 import BaseStrategy from "./BaseStrategy.ts";
-import { confirm, multiselect, select, text } from "@clack/prompts";
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../utils/git.ts";
 import { runCommand } from "../utils/commandRunner.ts";
-import { isSafeGitUrl, isSafePluginSlug, isSafeSshKeyPath } from "../utils/safety.ts";
-import {
-  ask,
-  askMysqlVersion,
-  askWpVersion,
-  askSshKeyPath,
-} from "../utils/prompts.ts";
-import { hasPresetValue } from "../services/PresetService.ts";
+import { isSafeGitUrl, isSafeSshKeyPath, redactUrlCredentials } from "../utils/safety.ts";
+import { askWordPressQuestions, normalizePlugins } from "./wordpress/prompts.ts";
+import { writeWordPressSetupScript } from "./wordpress/setupScript.ts";
 import type { Spinner } from "../services/EnvironmentService.ts";
+import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 export default class WordPressStrategy extends BaseStrategy {
-  override async askQuestions(ctx: any, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<any> {
-    const mysqlVersion = hasPresetValue(ctx, "mysqlVersion")
-      ? ctx.mysqlVersion
-      : nonInteractive
-        ? "8.0"
-        : await askMysqlVersion();
-    const wpVersion = hasPresetValue(ctx, "wpVersion")
-      ? ctx.wpVersion
-      : nonInteractive
-        ? "latest"
-        : await askWpVersion();
-
-    let themeRepo = ctx.themeRepo;
-    if (!hasPresetValue(ctx, "themeRepo") && nonInteractive) {
-      themeRepo = process.env.WP_THEME_REPO || "";
-    } else if (!hasPresetValue(ctx, "themeRepo")) {
-      const defaultRepo = process.env.WP_THEME_REPO || "git@github.com:starter-theme.git";
-      const themeChoice = await ask(select, {
-        message: "How do you want to create the theme?",
-        options: [
-          { label: `Starter theme (${defaultRepo})`, value: "starter" },
-          { label: "Custom theme repository", value: "custom" },
-          { label: "No template (scaffold minimal theme files)", value: "" },
-        ],
-      });
-
-      if (themeChoice === "starter") themeRepo = defaultRepo;
-      if (themeChoice === "custom") {
-        themeRepo = await ask(text, {
-          message: "Theme repository URL (HTTPS or SSH):",
-          validate: (value: string | undefined) => {
-            if (!value?.trim()) return "Theme repository URL is required.";
-            return undefined;
-          },
-        });
-      }
-    }
-
-    const themeBranch = hasPresetValue(ctx, "themeBranch")
-      ? ctx.themeBranch
-      : nonInteractive
-        ? this.#defaultThemeBranch(ctx, themeRepo)
-        : await this.#askThemeBranch(ctx, themeRepo);
-
-    let sshKeyPath = "";
-    if (
-      themeRepo &&
-      themeRepo.startsWith("git@") &&
-      !hasPresetValue(ctx, "sshKeyPath") &&
-      !nonInteractive
-    ) {
-      sshKeyPath = await askSshKeyPath();
-    } else {
-      sshKeyPath = ctx.sshKeyPath || "";
-    }
-
-    const plugins = hasPresetValue(ctx, "plugins")
-      ? normalizePlugins(ctx.plugins)
-      : nonInteractive || !ctx.customizeAdvanced
-        ? []
-        : await this.#askPlugins();
-
-    const installWpCli = hasPresetValue(ctx, "installWpCli")
-      ? Boolean(ctx.installWpCli)
-      : nonInteractive || !ctx.customizeAdvanced
-        ? false
-        : await ask(confirm, {
-            message: "Install WP-CLI inside the local environment when supported?",
-            initialValue: false,
-          });
-
-    return {
-      ...ctx,
-      mysqlVersion,
-      wpVersion,
-      themeRepo,
-      themeBranch,
-      sshKeyPath,
-      plugins,
-      installWpCli,
-    };
+  override async askQuestions(ctx: ProjectPlan, options?: { nonInteractive?: boolean }): Promise<ProjectPlan> {
+    return askWordPressQuestions(ctx, options);
   }
 
-  async #askThemeBranch(ctx: any, themeRepo: string): Promise<string> {
-    if (!themeRepo) return "";
-    const defaultBranch = this.#defaultThemeBranch(ctx, themeRepo);
-
-    return ask(text, {
-      message: "Theme branch (leave empty for repository default):",
-      initialValue: defaultBranch,
-    });
-  }
-
-  #defaultThemeBranch(ctx: any, themeRepo: string): string {
-    if (!themeRepo) return "";
-    return ctx.projectType === "wp-woo"
-      ? process.env.WP_WOO_BRANCH || "woocommerce"
-      : ctx.projectType === "wp-react"
-        ? process.env.WP_REACT_BRANCH || "react"
-        : "";
-  }
-
-  async #askPlugins(): Promise<string[]> {
-    const selected = await ask(multiselect, {
-      message: "Optional plugins to install:",
-      options: [
-        { label: "WooCommerce", value: "woocommerce" },
-        { label: "Advanced Custom Fields", value: "advanced-custom-fields" },
-        { label: "Yoast SEO", value: "wordpress-seo" },
-      ],
-      required: false,
-    });
-
-    return (selected as string[] | undefined) || [];
-  }
-
-  override async scaffold(targetDir: string, ctx: any, spinner: Spinner | null = null): Promise<void> {
+  override async scaffold(targetDir: string, ctx: ProjectPlan, spinner: Spinner | null = null): Promise<void> {
     if (!ctx.skipEnvironment) {
       await this.scaffoldEnvironment(targetDir, ctx, spinner);
     }
 
     const { projectName, themeRepo, themeBranch } = ctx;
-    const themeDir = path.join(targetDir, "wp-content", "themes", projectName);
+    const themeDir = path.join(targetDir, "wp-content", "themes", projectName!);
     await fs.ensureDir(themeDir);
 
     if (themeRepo) {
       console.log(
         chalk.cyan(
-          `\nCloning theme from ${themeRepo}${themeBranch ? ` (${themeBranch})` : ""}...`,
+          `\nCloning theme from ${redactUrlCredentials(themeRepo)}${themeBranch ? ` (${themeBranch})` : ""}...`,
         ),
       );
       try {
@@ -152,7 +35,7 @@ export default class WordPressStrategy extends BaseStrategy {
         if (ctx.sshKeyPath) {
           const resolvedKeyPath = ctx.sshKeyPath.replace(
             /^~/,
-            process.env.HOME,
+            process.env.HOME || "",
           );
           // git executes GIT_SSH_COMMAND through a shell, so an unquoted
           // key path with shell metacharacters (or one crafted to look like
@@ -180,7 +63,7 @@ export default class WordPressStrategy extends BaseStrategy {
       } catch (e: any) {
         await fs.remove(themeDir);
         throw new Error(
-          `Failed to clone theme repository: ${themeRepo}\n${e.message}`,
+          `Failed to clone theme repository: ${redactUrlCredentials(themeRepo)}\n${redactUrlCredentials(e.message)}`,
         );
       }
     } else {
@@ -200,34 +83,8 @@ export default class WordPressStrategy extends BaseStrategy {
       );
     }
 
-    await this.#writeWordPressSetupScript(targetDir, ctx);
+    await writeWordPressSetupScript(targetDir, ctx);
     await scaffoldGitignore(targetDir, "wordpress");
-  }
-
-  async #writeWordPressSetupScript(targetDir: string, ctx: any): Promise<void> {
-    if (!ctx.plugins?.length && !ctx.installWpCli) return;
-
-    const scriptsDir = path.join(targetDir, "scripts");
-    await fs.ensureDir(scriptsDir);
-
-    const wpCommand =
-      ctx.environment === "lando"
-        ? "lando wp"
-        : "docker compose exec -T -u www-data wordpress wp";
-    const lines = [
-      "#!/usr/bin/env bash",
-      "set -euo pipefail",
-      "",
-      ctx.installWpCli && ctx.environment === "docker"
-        ? "docker compose exec -T wordpress bash -lc 'command -v wp >/dev/null || (curl -fsSL -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp)'"
-        : "",
-      ...ctx.plugins.map((plugin: string) => `${wpCommand} plugin install ${plugin} --activate`),
-      "",
-    ].filter(Boolean);
-
-    await fs.writeFile(path.join(scriptsDir, "install-wp-plugins.sh"), `${lines.join("\n")}\n`, {
-      mode: 0o755,
-    });
   }
 
   override getTemplateType(): string {
@@ -235,17 +92,4 @@ export default class WordPressStrategy extends BaseStrategy {
   }
 }
 
-export function normalizePlugins(plugins: unknown): string[] {
-  const list = Array.isArray(plugins)
-    ? plugins
-    : typeof plugins === "string"
-      ? plugins.split(",").map((plugin) => plugin.trim()).filter(Boolean)
-      : [];
-  // Plugin slugs are written verbatim into a generated, executable shell
-  // script (#writeWordPressSetupScript) — validating against WordPress.org's
-  // slug grammar here, before that script is ever created, keeps a
-  // maliciously-crafted preset/--set value from injecting shell commands.
-  const invalid = list.filter((plugin) => !isSafePluginSlug(plugin));
-  if (invalid.length) throw new Error(`Invalid plugin slug(s): ${invalid.join(", ")}. Plugin slugs may only contain lowercase letters, digits, and hyphens.`);
-  return list;
-}
+export { normalizePlugins };

@@ -11,8 +11,9 @@ import { PullService, resolvePullTargets, ALL_TARGETS } from "../services/PullSe
 import { mascot } from "../ui/acaCharacter.ts";
 import { BRANDING } from "../config/branding.ts";
 import { CliError, describeError } from "../core/errors.ts";
+import type { PullCommandOptions } from "../cli/options.ts";
 
-export async function pullCommand(targets: string[], options: any = {}): Promise<void> {
+export async function pullCommand(targets: string[], options: PullCommandOptions = {}): Promise<void> {
   const cwd = process.cwd();
   const nonInteractive = Boolean(options.yes || options.nonInteractive);
   intro(chalk.bgCyan(chalk.black(` ⬇ ${BRANDING.name} PULL `)));
@@ -96,5 +97,5 @@ export function registerPullCommand(program: Command): void {
     .option("--dry-run", "Print the resolved plan without pulling anything")
     .option("--yes", "Skip confirmation prompts")
     .option("--non-interactive", "Alias for --yes")
-    .action((targets: string[], options: any) => pullCommand(targets, options));
+    .action((targets: string[], options: PullCommandOptions) => pullCommand(targets, options));
 }

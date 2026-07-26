@@ -56,16 +56,18 @@ test("rsync's -e transport honors hostKeyPolicy the same way buildSshArgs does f
   assert.match(transport, /UserKnownHostsFile=\/dev\/null/);
 });
 
-test("databaseCommand for the direct driver passes the password via MYSQL_PWD, never as a -p<password> argument", () => {
+test("databaseCommand for the direct driver delivers the password via stdin, never embedded in the command string (argv)", () => {
   const resolved = resolveRemoteProfile({ ...profile, database: { driver: "direct", host: "db.example.com", port: 3306, user: "dbuser", password: "s3cr3t", name: "wp" } }, { projectName: "demo" });
-  const command = databaseCommand(resolved);
-  assert.match(command, /MYSQL_PWD='s3cr3t'/);
-  assert.doesNotMatch(command, /-p'?s3cr3t/);
+  const { command, stdin } = databaseCommand(resolved);
+  assert.doesNotMatch(command, /s3cr3t/, "the password must never appear in the command string, which becomes local ssh argv and the remote sh -c argument");
+  assert.match(command, /MYSQL_PWD="\$ACLI_DB_PASS"/);
+  assert.match(command, /IFS= read -r ACLI_DB_PASS/);
+  assert.equal(stdin, "s3cr3t\n");
 });
 
 test("Docker container discovery uses the declared remote env mapping", () => {
   const resolved = resolveRemoteProfile({ ...profile, database: { driver: "docker", discovery: "container-name", containerPattern: "{projectName}", envFile: ".env", userEnv: "DB_USER", passwordEnv: "DB_PASSWORD", nameEnv: "DB_NAME" } }, { projectName: "demo" });
-  const command = databaseCommand(resolved);
+  const { command } = databaseCommand(resolved);
   assert.match(command, /docker ps/);
   assert.match(command, /DB_USER/);
   assert.match(command, /docker exec/);

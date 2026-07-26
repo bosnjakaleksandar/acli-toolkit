@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { redactUrlCredentials } from "./safety.ts";
 
 interface CommandResultLike {
   status?: number | null;
@@ -14,9 +15,10 @@ interface CommandResultLike {
 // that take a *separate* argument (ssh's `-p 2222` for a port) never match.
 const SECRET_ARG_PATTERN = /(-p|--password=|MYSQL_PWD=)('[^']*'|"[^"]*"|\S+)/g;
 
-/** Best-effort redaction of known credential patterns from a command line before it's logged or surfaced in an error message. Not a substitute for not passing secrets as process arguments in the first place — see RemoteProfileService's MYSQL_PWD usage — but keeps A-CLI's own diagnostic output from gratuitously repeating a secret that's already unavoidably present in local process argv. */
+/** Best-effort redaction of known credential patterns from a command line before it's logged or surfaced in an error message. Not a substitute for not passing secrets as process arguments in the first place — see RemoteProfileService's MYSQL_PWD usage — but keeps A-CLI's own diagnostic output from gratuitously repeating a secret that's already unavoidably present in local process argv. Covers both known secret-bearing flags (mysqldump's `-p<password>`, ...) and credentials embedded in a URL argument's userinfo (`scheme://user:pass@host`) — the latter can reach here from any command that takes a URL argument, not just git, so it's redacted here rather than at each call site individually. */
 function redactCommandLine(command: string, args: string[]): string {
-  return [command, ...args].join(" ").replace(SECRET_ARG_PATTERN, (_match, flag) => `${flag}[REDACTED]`);
+  const line = [command, ...args].join(" ").replace(SECRET_ARG_PATTERN, (_match, flag) => `${flag}[REDACTED]`);
+  return redactUrlCredentials(line);
 }
 
 /**
@@ -44,6 +46,13 @@ export class CommandError extends Error {
 
 interface RunCommandOptions {
   encoding?: BufferEncoding | null;
+  /**
+   * Data written to the child's stdin, then closed, before this promise
+   * resolves. Used by RemoteProfileService's `direct` database driver to
+   * deliver the DB password to a remote script that reads it via `read -r`,
+   * instead of embedding it in this command's own argv.
+   */
+  stdin?: string | Buffer;
   [key: string]: unknown;
 }
 
@@ -58,11 +67,21 @@ export async function runCommand(
 ): Promise<string | Buffer> {
   if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${redactCommandLine(command, args)}`);
   return new Promise((resolve, reject) => {
-    const { encoding = "utf8", ...spawnOptions } = options;
+    const { encoding = "utf8", stdin, ...spawnOptions } = options;
     const child = spawn(command, args, {
       shell: false,
       ...spawnOptions,
     });
+
+    if (stdin !== undefined) {
+      // If the child exits (or closes stdin) before this write finishes —
+      // e.g. it fails its own validation immediately — writing to a closed
+      // pipe raises EPIPE. That failure surfaces correctly anyway via the
+      // child's own non-zero exit below; this just stops it from also
+      // becoming an unhandled 'error' event on the stream.
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(stdin);
+    }
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];

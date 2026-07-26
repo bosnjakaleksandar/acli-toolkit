@@ -1,13 +1,9 @@
 import { confirm, intro, note, outro, select, spinner, text } from "@clack/prompts";
 import chalk from "chalk";
-import fs from "fs-extra";
 import path from "path";
 import type { Command } from "commander";
 import { collectProjectContext, editProjectContext } from "../prompts/projectPrompts.ts";
-import { maybeInstallDependencies } from "../services/DependencyInstallService.ts";
 import { resolveEnvironmentService } from "../services/EnvironmentResolver.ts";
-import { maybeInitializeGit } from "../services/GitService.ts";
-import { buildNextSteps } from "../services/NextStepsService.ts";
 import { loadPreset } from "../services/PresetService.ts";
 import { deepMerge, loadConfig, redactSecrets } from "../services/ConfigService.ts";
 import {
@@ -20,24 +16,50 @@ import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.ts";
 import { ask } from "../utils/prompts.ts";
 import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
-import { CliError, TargetExistsError } from "../core/errors.ts";
+import { CliError } from "../core/errors.ts";
 import { loadLastPlan, saveSuccessfulPlan } from "../services/HistoryService.ts";
 import { savePlanAsPreset } from "../services/HistoryService.ts";
-import { runLocalPreflight } from "../services/PreflightService.ts";
 import { StepRunner, readStepState } from "../core/StepRunner.ts";
 import {
   buildProjectSummary,
   buildSuccessSummary,
   formatCreateError,
 } from "../services/CreateProjectUxService.ts";
+import { buildCreateSteps } from "../features/create/buildCreateSteps.ts";
+import { importCommand } from "./import.ts";
 import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
+import type { CreateCommandOptions } from "../cli/options.ts";
 
 /**
- * Runs the interactive project creation command.
+ * Runs the interactive project creation command. `--existing` is a
+ * deprecated shortcut: it now just translates its own flags into
+ * `acli import --source profile` and delegates there, rather than running
+ * its own copy of the remote-import pipeline (ExistingWPStrategy is what
+ * that used to be; it's still used by the interactive "Set up an existing
+ * WP project" menu choice inside plain `acli create`, a separate entry
+ * point this flag-based shortcut doesn't affect).
  */
-export async function createProjectCommand(options: any = {}): Promise<void> {
-  if (options.existing && !options._viaImportCommand) {
+export async function createProjectCommand(options: CreateCommandOptions = {}): Promise<void> {
+  if (options.existing) {
     console.warn(chalk.yellow("Warning: 'create --existing' is deprecated. Use 'acli import' instead.\n"));
+    return importCommand({
+      source: "profile",
+      name: options.name,
+      environment: options.environment || options.env,
+      mysql: options.mysql,
+      profile: options.profile,
+      config: options.config,
+      skipFiles: options.skipFiles,
+      skipDatabase: options.skipDatabase,
+      skipGitLink: options.skipGitLink,
+      skipGit: options.skipGit,
+      keepDump: options.keepDump,
+      remoteUrl: options.stagingUrl,
+      dryRun: options.dryRun,
+      resume: options.resume,
+      yes: options.yes,
+      nonInteractive: options.nonInteractive,
+    });
   }
   intro(chalk.bgCyan(chalk.black(` 🚀 ${BRANDING.name} CREATE `)));
 
@@ -106,56 +128,18 @@ export async function createProjectCommand(options: any = {}): Promise<void> {
     mascot.stop();
     s = spinner();
 
-    const totalSteps = 4;
     let nextSteps = "";
     const finalCtx = ctx!;
-    const stepRunner = new StepRunner(
-      [
-        {
-          id: "preflight",
-          title: "Validating project and requirements",
-          run: async () => {
-            s!.start(`1/${totalSteps} Validating project and requirements...`);
-            if (!options.resume) await assertTargetDoesNotExist(targetDir);
-            const preflight = await runLocalPreflight(finalCtx);
-            finalCtx.warnings = [...((finalCtx.warnings as string[]) || []), ...preflight.warnings];
-            if (typeof strategy.preflight === "function") await strategy.preflight(finalCtx, s);
-          },
-        },
-        {
-          id: "scaffold",
-          title: "Creating project files",
-          run: async () => {
-            s!.message(`2/${totalSteps} Creating project files...`);
-            await fs.ensureDir(targetDir);
-            ownsTargetDir = true;
-            await strategy.scaffold(targetDir, finalCtx, s);
-            s!.stop(`2/${totalSteps} Project files created.`);
-          },
-        },
-        {
-          id: "dependencies",
-          title: "Preparing dependencies",
-          run: async () => {
-            const installPlan = await buildNextSteps(targetDir, finalCtx);
-            s!.start(`3/${totalSteps} Preparing dependencies...`);
-            s!.stop(`3/${totalSteps} Dependency plan ready.`);
-            nextSteps = await maybeInstallDependencies(installPlan, s, finalCtx);
-            (finalCtx as any).dependenciesInstalled = !nextSteps.includes(" install");
-          },
-        },
-        {
-          id: "git",
-          title: "Initializing Git repository",
-          run: async () => {
-            s!.start(`4/${totalSteps} Initializing Git repository...`);
-            await maybeInitializeGit(targetDir, finalCtx as any);
-            s!.stop(finalCtx.skipGitInit ? `4/${totalSteps} Git initialization skipped.` : `4/${totalSteps} Git repository initialized.`);
-          },
-        },
-      ],
+    const steps = buildCreateSteps({
+      ctx: finalCtx,
+      strategy,
       targetDir,
-    );
+      spinner: s!,
+      resume: Boolean(options.resume),
+      onOwnsTargetDir: () => { ownsTargetDir = true; },
+      onNextSteps: (result) => { nextSteps = result; },
+    });
+    const stepRunner = new StepRunner(steps, targetDir, { resumeCommand: `acli create --resume --name ${finalCtx.projectName}` });
 
     await stepRunner.run({ resume: Boolean(options.resume) });
 
@@ -217,12 +201,7 @@ export function registerCreateCommand(program: Command): void {
     .option("--skip-git", "Skip Git repository initialization")
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
-    .action((options: any) => createProjectCommand(options));
+    .action((options: CreateCommandOptions) => createProjectCommand(options));
 }
 
 function collect(value: string, previous: string[]): string[] { return [...previous, value]; }
-
-async function assertTargetDoesNotExist(targetDir: string): Promise<void> {
-  if (!(await fs.pathExists(targetDir))) return;
-  throw new TargetExistsError(targetDir);
-}

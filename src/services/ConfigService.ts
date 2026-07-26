@@ -1,21 +1,18 @@
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import fs from "fs-extra";
 import YAML from "yaml";
-import { BUILT_IN_CONFIG, CONFIG_VERSION } from "../config/defaults.ts";
+import { BUILT_IN_CONFIG } from "../config/defaults.ts";
 import { getProjectConfigPath, getUserConfigPath } from "../config/paths.ts";
 import { isConfigTrusted } from "./ConfigTrustService.ts";
-import type { AcliConfig, ProjectLink } from "../core/model/AcliConfig.ts";
+import { findSecretReferencePath, resolveReferences } from "../config/references.ts";
+import { validateConfig, isObject } from "../config/schema.ts";
+import type { AcliConfig } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/ResolvedProfile.ts";
 
-const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
-const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);
-const PROFILE_KEYS = new Set(["type", "ssh", "remote", "files", "database", "git", "urls", "local"]);
-const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "linkedAt"]);
-const DB_DRIVERS = new Set(["wp-cli", "docker", "direct"]);
-const FILE_TRANSPORTS = new Set(["rsync", "sftp"]);
-
 export { getProjectConfigPath, getUserConfigPath };
+export { validateConfig, validateProfileConfig, validateProjectLinkConfig } from "../config/schema.ts";
+export { resolveReferences, splitCommand } from "../config/references.ts";
+export { redactSecrets, findLiteralSecretFields } from "../config/redaction.ts";
 
 export interface LoadConfigOptions {
   cwd?: string;
@@ -57,14 +54,17 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
     const value = parseConfigText(rawText, candidate.path);
     validateConfig(value, candidate.name, { allowProjectKey: candidate.allowProjectKey });
 
-    if (resolveSecrets && candidate.autoDiscovered && (hasSecretReference(value.profiles) || hasSecretReference(value.project?.profile))) {
-      const trusted = env.ACLI_TRUST_PROJECT_CONFIG === "1" || (await isConfigTrusted(candidate.path, rawText, env));
-      if (!trusted) {
-        throw new Error(
-          `Refusing to resolve secrets from ${candidate.path}: it declares a secret command or environment-variable reference inside "profiles"/"project.profile".\n` +
-            `This file lives in the current project directory, which may have come from somewhere else (e.g. git clone) rather than from you — A-CLI will not execute commands from it automatically.\n` +
-            `If you trust this file, run "acli config trust" to approve it, or set ACLI_TRUST_PROJECT_CONFIG=1 to bypass this check for a single command.`,
-        );
+    if (resolveSecrets && candidate.autoDiscovered) {
+      const secretPath = findSecretReferencePath(value);
+      if (secretPath) {
+        const trusted = env.ACLI_TRUST_PROJECT_CONFIG === "1" || (await isConfigTrusted(candidate.path, rawText, env));
+        if (!trusted) {
+          throw new Error(
+            `Refusing to resolve secrets from ${candidate.path}: it declares a secret command or environment-variable reference at "${secretPath}".\n` +
+              `This file lives in the current project directory, which may have come from somewhere else (e.g. git clone) rather than from you — A-CLI will not execute commands from it automatically.\n` +
+              `If you trust this file, run "acli config trust" to approve it, or set ACLI_TRUST_PROJECT_CONFIG=1 to bypass this check for a single command.`,
+          );
+        }
       }
     }
 
@@ -92,100 +92,6 @@ function parseConfigText(text: string, filePath: string): AcliConfig {
   return parsed;
 }
 
-/** True if `value` contains a `{command: "..."}` secret reference or a `${ENV_VAR}` string anywhere within it — used to decide whether an auto-discovered project config needs to be trusted before its secrets are resolved. */
-function hasSecretReference(value: unknown): boolean {
-  if (value === undefined || value === null) return false;
-  if (Array.isArray(value)) return value.some(hasSecretReference);
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return true;
-    return entries.some(([, item]) => hasSecretReference(item));
-  }
-  return typeof value === "string" && /\$\{[A-Z_][A-Z0-9_]*\}/.test(value);
-}
-
-export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
-  const errors: string[] = [];
-  if (config.version !== CONFIG_VERSION) errors.push(`${source}: top-level version must be ${CONFIG_VERSION}.`);
-  const allowedRootKeys = allowProjectKey ? PROJECT_ROOT_KEYS : ROOT_KEYS;
-  for (const key of Object.keys(config)) if (!allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
-  for (const group of ["defaults", "presets", "profiles"] as const) {
-    if (config[group] !== undefined && (!config[group] || typeof config[group] !== "object" || Array.isArray(config[group]))) errors.push(`${source}: ${group} must be a mapping.`);
-  }
-  // `defaults`/`presets` are a free-form bag of ProjectPlan scaffolding
-  // fields (mysqlVersion, plugins, setupType, ...) — never a place secrets
-  // belong. Restricting them to plain scalars (rather than accepting any
-  // nested object) closes off hiding a `{command: "..."}` secret reference
-  // under an arbitrary preset/default key, where resolveReferences would
-  // otherwise execute it unconditionally.
-  if (isObject(config.defaults)) validatePlanFields(config.defaults, `${source}: defaults`, errors);
-  if (isObject(config.presets)) {
-    for (const [name, preset] of Object.entries(config.presets)) {
-      if (!isObject(preset)) { errors.push(`${source}: presets.${name} must be a mapping.`); continue; }
-      validatePlanFields(preset, `${source}: presets.${name}`, errors);
-    }
-  }
-  for (const [name, profile] of Object.entries(config.profiles || {})) validateProfile(profile, `${source} profile "${name}"`, errors);
-  if (config.project !== undefined) validateProjectLink(config.project, `${source} project`, errors);
-  if (errors.length) throw new Error(errors.join("\n"));
-  return config;
-}
-
-export function validateProfileConfig(profile: Profile, source = "profile"): Profile {
-  const errors: string[] = [];
-  validateProfile(profile, source, errors);
-  if (errors.length) throw new Error(errors.join("\n"));
-  return profile;
-}
-
-export function validateProjectLinkConfig(link: ProjectLink, source = "project link"): ProjectLink {
-  const errors: string[] = [];
-  validateProjectLink(link, source, errors);
-  if (errors.length) throw new Error(errors.join("\n"));
-  return link;
-}
-
-function validateProfile(profile: Profile, label: string, errors: string[]): void {
-  if (!profile || typeof profile !== "object" || Array.isArray(profile)) { errors.push(`${label} must be a mapping.`); return; }
-  for (const key of Object.keys(profile)) if (!PROFILE_KEYS.has(key)) errors.push(`${label}: unknown field "${key}".`);
-  if (((profile as unknown as Record<string, unknown>).type || "wordpress") !== "wordpress") errors.push(`${label}: type must be "wordpress".`);
-  if (!profile.ssh?.host) errors.push(`${label}: ssh.host is required.`);
-  if (!profile.ssh?.username) errors.push(`${label}: ssh.username is required.`);
-  if (!profile.remote?.projectRoot) errors.push(`${label}: remote.projectRoot is required.`);
-  if (!profile.remote?.wordpressRoot) errors.push(`${label}: remote.wordpressRoot is required.`);
-  const transport = profile.files?.transport || "rsync";
-  if (!FILE_TRANSPORTS.has(transport)) errors.push(`${label}: files.transport must be rsync or sftp.`);
-  if (profile.files?.targets !== undefined) validateFileTargets(profile.files.targets, `${label}.files.targets`, errors);
-  if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
-  if (profile.database?.tablePrefix !== undefined && typeof profile.database.tablePrefix !== "string") errors.push(`${label}: database.tablePrefix must be a string.`);
-  if (profile.database?.normalizeCollations !== undefined && typeof profile.database.normalizeCollations !== "boolean") errors.push(`${label}: database.normalizeCollations must be a boolean.`);
-}
-
-function validatePlanFields(fields: Record<string, unknown>, label: string, errors: string[]): void {
-  for (const [key, value] of Object.entries(fields)) {
-    if (!isPlainScalar(value)) errors.push(`${label}.${key}: must be a string, number, or boolean (or an array of those) — nested objects, including secret "command" references, are not allowed here.`);
-  }
-}
-
-function isPlainScalar(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
-  if (Array.isArray(value)) return value.every(isPlainScalar);
-  return false;
-}
-
-function validateFileTargets(targets: Record<string, { path: string }>, label: string, errors: string[]): void {
-  if (!isObject(targets)) { errors.push(`${label} must be a mapping.`); return; }
-  for (const [name, target] of Object.entries(targets)) {
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) { errors.push(`${label}: unsafe target name "${name}".`); continue; }
-    if (!isObject(target) || typeof target.path !== "string") { errors.push(`${label}.${name}: path is required.`); continue; }
-    if (!isSafeRelativePath(target.path)) errors.push(`${label}.${name}.path: must be a safe relative path (no absolute paths or "..").`);
-  }
-}
-
-function isSafeRelativePath(value: string): boolean {
-  return /^[a-zA-Z0-9_./-]+$/.test(value) && !value.includes("..") && !path.posix.isAbsolute(value);
-}
-
 const DEFAULT_FILE_TARGET_NAMES = ["uploads", "plugins", "themes"];
 
 /**
@@ -206,43 +112,6 @@ export function normalizeProfile(profile: Profile): Profile {
   return { ...profile, files: { ...files, targets } } as Profile;
 }
 
-function validateProjectLink(link: ProjectLink, label: string, errors: string[]): void {
-  if (!link || typeof link !== "object" || Array.isArray(link)) { errors.push(`${label} must be a mapping.`); return; }
-  for (const key of Object.keys(link)) if (!PROJECT_LINK_KEYS.has(key)) errors.push(`${label}: unknown field "${key}".`);
-  if (!link.name) errors.push(`${label}: name is required.`);
-  if (!link.environment) errors.push(`${label}: environment is required.`);
-  if (link.profile !== undefined) {
-    if (typeof link.profile === "string") { /* profile name reference, resolved separately */ }
-    else if (isObject(link.profile)) validateProfile(link.profile, `${label}.profile`, errors);
-    else errors.push(`${label}.profile must be a string (profile name) or a mapping (inline profile).`);
-  }
-}
-
-export function resolveReferences(value: unknown, { env = process.env, commandRunner = defaultSecretCommand }: { env?: Record<string, string | undefined>; commandRunner?: (command: string) => string } = {}): unknown {
-  if (Array.isArray(value)) return value.map((item) => resolveReferences(item, { env, commandRunner }));
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return commandRunner(entries[0]![1] as string);
-    return Object.fromEntries(entries.map(([key, item]) => [key, resolveReferences(item, { env, commandRunner })]));
-  }
-  if (typeof value !== "string") return value;
-  return value.replace(/\$\{([A-Z_][A-Z0-9_]*)\}/g, (_, name) => {
-    if (env[name] === undefined) throw new Error(`Required environment variable ${name} is not set.`);
-    return env[name]!;
-  });
-}
-
-function defaultSecretCommand(command: string): string {
-  const [program, ...args] = splitCommand(command);
-  if (!program) throw new Error("Secret command cannot be empty.");
-  return execFileSync(program, args, { encoding: "utf8", shell: false, stdio: ["ignore", "pipe", "ignore"] }).trim();
-}
-
-export function splitCommand(command: string): string[] {
-  const matches = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
-  return matches.map((part) => part.replace(/^(["'])|(["'])$/g, ""));
-}
-
 export function deepMerge<T>(base: T, override: T): T {
   if (!isObject(base) || !isObject(override)) return structuredClone(override);
   const merged: Record<string, unknown> = structuredClone(base as Record<string, unknown>);
@@ -251,38 +120,3 @@ export function deepMerge<T>(base: T, override: T): T {
   }
   return merged as T;
 }
-
-export function redactSecrets(value: unknown, key = ""): unknown {
-  if (Array.isArray(value)) return value.map((item) => redactSecrets(item, key));
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([childKey, item]) => [childKey, redactSecrets(item, childKey)]));
-  // Fields ending in "Env" (userEnv, passwordEnv, nameEnv, ...) hold the
-  // NAME of an environment variable to look up remotely, never a secret
-  // value themselves — redacting them (the substring "password" matches
-  // "passwordEnv") would hide harmless, useful config for no security benefit.
-  const isEnvNameReference = /Env$/.test(key);
-  return !isEnvNameReference && /(pass(word)?|secret|token|privateKey|identityFile)/i.test(key) && value ? "[REDACTED]" : value;
-}
-
-/**
- * Finds sensitive-looking fields (same key heuristic as redactSecrets) that
- * hold a literal value rather than a `${ENV_VAR}`/`{command: ...}` reference —
- * e.g. a hardcoded local `identityFile` path. Used to warn before a profile
- * is exported for sharing, where a value that's fine for solo use (a path
- * only meaningful on the exporter's own machine) would silently break for
- * whoever imports it.
- */
-export function findLiteralSecretFields(value: unknown, keyPath: string[] = [], parentKey = "", out: string[] = []): string[] {
-  if (Array.isArray(value)) { value.forEach((item, index) => findLiteralSecretFields(item, [...keyPath, String(index)], parentKey, out)); return out; }
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 1 && entries[0]![0] === "command") return out; // a secret-command reference, not a literal
-    for (const [childKey, item] of entries) findLiteralSecretFields(item, [...keyPath, childKey], childKey, out);
-    return out;
-  }
-  const isEnvNameReference = /Env$/.test(parentKey);
-  const isSensitiveKey = !isEnvNameReference && /(pass(word)?|secret|token|privateKey|identityFile)/i.test(parentKey);
-  if (isSensitiveKey && typeof value === "string" && value && !/^\$\{[A-Z_][A-Z0-9_]*\}$/.test(value)) out.push(keyPath.join("."));
-  return out;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }

@@ -34,6 +34,29 @@ test("generated docker-compose.yaml's phpMyAdmin service does not auto-authentic
   await fs.remove(dir);
 });
 
+// Regression coverage for phase 1b: ImportWorkflow used to scaffold before
+// detecting the table prefix, so a non-default prefix never reached the
+// generated environment files — both silently defaulted to "wp_" instead.
+test("a non-default table prefix reaches the generated docker-compose.yaml, not the wp_ default", async () => {
+  const dir = await tempDir("acli-tpl-docker-prefix-");
+  const service = new DockerComposeService({ runner: async () => "" });
+  await service.scaffold(dir, "wordpress", { projectName: "demo", mysqlVersion: "8.0", wpVersion: "latest", tablePrefix: "xyz_" });
+  const content = await fs.readFile(path.join(dir, "docker-compose.yaml"), "utf8");
+  assert.match(content, /WORDPRESS_TABLE_PREFIX:\s*xyz_/);
+  assert.doesNotMatch(content, /WORDPRESS_TABLE_PREFIX:\s*wp_/);
+  await fs.remove(dir);
+});
+
+test("a non-default table prefix reaches the generated .lando.yml, not the wp_ default", async () => {
+  const dir = await tempDir("acli-tpl-lando-prefix-");
+  const service = new LandoService({ runner: async () => "" });
+  await service.scaffold(dir, "wordpress", { projectName: "demo", mysqlVersion: "8.0", tablePrefix: "xyz_" });
+  const content = await fs.readFile(path.join(dir, ".lando.yml"), "utf8");
+  assert.match(content, /TABLE_PREFIX:\s*xyz_/);
+  assert.match(content, /--dbprefix="xyz_"/);
+  await fs.remove(dir);
+});
+
 test("generated .lando.yml never pipes a downloaded script directly into a shell (curl | bash)", async () => {
   const dir = await tempDir("acli-tpl-lando-");
   const service = new LandoService({ runner: async () => "" });
