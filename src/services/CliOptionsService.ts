@@ -85,13 +85,17 @@ export function mergeProjectContext(preset: ProjectPlan = {}, cliContext: Projec
   return validateProjectContext({ ...preset, ...cliContext }, { source: "project context" });
 }
 
+const UNSAFE_SET_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 export function parseSetOverrides(values: string[] = []): Record<string, unknown> {
   const result: Record<string, any> = {};
   for (const entry of values) {
     const separator = entry.indexOf("=");
     if (separator < 1) throw new Error(`Invalid --set value "${entry}". Expected key=value.`);
     const keys = entry.slice(0, separator).split(".");
-    if (keys.some((key) => !/^[a-zA-Z][a-zA-Z0-9]*$/.test(key))) throw new Error(`Invalid --set key in "${entry}".`);
+    if (keys.some((key) => !/^[a-zA-Z][a-zA-Z0-9]*$/.test(key) || UNSAFE_SET_KEYS.has(key))) {
+      throw new Error(`Invalid --set key in "${entry}".`);
+    }
     let target = result;
     for (const key of keys.slice(0, -1)) target = target[key] ||= {};
     target[keys.at(-1)!] = parseScalar(entry.slice(separator + 1));

@@ -15,7 +15,7 @@ export class PackageNotFoundError extends Error {
 }
 
 export async function fetchLatestVersion(packageName: string, fetchImplementation: typeof fetch = globalThis.fetch): Promise<string> {
-  const name = packageName.startsWith("@") ? packageName.replace("/", "%2f") : packageName;
+  const name = packageName.startsWith("@") ? packageName.replace(/\//g, "%2f") : packageName;
   const response = await fetchImplementation(`https://registry.npmjs.org/${name}/latest`, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
