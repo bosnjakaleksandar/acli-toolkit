@@ -8,8 +8,14 @@ import { registerPresetCommand } from "./commands/preset.ts";
 import { registerProfileCommand } from "./commands/profile.ts";
 import { registerLinkCommand } from "./commands/link.ts";
 import { registerPullCommand } from "./commands/pull.ts";
+import type { PackageMetadata } from "../system/packageMetadata.ts";
 
-const commandRegistrars: Array<(program: Command, context: any) => void> = [
+/** What every command registrar is handed. Only `update` reads it today, but it is the one place run-wide facts belong. */
+export interface CommandContext {
+  packageMetadata: PackageMetadata;
+}
+
+const commandRegistrars: Array<(program: Command, context: CommandContext) => void> = [
   registerCreateCommand,
   registerImportCommand,
   registerDoctorCommand,
@@ -21,7 +27,7 @@ const commandRegistrars: Array<(program: Command, context: any) => void> = [
   registerPullCommand,
 ];
 
-export function registerCommands(program: Command, context: any): void {
+export function registerCommands(program: Command, context: CommandContext): void {
   for (const registerCommand of commandRegistrars) {
     registerCommand(program, context);
   }

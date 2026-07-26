@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import { getProfileTemplate, listProfileTemplates, PROFILE_TEMPLATES } from "../src/profiles/templates.ts";
-import { createProfileCommand } from "../src/cli/commands/profile.ts";
+import { createProfileCommand } from "../src/profiles/ProfileBuilder.ts";
 import { readConfigFile } from "../src/config/ConfigLoader.ts";
 import { validateProfileConfig } from "../src/config/schema.ts";
 

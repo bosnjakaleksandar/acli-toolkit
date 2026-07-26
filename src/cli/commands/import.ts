@@ -1,12 +1,12 @@
-import { intro, note, outro, select, spinner, text } from "@clack/prompts";
+import { note, outro, select, spinner, text } from "@clack/prompts";
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "node:path";
 import type { Command } from "commander";
-import { BRANDING } from "../../ui/branding.ts";
 import { mascot } from "../../ui/mascot.ts";
-import { ask } from "../../ui/prompts.ts";
+import { ask, askRequiredText } from "../../ui/prompts.ts";
 import { CliError, MissingOptionError, TargetExistsError } from "../../core/errors.ts";
+import { runCommand } from "../CommandShell.ts";
 import { readStepState } from "../../core/StepRunner.ts";
 import { ImportSourceRegistry } from "../../wordpress/import/ImportSource.ts";
 import { LocalFolderSource } from "../../wordpress/import/sources/LocalFolderSource.ts";
@@ -57,16 +57,19 @@ importSourceRegistry.register(createProfileImportSource("ssh", "One-off SSH targ
  * get a clear MissingOptionError/CliError instead of hanging on a prompt.
  */
 export async function importCommand(options: ImportCommandOptions = {}): Promise<void> {
-  intro(chalk.bgCyan(chalk.black(` 📥 ${BRANDING.name} IMPORT `)));
+  await runCommand({ title: "IMPORT", icon: "📥", failureMessage: "Import failed." }, async (shell) => {
+    let targetDir = "";
+    let ownsTargetDir = false;
+    let ctx: any = null;
+    let s: ReturnType<typeof spinner> | null = null;
+    let resumeCommand: string | null = null;
+    const nonInteractive = Boolean(options.yes || options.nonInteractive);
 
-  let targetDir = "";
-  let ownsTargetDir = false;
-  let ctx: any = null;
-  let s: ReturnType<typeof spinner> | null = null;
-  let resumeCommand: string | null = null;
-  const nonInteractive = Boolean(options.yes || options.nonInteractive);
+    shell.onError((error) => {
+      if (s) s.stop(chalk.red("A critical error occurred."));
+      return formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand: ownsTargetDir ? resumeCommand : null, action: "Import" });
+    });
 
-  try {
     const sourceId = options.source || (nonInteractive ? "profile" : await ask(select, {
       message: "Where is the WordPress site coming from?",
       options: importSourceRegistry.list().map((candidate) => ({ label: candidate.label, value: candidate.id })),
@@ -167,14 +170,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
     await mascot.show("success", "Import completed successfully.");
     mascot.stop();
     outro(buildSuccessSummary(targetDir, ctx, nextSteps));
-  } catch (error: any) {
-    if (s) s.stop(chalk.red("A critical error occurred."));
-    await mascot.show("error", "Import failed.");
-    mascot.stop();
-    console.log(formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand: ownsTargetDir ? resumeCommand : null, action: "Import" }));
-    if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
-    process.exitCode = error.exitCode || 1;
-  }
+  });
 }
 
 /**
@@ -189,25 +185,25 @@ async function resolveSourceOptions(sourceId: string, options: ImportCommandOpti
     return;
   }
   if (sourceId === "local") {
-    ctx.localPath = options.localPath || (nonInteractive ? undefined : await requiredText("Path to the existing WordPress installation:"));
+    ctx.localPath = options.localPath || (nonInteractive ? undefined : await askRequiredText("Path to the existing WordPress installation:"));
     if (!ctx.localPath) throw new MissingOptionError(["--local-path <path>"]);
     ctx.sqlFile = options.sqlFile;
     return;
   }
   if (sourceId === "git") {
-    ctx.repositoryUrl = options.repo || (nonInteractive ? undefined : await requiredText("Git repository URL (HTTPS or SSH) containing wp-content:"));
+    ctx.repositoryUrl = options.repo || (nonInteractive ? undefined : await askRequiredText("Git repository URL (HTTPS or SSH) containing wp-content:"));
     if (!ctx.repositoryUrl) throw new MissingOptionError(["--repo <url>"]);
     ctx.sqlFile = options.sqlFile;
     return;
   }
   if (sourceId === "zip") {
-    ctx.zipFile = options.zip || (nonInteractive ? undefined : await requiredText("Path to the .zip archive:"));
+    ctx.zipFile = options.zip || (nonInteractive ? undefined : await askRequiredText("Path to the .zip archive:"));
     if (!ctx.zipFile) throw new MissingOptionError(["--zip <path>"]);
     ctx.sqlFile = options.sqlFile;
     return;
   }
   if (sourceId === "sql") {
-    ctx.sqlFile = options.sqlFile || (nonInteractive ? undefined : await requiredText("Path to the .sql database dump:"));
+    ctx.sqlFile = options.sqlFile || (nonInteractive ? undefined : await askRequiredText("Path to the .sql database dump:"));
     if (!ctx.sqlFile) throw new MissingOptionError(["--sql-file <path>"]);
   }
 }
@@ -228,9 +224,9 @@ async function resolveProfileForImport(sourceId: string, options: ImportCommandO
     if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment), `Selected profile: ${selection.profileName}`);
     rawProfile = selection.profile!;
   } else {
-    const sshHost = options.sshHost || (nonInteractive ? undefined : await requiredText("Remote SSH host:"));
-    const sshUser = options.sshUser || (nonInteractive ? undefined : await requiredText("Remote SSH username:"));
-    const remotePath = options.remotePath || (nonInteractive ? undefined : await requiredText("Remote WordPress root path:"));
+    const sshHost = options.sshHost || (nonInteractive ? undefined : await askRequiredText("Remote SSH host:"));
+    const sshUser = options.sshUser || (nonInteractive ? undefined : await askRequiredText("Remote SSH username:"));
+    const remotePath = options.remotePath || (nonInteractive ? undefined : await askRequiredText("Remote WordPress root path:"));
     if (!sshHost || !sshUser || !remotePath) {
       throw new MissingOptionError(["--ssh-host <host>", "--ssh-user <user>", "--remote-path <path>"]);
     }
@@ -253,9 +249,6 @@ async function resolveProfileForImport(sourceId: string, options: ImportCommandO
   return resolveRemoteProfile(rawProfile, { projectName: ctx.projectName });
 }
 
-function requiredText(message: string): Promise<string> {
-  return ask(text, { message, validate: (value: string | undefined) => (value?.trim() ? undefined : "A value is required.") });
-}
 
 export function registerImportCommand(program: Command): void {
   program

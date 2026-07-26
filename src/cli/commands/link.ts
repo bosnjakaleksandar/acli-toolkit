@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { confirm, intro, outro, select } from "@clack/prompts";
+import { confirm, outro, select } from "@clack/prompts";
 import chalk from "chalk";
 import type { Command } from "commander";
 import { ask, askMysqlVersion, askWpVersion } from "../../ui/prompts.ts";
@@ -8,18 +8,16 @@ import { loadConfig } from "../../config/ConfigLoader.ts";
 import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { readLink, writeLink } from "../../profiles/ProjectLink.ts";
-import { BRANDING } from "../../ui/branding.ts";
-import { CliError, describeError } from "../../core/errors.ts";
+import { CliError } from "../../core/errors.ts";
+import { runCommand } from "../CommandShell.ts";
 import type { LinkCommandOptions } from "../options.ts";
 
 const ENV_FILE_NAMES: Record<string, string> = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 
 export async function linkCommand(options: LinkCommandOptions = {}): Promise<void> {
-  const cwd = process.cwd();
-  const nonInteractive = Boolean(options.yes || options.nonInteractive);
-  intro(chalk.bgCyan(chalk.black(` 🔗 ${BRANDING.name} LINK `)));
-
-  try {
+  await runCommand({ title: "LINK", icon: "🔗" }, async () => {
+    const cwd = process.cwd();
+    const nonInteractive = Boolean(options.yes || options.nonInteractive);
     const existing = await readLink(cwd);
     if (existing && !options.force) {
       throw new CliError(`This directory is already linked to "${existing.name}" (profile: ${existing.profile || "none"}).`, {
@@ -57,12 +55,7 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
     });
 
     outro(chalk.green(`Linked "${projectName}" to profile "${selection.profileName}" (${filePath}).\nRun \`acli pull\` to sync files and the database.`));
-  } catch (error: any) {
-    console.log(chalk.red(`✖ ${describeError(error)}`));
-    if (error.hint) console.log(chalk.gray(`  ${error.hint}`));
-    if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
-    process.exitCode = error.exitCode || 1;
-  }
+  });
 }
 
 export function registerLinkCommand(program: Command): void {

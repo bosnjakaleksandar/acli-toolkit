@@ -47,3 +47,12 @@ export async function askSshKeyPath(): Promise<string> {
     },
   });
 }
+
+/** Prompts for a value that must not be blank. Shared by every flow that falls back to a prompt when a required flag wasn't supplied. */
+export async function askRequiredText(message: string, initialValue = ""): Promise<string> {
+  return ask(text, {
+    message,
+    initialValue,
+    validate: (value: string | undefined) => (value?.trim() ? undefined : "A value is required."),
+  });
+}

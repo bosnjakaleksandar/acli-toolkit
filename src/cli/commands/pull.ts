@@ -1,4 +1,4 @@
-import { confirm, intro, multiselect, outro, spinner } from "@clack/prompts";
+import { confirm, multiselect, outro, spinner } from "@clack/prompts";
 import chalk from "chalk";
 import type { Command } from "commander";
 import { ask } from "../../ui/prompts.ts";
@@ -9,16 +9,14 @@ import { readLink } from "../../profiles/ProjectLink.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { PullService, resolvePullTargets, ALL_TARGETS } from "../../wordpress/pull/PullService.ts";
 import { mascot } from "../../ui/mascot.ts";
-import { BRANDING } from "../../ui/branding.ts";
-import { CliError, describeError } from "../../core/errors.ts";
+import { CliError } from "../../core/errors.ts";
+import { runCommand } from "../CommandShell.ts";
 import type { PullCommandOptions } from "../options.ts";
 
 export async function pullCommand(targets: string[], options: PullCommandOptions = {}): Promise<void> {
-  const cwd = process.cwd();
-  const nonInteractive = Boolean(options.yes || options.nonInteractive);
-  intro(chalk.bgCyan(chalk.black(` ⬇ ${BRANDING.name} PULL `)));
-
-  try {
+  await runCommand({ title: "PULL", icon: "⬇", failureMessage: "Pull failed." }, async () => {
+    const cwd = process.cwd();
+    const nonInteractive = Boolean(options.yes || options.nonInteractive);
     const link = await readLink(cwd);
     if (!link) {
       throw new CliError("This directory is not linked to a staging profile.", {
@@ -77,14 +75,7 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
     await mascot.show("success", "Pull complete.");
     mascot.stop();
     outro(chalk.green(`Pulled ${finalTargets.join(", ")} for "${link.name}".`));
-  } catch (error: any) {
-    await mascot.show("error", "Pull failed.");
-    mascot.stop();
-    console.log(chalk.red(`✖ ${describeError(error)}`));
-    if (error.hint) console.log(chalk.gray(`  ${error.hint}`));
-    if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
-    process.exitCode = error.exitCode || 1;
-  }
+  });
 }
 
 export function registerPullCommand(program: Command): void {

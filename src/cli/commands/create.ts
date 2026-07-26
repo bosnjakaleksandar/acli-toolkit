@@ -1,4 +1,4 @@
-import { confirm, intro, note, outro, select, spinner, text } from "@clack/prompts";
+import { confirm, note, outro, select, spinner, text } from "@clack/prompts";
 import chalk from "chalk";
 import path from "path";
 import type { Command } from "commander";
@@ -14,11 +14,11 @@ import {
   parseSetOverrides,
 } from "../../projects/plan/PlanBuilder.ts";
 import { resolveStrategy } from "../../projects/strategies/registry.ts";
-import { BRANDING } from "../../ui/branding.ts";
 import { mascot } from "../../ui/mascot.ts";
 import { ask } from "../../ui/prompts.ts";
 import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
 import { CliError } from "../../core/errors.ts";
+import { runCommand } from "../CommandShell.ts";
 import { loadLastPlan, saveSuccessfulPlan } from "../../projects/plan/history.ts";
 import { savePlanAsPreset } from "../../projects/plan/history.ts";
 import { StepRunner, readStepState } from "../../core/StepRunner.ts";
@@ -63,14 +63,24 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
       nonInteractive: options.nonInteractive,
     });
   }
-  intro(chalk.bgCyan(chalk.black(` 🚀 ${BRANDING.name} CREATE `)));
+  await runCommand({ title: "CREATE", icon: "🚀", failureMessage: "Project creation failed." }, async (shell) => {
+    let targetDir = "";
+    let s: ReturnType<typeof spinner> | null = null;
+    let ownsTargetDir = false;
+    let ctx: ProjectPlan | null = null;
 
-  let targetDir = "";
-  let s: ReturnType<typeof spinner> | null = null;
-  let ownsTargetDir = false;
-  let ctx: ProjectPlan | null = null;
+    // Once the "scaffold" step has started, real files (and possibly an
+    // imported database) may already exist on disk — deleting targetDir on
+    // any later failure risked destroying recoverable work. Instead: never
+    // delete once we own the directory, and point at `--resume` so the run
+    // can continue from the failed step instead of starting over. Only a
+    // failure before any artifact exists (preflight) has nothing to preserve.
+    shell.onError((error) => {
+      if (s) s.stop(chalk.red("A critical error occurred."));
+      const resumeCommand = ownsTargetDir && ctx?.projectName ? `acli create --resume --name ${ctx.projectName}` : null;
+      return formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand });
+    });
 
-  try {
     let { config } = await loadConfig({ configPath: options.config });
     const preset = await loadPreset(options.preset, config);
     const cliContext = normalizeCliOptions(options);
@@ -154,21 +164,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
       const presetFile = await savePlanAsPreset(presetName, finalCtx, { configPath: options.config });
       console.log(chalk.gray(`Preset "${presetName}" saved to ${presetFile}.`));
     }
-  } catch (error: any) {
-    if (s) s.stop(chalk.red("A critical error occurred."));
-    // Once the "scaffold" step has started, real files (and possibly an
-    // imported database) may already exist on disk — deleting targetDir on
-    // any later failure risked destroying recoverable work. Instead: never
-    // delete once we own the directory, and point at `--resume` so the run
-    // can continue from the failed step instead of starting over. Only a
-    // failure before any artifact exists (preflight) has nothing to preserve.
-    const resumeCommand = ownsTargetDir && ctx?.projectName ? `acli create --resume --name ${ctx.projectName}` : null;
-    await mascot.show("error", "Project creation failed.");
-    mascot.stop();
-    console.log(formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand }));
-    if (process.env.ACLI_DEBUG === "1" && error?.stack) console.error(error.stack);
-    process.exitCode = error.exitCode || 1;
-  }
+  });
 }
 
 export function registerCreateCommand(program: Command): void {
