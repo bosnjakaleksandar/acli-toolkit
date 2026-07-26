@@ -2,7 +2,8 @@ import { RemoteHost } from "../../../remote/RemoteHost.ts";
 import { writeLink } from "../../../profiles/ProjectLink.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../../../system/safety.ts";
 import { runCommand } from "../../../system/commandRunner.ts";
-import type { ImportSource, ImportSourceContext, RemoteFacts } from "../ImportSource.ts";
+import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
+import type { RemoteFacts } from "../../../core/model/RemoteFacts.ts";
 import type { ResolvedProfile } from "../../../core/model/Profile.ts";
 
 export interface ProfileImportContext extends ImportSourceContext {

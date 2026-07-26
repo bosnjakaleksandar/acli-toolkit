@@ -90,11 +90,11 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
     const envService = resolveEnvironmentService(ctx.environment!);
     const strategy = resolveStrategy(ctx, envService);
 
-    ctx = await strategy.askQuestions!(ctx, { nonInteractive });
+    ctx = await strategy.askQuestions(ctx, { nonInteractive });
     targetDir = path.join(process.cwd(), ctx!.projectName!);
 
     if (options.dryRun) {
-      const plan = typeof strategy.buildPlan === "function" ? strategy.buildPlan(ctx) : {
+      const plan = strategy.buildPlan ? strategy.buildPlan(ctx) : {
         preset: ctx!.presetName || options.preset || null,
         project: ctx!.projectName,
         projectType: ctx!.projectType,

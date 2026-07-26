@@ -1,4 +1,4 @@
-import BaseStrategy from "./ScaffoldStrategy.ts";
+import { EnvironmentScaffoldStrategy } from "./ScaffoldStrategy.ts";
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
@@ -10,7 +10,7 @@ import { writeWordPressSetupScript } from "./wordpressSetupScript.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 
-export default class WordPressStrategy extends BaseStrategy {
+export default class WordPressStrategy extends EnvironmentScaffoldStrategy {
   override async askQuestions(ctx: ProjectPlan, options?: { nonInteractive?: boolean }): Promise<ProjectPlan> {
     return askWordPressQuestions(ctx, options);
   }

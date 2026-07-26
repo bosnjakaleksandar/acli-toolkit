@@ -1,4 +1,4 @@
-import BaseStrategy from "./ScaffoldStrategy.ts";
+import { EnvironmentScaffoldStrategy } from "./ScaffoldStrategy.ts";
 import { scaffoldGitignore } from "../../system/gitignore.ts";
 import { askMysqlVersion, askWpVersion } from "../../ui/prompts.ts";
 import { hasPresetValue } from "../plan/presets.ts";
@@ -16,7 +16,7 @@ import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 
 type RemoteHostFactory = (profile: ResolvedProfile) => RemoteHost;
 
-export default class ExistingWPStrategy extends BaseStrategy {
+export default class ExistingWPStrategy extends EnvironmentScaffoldStrategy {
   databaseDumpService: DatabaseDumpService;
   remoteHostFactory: RemoteHostFactory;
   pullService: PullService;

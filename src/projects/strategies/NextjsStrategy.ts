@@ -1,12 +1,12 @@
 import path from "node:path";
-import BaseStrategy from "./ScaffoldStrategy.ts";
+import ScaffoldStrategy from "./ScaffoldStrategy.ts";
 import { runCommand } from "../../system/commandRunner.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 
 type Runner = typeof runCommand;
 
-export default class NextjsStrategy extends BaseStrategy {
+export default class NextjsStrategy extends ScaffoldStrategy {
   run: Runner;
 
   constructor(envService: EnvironmentService | null, { runner = runCommand }: { runner?: Runner } = {}) {

@@ -3,17 +3,27 @@ import ReactStrategy from "./ReactStrategy.ts";
 import WordPressStrategy from "./WordPressStrategy.ts";
 import LaravelStrategy from "./LaravelStrategy.ts";
 import ExistingWPStrategy from "./ExistingWPStrategy.ts";
-import { ProjectTypeRegistry, type ScaffoldStrategy } from "../../core/Registry.ts";
+import ScaffoldStrategy from "./ScaffoldStrategy.ts";
+import { Registry } from "../../core/Registry.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
-import type EnvironmentServiceType from "../../environments/EnvironmentService.ts";
+import type EnvironmentService from "../../environments/EnvironmentService.ts";
 
-export const projectTypeRegistry = new ProjectTypeRegistry();
+export interface ProjectTypeDefinition {
+  id: string;
+  label: string;
+  /** Does this definition apply to the given (already-normalized) plan? First registered match wins. */
+  matches(plan: ProjectPlan): boolean;
+  /** Builds the strategy instance for this run. `envService` is the resolved Docker/Lando adapter (or null for env-less application projects). */
+  create(envService: EnvironmentService | null, plan: ProjectPlan): ScaffoldStrategy;
+}
+
+export const projectTypeRegistry = new Registry<ProjectTypeDefinition>("project type");
 
 projectTypeRegistry.register({
   id: "existing-wp",
   label: "Existing WordPress site",
   matches: (plan) => plan.setupType === "existing-wp",
-  create: (envService) => new ExistingWPStrategy(envService as EnvironmentServiceType | null) as ScaffoldStrategy,
+  create: (envService) => new ExistingWPStrategy(envService),
 });
 
 projectTypeRegistry.register({
@@ -21,10 +31,8 @@ projectTypeRegistry.register({
   label: "Application (React, Next.js, optionally Laravel)",
   matches: (plan) => plan.appType === "application",
   create: (envService, plan) => {
-    const service = envService as EnvironmentServiceType | null;
-    const frontend: ScaffoldStrategy =
-      plan.framework === "nextjs" ? new NextjsStrategy(service) : new ReactStrategy(service);
-    return plan.useLaravel ? (new LaravelStrategy(service, frontend) as ScaffoldStrategy) : frontend;
+    const frontend = plan.framework === "nextjs" ? new NextjsStrategy(envService) : new ReactStrategy(envService);
+    return plan.useLaravel ? new LaravelStrategy(envService, frontend) : frontend;
   },
 });
 
@@ -35,15 +43,19 @@ projectTypeRegistry.register({
   // existing-wp or an application, matching the original if-chain's
   // unconditional final `else`.
   matches: () => true,
-  create: (envService) => new WordPressStrategy(envService as EnvironmentServiceType | null) as ScaffoldStrategy,
+  create: (envService) => new WordPressStrategy(envService),
 });
 
 /**
- * Resolves the project scaffold strategy from a normalized CLI context.
- * Kept as a thin wrapper over `projectTypeRegistry` so existing call sites
- * don't need to change; new project types register with the registry
- * directly instead of extending an if-chain here.
+ * Resolves the scaffold strategy for a normalized plan. Entries are tried in
+ * registration order and the first whose `matches()` returns true wins, so a
+ * new project type is one `register()` call above rather than another branch
+ * in a shared if-chain.
  */
-export function resolveStrategy(ctx: ProjectPlan, envService: unknown): ScaffoldStrategy {
-  return projectTypeRegistry.resolve(ctx, envService);
+export function resolveStrategy(ctx: ProjectPlan, envService: EnvironmentService | null): ScaffoldStrategy {
+  const definition = projectTypeRegistry.find((candidate) => candidate.matches(ctx));
+  if (!definition) {
+    throw new Error(`No registered project type matches this plan (setupType=${ctx.setupType}, appType=${ctx.appType}).`);
+  }
+  return definition.create(envService, ctx);
 }

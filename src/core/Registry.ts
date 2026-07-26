@@ -1,59 +1,49 @@
-import type { ProjectPlan } from "./model/ProjectPlan.ts";
-
-/**
- * Minimal shape every scaffold strategy already implements (BaseStrategy and
- * its subclasses). Kept loose (`any` on ctx/spinner) because the strategies
- * themselves are still plain JS — this describes the existing contract
- * rather than forcing a rewrite of it. Tightening this is expected once the
- * strategies convert to TS.
- */
-export interface ScaffoldStrategy {
-  askQuestions?(ctx: any, options?: { nonInteractive?: boolean }): Promise<any>;
-  scaffold(targetDir: string, ctx: any, spinner?: unknown): Promise<void>;
-  // Only meaningful for strategies that scaffold a Docker/Lando environment
-  // template (WordPress, existing-wp); application strategies (React/Next/
-  // Laravel) never call it and inherit BaseStrategy's throwing default,
-  // which JS-inference sees as returning void rather than never returning.
-  getTemplateType?(): string | void;
-  preflight?(ctx: any, spinner?: unknown): Promise<void>;
-  buildPlan?(ctx: any): unknown;
-}
-
-export interface ProjectTypeDefinition {
+/** Anything a `Registry` can hold: an entry that knows its own id. */
+export interface Identified {
   id: string;
-  label: string;
-  /** Does this definition apply to the given (already-normalized) plan? First registered match wins. */
-  matches(plan: ProjectPlan): boolean;
-  /** Builds the strategy instance for this run. `envService` is the resolved Docker/Lando adapter (or null for env-less application projects). */
-  create(envService: unknown, plan: ProjectPlan): ScaffoldStrategy;
 }
 
 /**
- * Replaces the if-chain that used to live in StrategyResolver: adding a new
- * project type is one `register()` call instead of editing a shared
- * function. Entries are tried in registration order; the first whose
- * `matches()` returns true wins, mirroring the original chain's priority
- * (existing-wp before application before wordpress).
+ * An id-keyed collection of pluggable entries, preserving registration
+ * order. Backs both the project-type registry (`acli create`'s scaffold
+ * strategies) and the import-source registry (`acli import`'s sources) —
+ * adding a new project type or import source is one `register()` call
+ * rather than another branch in a shared if-chain.
+ *
+ * Registration order is meaningful: `find()` returns the *first* matching
+ * entry, which is what lets a registry declare a catch-all fallback by
+ * registering it last.
  */
-export class ProjectTypeRegistry {
-  #definitions: ProjectTypeDefinition[] = [];
+export class Registry<T extends Identified> {
+  #entries: T[] = [];
+  #label: string;
 
-  register(definition: ProjectTypeDefinition): void {
-    if (this.#definitions.some((existing) => existing.id === definition.id)) {
-      throw new Error(`A project type with id "${definition.id}" is already registered.`);
-    }
-    this.#definitions.push(definition);
+  /** @param label What this registry holds, used in error messages (e.g. "project type", "import source"). */
+  constructor(label: string) {
+    this.#label = label;
   }
 
-  list(): ProjectTypeDefinition[] {
-    return [...this.#definitions];
+  register(entry: T): void {
+    if (this.#entries.some((existing) => existing.id === entry.id)) {
+      const article = /^[aeiou]/i.test(this.#label) ? "An" : "A";
+      throw new Error(`${article} ${this.#label} with id "${entry.id}" is already registered.`);
+    }
+    this.#entries.push(entry);
   }
 
-  resolve(plan: ProjectPlan, envService: unknown): ScaffoldStrategy {
-    const definition = this.#definitions.find((candidate) => candidate.matches(plan));
-    if (!definition) {
-      throw new Error(`No registered project type matches this plan (setupType=${plan.setupType}, appType=${plan.appType}).`);
-    }
-    return definition.create(envService, plan);
+  /** Looks an entry up by exact id, throwing with the available ids when there is no match. */
+  get(id: string): T {
+    const entry = this.#entries.find((candidate) => candidate.id === id);
+    if (!entry) throw new Error(`Unknown ${this.#label} "${id}". Available: ${this.#entries.map((candidate) => candidate.id).join(", ")}.`);
+    return entry;
+  }
+
+  /** The first entry satisfying `predicate`, in registration order, or undefined. */
+  find(predicate: (entry: T) => boolean): T | undefined {
+    return this.#entries.find(predicate);
+  }
+
+  list(): T[] {
+    return [...this.#entries];
   }
 }

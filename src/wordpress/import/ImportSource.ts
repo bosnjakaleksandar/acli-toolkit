@@ -1,3 +1,6 @@
+import { Registry } from "../../core/Registry.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
+
 /**
  * A pluggable way to fetch an existing WordPress site's files and database
  * dump onto disk, before the shared migration pipeline (table-prefix
@@ -14,11 +17,6 @@ export interface ImportSourceContext {
   targetDir: string;
   sqlFile?: string;
   [key: string]: unknown;
-}
-
-export interface RemoteFacts {
-  tablePrefix: string | null;
-  siteUrl: string | null;
 }
 
 export interface ImportSource {
@@ -48,21 +46,8 @@ export interface ImportSource {
   buildPlan?(ctx: ImportSourceContext): unknown;
 }
 
-export class ImportSourceRegistry {
-  #sources = new Map<string, ImportSource>();
-
-  register(source: ImportSource): void {
-    if (this.#sources.has(source.id)) throw new Error(`An import source with id "${source.id}" is already registered.`);
-    this.#sources.set(source.id, source);
-  }
-
-  get(id: string): ImportSource {
-    const source = this.#sources.get(id);
-    if (!source) throw new Error(`Unknown import source "${id}". Available: ${[...this.#sources.keys()].join(", ")}.`);
-    return source;
-  }
-
-  list(): ImportSource[] {
-    return [...this.#sources.values()];
+export class ImportSourceRegistry extends Registry<ImportSource> {
+  constructor() {
+    super("import source");
   }
 }

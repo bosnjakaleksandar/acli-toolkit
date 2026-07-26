@@ -5,7 +5,7 @@ import { buildNextSteps } from "./nextSteps.ts";
 import { maybeInstallDependencies } from "../system/dependencies.ts";
 import { maybeInitializeGit } from "../system/git.ts";
 import type { Step } from "../core/StepRunner.ts";
-import type { ScaffoldStrategy } from "../core/Registry.ts";
+import type ScaffoldStrategy from "./strategies/ScaffoldStrategy.ts";
 import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 /** The subset of @clack/prompts' spinner this module actually calls, always unconditionally (unlike the looser, optional-methods `Spinner` shape services accept). */
@@ -46,7 +46,7 @@ export function buildCreateSteps({ ctx, strategy, targetDir, spinner, resume, on
         if (!resume) await assertTargetDoesNotExist(targetDir);
         const preflight = await runLocalPreflight(ctx);
         ctx.warnings = [...((ctx.warnings as string[]) || []), ...preflight.warnings];
-        if (typeof strategy.preflight === "function") await strategy.preflight(ctx, spinner);
+        await strategy.preflight?.(ctx, spinner);
       },
     },
     {

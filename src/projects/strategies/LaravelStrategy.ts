@@ -1,15 +1,14 @@
-import BaseStrategy from "./ScaffoldStrategy.ts";
+import ScaffoldStrategy from "./ScaffoldStrategy.ts";
 import fs from "fs-extra";
 import path from "path";
 import { scaffoldGitignore } from "../../system/gitignore.ts";
 import { hasCommand, runCommand } from "../../system/commandRunner.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
-import type { ScaffoldStrategy } from "../../core/Registry.ts";
 
 type Runner = typeof runCommand;
 type HasCommand = typeof hasCommand;
 
-export default class LaravelStrategy extends BaseStrategy {
+export default class LaravelStrategy extends ScaffoldStrategy {
   frontendStrategy: ScaffoldStrategy;
   run: Runner;
   hasCommand: HasCommand;

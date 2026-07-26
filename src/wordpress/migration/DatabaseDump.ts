@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import { CliError } from "../../core/errors.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
 
 // The set of table names every normal WordPress install has. A dump's real
 // prefix is whichever candidate covers the most of these — not just "the
@@ -18,18 +19,13 @@ const STRONG_COVERAGE_THRESHOLD = 3;
 // Handles backtick-quoted, ANSI double-quoted, and unquoted identifiers.
 const TABLE_STATEMENT_PATTERN = /^\s*(?:CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|INSERT\s+INTO)\s+[`"]?([A-Za-z0-9_]+)[`"]?/gim;
 
-export interface RemoteFacts {
-  tablePrefix?: string | null;
-  siteUrl?: string | null;
-}
-
 export default class DatabaseDumpService {
   /**
    * @param targetDir Directory containing staging.sql.
    * @param spinner Optional progress spinner.
-   * @param remoteFacts Authoritative facts fetched via RemoteHost.getRemoteFacts(), when available.
+   * @param remoteFacts Authoritative facts fetched via RemoteHost.getRemoteFacts(), when available. Accepted as a partial view because only `tablePrefix` is read here.
    */
-  async detectTablePrefix(targetDir: string, spinner: Spinner | null = null, remoteFacts: RemoteFacts | null = null): Promise<string> {
+  async detectTablePrefix(targetDir: string, spinner: Spinner | null = null, remoteFacts: Partial<RemoteFacts> | null = null): Promise<string> {
     spinner?.message("Detecting WordPress table prefix...");
     const dumpPath = path.join(targetDir, "staging.sql");
     const sql = await fs.readFile(dumpPath, "utf8").catch(() => null);
