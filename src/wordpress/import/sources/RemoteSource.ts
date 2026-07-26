@@ -13,6 +13,7 @@ export interface ProfileImportContext extends ImportSourceContext {
   skipFiles?: boolean;
   skipGitInit?: boolean;
   presetName?: string;
+  stagingUrl?: string;
 }
 
 type RemoteHostFactory = (profile: ResolvedProfile) => RemoteHost;
@@ -107,6 +108,11 @@ export function createProfileImportSource(
         databaseDriver: c.skipDatabase ? "skipped" : c.profile.database.driver,
         fileTransfer: c.skipFiles ? "skipped" : c.profile.files?.transport || "rsync",
         gitLink: !c.skipGitLink && c.profile.git?.enabled !== false,
+        // Shown because it decides which URLs get search-replaced: the
+        // imported site's own siteurl always is, and this is the extra
+        // source folded in alongside it (from --remote-url, or the
+        // profile's own urls.staging).
+        stagingUrl: c.stagingUrl ?? c.profile.urls?.staging ?? null,
         requiredTools: service.requiredTools({ environment: c.environment, skipFiles: c.skipFiles }),
       };
     },

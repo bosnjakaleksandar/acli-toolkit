@@ -104,10 +104,10 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       projectType: "wp-existing",
       mysqlVersion: options.mysql || "8.0",
       // A generated docker-compose.yaml always templates {{WP_VERSION}} into
-      // its wordpress image tag (see DockerComposeService.scaffold) — every
+      // its wordpress image tag (see DockerEnvironment.scaffold) — every
       // import source needs a value here or that placeholder is left
       // unsubstituted in the generated file.
-      wpVersion: "latest",
+      wpVersion: options.wpVersion || "latest",
       branch: options.branch,
       skipFiles: Boolean(options.skipFiles),
       skipDatabase: Boolean(options.skipDatabase),
@@ -181,7 +181,14 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
  */
 async function resolveSourceOptions(sourceId: string, options: ImportCommandOptions, ctx: any, nonInteractive: boolean): Promise<void> {
   if (sourceId === "profile" || sourceId === "ssh") {
-    ctx.profile = await resolveProfileForImport(sourceId, options, ctx, nonInteractive);
+    const profile = await resolveProfileForImport(sourceId, options, ctx, nonInteractive);
+    ctx.profile = profile;
+    // A staging URL is an extra search-replace source, not a requirement:
+    // the migration reads the real siteurl back out of the imported
+    // database. Falling back to the profile's own declared URL matters for
+    // content that still references an older/alternate hostname the
+    // imported siteurl no longer matches.
+    ctx.stagingUrl = ctx.stagingUrl || profile.urls?.staging || null;
     return;
   }
   if (sourceId === "local") {
@@ -259,6 +266,7 @@ export function registerImportCommand(program: Command): void {
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")
     .option("--mysql <version>", "MySQL or MariaDB version")
+    .option("--wp-version <version>", "WordPress version")
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--resume", "Continue an interrupted import run instead of starting over")
     // source: profile

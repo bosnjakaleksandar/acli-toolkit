@@ -153,7 +153,7 @@ test("linkGit refuses a credential-bearing remote git origin URL and never runs 
   await fs.remove(targetDir);
 });
 
-test("buildPlan reproduces the same shape ExistingWPStrategy.buildPlan used to produce", async () => {
+test("buildPlan reports the remote target, transports and required tools for --dry-run", async () => {
   const source = createProfileImportSource("profile", "Staging profile");
   const profile = resolveRemoteProfile({ ...rawProfile, profileName: "demo" }, { projectName: "demo" });
   const plan = source.buildPlan!({ targetDir: "/tmp/unused", profile, projectName: "demo", environment: "docker" } as any) as Record<string, unknown>;
@@ -165,6 +165,19 @@ test("buildPlan reproduces the same shape ExistingWPStrategy.buildPlan used to p
   assert.equal(plan.fileTransfer, "rsync");
   assert.equal(plan.gitLink, true);
   assert.deepEqual(plan.requiredTools, ["ssh", "docker", "rsync"]);
+});
+
+test("buildPlan falls back to the profile's own urls.staging when no --remote-url was supplied", async () => {
+  const source = createProfileImportSource("profile", "Staging profile");
+  const withStagingUrl = { ...rawProfile, profileName: "demo", urls: { staging: "https://demo.staging.example.com" } };
+  const profile = resolveRemoteProfile(withStagingUrl, { projectName: "demo" });
+  const base = { targetDir: "/tmp/unused", profile, projectName: "demo", environment: "docker" };
+
+  const fallback = source.buildPlan!(base as any) as Record<string, unknown>;
+  assert.equal(fallback.stagingUrl, "https://demo.staging.example.com", "the profile's declared staging URL is an extra search-replace source");
+
+  const explicit = source.buildPlan!({ ...base, stagingUrl: "https://override.example.com" } as any) as Record<string, unknown>;
+  assert.equal(explicit.stagingUrl, "https://override.example.com", "an explicit --remote-url wins over the profile default");
 });
 
 test("end-to-end via runImportWorkflow: preflight, prefix detection (remote-authoritative), scaffold, link-profile, link-git, and import all run for the profile source", async () => {

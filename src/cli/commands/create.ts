@@ -3,6 +3,7 @@ import chalk from "chalk";
 import path from "path";
 import type { Command } from "commander";
 import { collectProjectContext, editProjectContext } from "../../projects/prompts/projectPrompts.ts";
+import { askExistingWpVersions } from "../../projects/prompts/wordpressPrompts.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { loadPreset } from "../../projects/plan/presets.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
@@ -30,38 +31,47 @@ import {
 import { buildCreateSteps } from "../../projects/createPipeline.ts";
 import { importCommand } from "./import.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
-import type { CreateCommandOptions } from "../options.ts";
+import type { CreateCommandOptions, ImportCommandOptions } from "../options.ts";
+
+/** Translates create's own flags into the equivalent `acli import --source profile` run. */
+function toImportOptions(options: CreateCommandOptions, overrides: Partial<ImportCommandOptions> = {}): ImportCommandOptions {
+  return {
+    source: "profile",
+    name: options.name,
+    environment: options.environment || options.env,
+    mysql: options.mysql,
+    wpVersion: options.wpVersion,
+    profile: options.profile,
+    config: options.config,
+    skipFiles: options.skipFiles,
+    skipDatabase: options.skipDatabase,
+    skipGitLink: options.skipGitLink,
+    skipGit: options.skipGit,
+    keepDump: options.keepDump,
+    remoteUrl: options.stagingUrl,
+    dryRun: options.dryRun,
+    resume: options.resume,
+    yes: options.yes,
+    nonInteractive: options.nonInteractive,
+    ...overrides,
+  };
+}
 
 /**
- * Runs the interactive project creation command. `--existing` is a
- * deprecated shortcut: it now just translates its own flags into
- * `acli import --source profile` and delegates there, rather than running
- * its own copy of the remote-import pipeline (ExistingWPStrategy is what
- * that used to be; it's still used by the interactive "Set up an existing
- * WP project" menu choice inside plain `acli create`, a separate entry
- * point this flag-based shortcut doesn't affect).
+ * Runs the interactive project creation command.
+ *
+ * Setting up an *existing* WordPress site is not a scaffold at all — it is
+ * an import — so both routes into it delegate to `acli import --source
+ * profile` rather than to a strategy of their own: the deprecated
+ * `--existing` flag, and the interactive "Set up an existing WP project"
+ * menu choice (handled after the plan is collected, below). They used to
+ * diverge, with the interactive route running a separate hand-rolled
+ * pipeline that had no `--resume` support.
  */
 export async function createProjectCommand(options: CreateCommandOptions = {}): Promise<void> {
   if (options.existing) {
     console.warn(chalk.yellow("Warning: 'create --existing' is deprecated. Use 'acli import' instead.\n"));
-    return importCommand({
-      source: "profile",
-      name: options.name,
-      environment: options.environment || options.env,
-      mysql: options.mysql,
-      profile: options.profile,
-      config: options.config,
-      skipFiles: options.skipFiles,
-      skipDatabase: options.skipDatabase,
-      skipGitLink: options.skipGitLink,
-      skipGit: options.skipGit,
-      keepDump: options.keepDump,
-      remoteUrl: options.stagingUrl,
-      dryRun: options.dryRun,
-      resume: options.resume,
-      yes: options.yes,
-      nonInteractive: options.nonInteractive,
-    });
+    return importCommand(toImportOptions(options));
   }
   await runCommand({ title: "CREATE", icon: "🚀", failureMessage: "Project creation failed." }, async (shell) => {
     let targetDir = "";
@@ -90,8 +100,26 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
     if (options.fromLast && !previousPlan) throw new Error("No successful create history was found in this directory.");
     const initialContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext) as ProjectPlan, cliContext);
     ctx = await collectProjectContext(initialContext, { nonInteractive });
-    const needsProfile = ctx.setupType === "existing-wp";
-    const selection = await resolveProfileSelection({ config, options, attachedProfileName: ctx.profile as string | undefined, required: needsProfile, nonInteractive });
+
+    // Setting up an existing site is an import, not a scaffold. Delegating
+    // here — before profile selection — means the profile is picked once,
+    // inside the import flow, rather than in both. The MySQL/WP versions
+    // are resolved first because "Customize advanced settings?" was already
+    // asked above; `acli import` on its own never asks, so the answer would
+    // otherwise be collected and then silently ignored.
+    if (ctx.setupType === "existing-wp") {
+      const { mysqlVersion, wpVersion } = await askExistingWpVersions(ctx, { nonInteractive });
+      return importCommand(toImportOptions(options, {
+        name: ctx.projectName,
+        environment: ctx.environment,
+        mysql: mysqlVersion,
+        wpVersion,
+        remoteUrl: (ctx.stagingUrl as string | undefined) || options.stagingUrl,
+        profile: options.profile || (typeof ctx.profile === "string" ? ctx.profile : undefined),
+      }));
+    }
+
+    const selection = await resolveProfileSelection({ config, options, attachedProfileName: ctx.profile as string | undefined, required: false, nonInteractive });
     config = selection.config;
     if (selection.profile) {
       (ctx as any).profile = selection.profile;

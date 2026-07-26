@@ -9,7 +9,7 @@ import type { Spinner } from "../../environments/EnvironmentService.ts";
 
 export interface ImportWorkflowOptions {
   source: ImportSource;
-  ctx: ImportSourceContext & { environment?: string; skipFiles?: boolean; skipDatabase?: boolean; skipGitLink?: boolean };
+  ctx: ImportSourceContext & { environment?: string; skipFiles?: boolean; skipDatabase?: boolean; skipGitLink?: boolean; keepDump?: boolean };
   targetDir: string;
   envService: EnvironmentService;
   spinner?: Spinner | null;
@@ -132,6 +132,12 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
           return;
         }
         await migrationService.importAndReplace(targetDir, ctx, spinner);
+        // A dump of a real site contains user password hashes, so it is not
+        // left lying in the new project directory once it has been imported
+        // — the same cleanup PullService.importDatabase does for `acli
+        // pull`. `--keep-dump` opts out (e.g. to re-run an import against
+        // the same export without re-fetching it).
+        if (!ctx.keepDump) await fs.remove(dumpPath).catch(() => {});
       },
     },
   ];
