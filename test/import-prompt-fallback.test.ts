@@ -19,10 +19,12 @@ process.env.ACLI_QUIET = "1";
  * exercise the --yes/non-interactive branch of that fallback (a clean
  * failure, not a hang on a prompt with no TTY); the interactive prompts
  * themselves, and the missing---name-with-no---source-either case, were
- * verified manually (this runner's IPC-based TAP reporting corrupts
- * intermittently — "Unable to deserialize cloned data" — once enough real
- * command invocations with printed output accumulate in one file; kept to
- * two per file here to stay under that threshold).
+ * verified manually. importCommand's intro()/error banners print
+ * regardless of ACLI_QUIET, and this runner's IPC-based TAP reporting
+ * corrupts intermittently ("Unable to deserialize cloned data") once
+ * enough of that printed output accumulates in one file — captureCliRun
+ * silences stdout/stderr for the duration of each real invocation since
+ * these tests only assert on process.exitCode.
  */
 
 async function withCwd<T>(dir: string, run: () => Promise<T>): Promise<T> {
@@ -38,10 +40,16 @@ async function withCwd<T>(dir: string, run: () => Promise<T>): Promise<T> {
 async function captureCliRun(fn: () => Promise<void>): Promise<{ exitCode: number | undefined }> {
   const originalExitCode = process.exitCode;
   process.exitCode = undefined;
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  process.stdout.write = () => true;
+  process.stderr.write = () => true;
   try {
     await fn();
     return { exitCode: process.exitCode };
   } finally {
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
     process.exitCode = originalExitCode;
   }
 }
