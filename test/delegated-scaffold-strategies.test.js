@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import NextjsStrategy from "../src/strategies/NextjsStrategy.ts";
-import ReactStrategy from "../src/strategies/ReactStrategy.ts";
-import LaravelStrategy from "../src/strategies/LaravelStrategy.ts";
+import NextjsStrategy from "../src/projects/strategies/NextjsStrategy.ts";
+import ReactStrategy from "../src/projects/strategies/ReactStrategy.ts";
+import LaravelStrategy from "../src/projects/strategies/LaravelStrategy.ts";
 
 function makeFakeRunner() {
   const calls = [];

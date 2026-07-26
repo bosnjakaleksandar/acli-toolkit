@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import ExistingWPStrategy from "../src/strategies/ExistingWPStrategy.ts";
+import ExistingWPStrategy from "../src/projects/strategies/ExistingWPStrategy.ts";
 
 function makeCtx({ profile: profileOverrides, ...overrides } = {}) {
   return {

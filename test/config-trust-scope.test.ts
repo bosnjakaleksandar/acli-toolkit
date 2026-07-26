@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
-import { loadConfig } from "../src/services/ConfigService.ts";
-import { trustConfig } from "../src/services/ConfigTrustService.ts";
+import { loadConfig } from "../src/config/ConfigLoader.ts";
+import { trustConfig } from "../src/config/TrustStore.ts";
 
 /**
  * Regression coverage for the trust-check scope gap fixed alongside PR #11's

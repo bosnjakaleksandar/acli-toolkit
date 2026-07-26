@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import WordPressStrategy, { normalizePlugins } from "../src/strategies/WordPressStrategy.ts";
+import WordPressStrategy, { normalizePlugins } from "../src/projects/strategies/WordPressStrategy.ts";
 
 test("normalizePlugins accepts a comma-separated string or array of valid slugs", () => {
   assert.deepEqual(normalizePlugins("woocommerce, advanced-custom-fields"), ["woocommerce", "advanced-custom-fields"]);

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { CONFIG_VERSION } from "./defaults.ts";
 import type { AcliConfig, ProjectLink } from "../core/model/AcliConfig.ts";
-import type { Profile } from "../core/model/ResolvedProfile.ts";
+import type { Profile } from "../core/model/Profile.ts";
 
 const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);

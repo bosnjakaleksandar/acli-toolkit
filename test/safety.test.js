@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSafeGitUrl, isSafePluginSlug, isSafeSshKeyPath } from "../src/utils/safety.ts";
+import { isSafeGitUrl, isSafePluginSlug, isSafeSshKeyPath } from "../src/system/safety.ts";
 
 test("isSafeGitUrl accepts https, ssh, scp-like, and local-path git specs", () => {
   assert.ok(isSafeGitUrl("https://github.com/example/repo.git"));

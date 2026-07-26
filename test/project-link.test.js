@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { findProjectRoot, readLink, writeLink } from "../src/services/ProjectLinkService.ts";
+import { findProjectRoot, readLink, writeLink } from "../src/profiles/ProjectLink.ts";
 
 test("writeLink then readLink round-trips the project link", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-"));

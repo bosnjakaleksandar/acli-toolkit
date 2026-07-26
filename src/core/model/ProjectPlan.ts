@@ -1,4 +1,4 @@
-import type { ResolvedProfile } from "./ResolvedProfile.ts";
+import type { ResolvedProfile } from "./Profile.ts";
 
 /**
  * Everything decided *before* scaffolding starts: the merged result of

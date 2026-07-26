@@ -3,9 +3,15 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
-import { deepMerge, getUserConfigPath, loadConfig, normalizeProfile, redactSecrets, resolveReferences, validateConfig, validateProfileConfig } from "../src/services/ConfigService.ts";
-import { writeConfigAtomic } from "../src/services/ConfigFileService.ts";
-import { isConfigTrusted, trustConfig } from "../src/services/ConfigTrustService.ts";
+import { loadConfig } from "../src/config/ConfigLoader.ts";
+import { deepMerge } from "../src/config/merge.ts";
+import { getUserConfigPath } from "../src/config/paths.ts";
+import { redactSecrets } from "../src/config/redaction.ts";
+import { resolveReferences } from "../src/config/references.ts";
+import { validateConfig, validateProfileConfig } from "../src/config/schema.ts";
+import { normalizeProfile } from "../src/profiles/normalizeProfile.ts";
+import { writeConfigAtomic } from "../src/config/ConfigWriter.ts";
+import { isConfigTrusted, trustConfig } from "../src/config/TrustStore.ts";
 
 async function withEnv(overrides, run) {
   const original = {};

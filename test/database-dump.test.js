@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import DatabaseDumpService from "../src/services/DatabaseDumpService.ts";
+import DatabaseDumpService from "../src/wordpress/migration/DatabaseDump.ts";
 import { CliError } from "../src/core/errors.ts";
 
 async function withDump(sql, run) {

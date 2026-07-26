@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
-import { saveProfile } from "../src/services/ProfileService.ts";
+import { saveProfile } from "../src/profiles/ProfileStore.ts";
 import {
   describeProfile,
   exportProfile,
@@ -13,7 +13,7 @@ import {
   listProfiles,
   readImportableProfile,
   validateNamedProfile,
-} from "../src/services/ProfileQueryService.ts";
+} from "../src/profiles/ProfileQuery.ts";
 
 /**
  * Coverage for the business logic extracted out of commands/profile.ts's

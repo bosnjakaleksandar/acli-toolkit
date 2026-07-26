@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { importCommand } from "../src/commands/import.ts";
-import { createProjectCommand } from "../src/commands/createProject.ts";
-import { saveProfile } from "../src/services/ProfileService.ts";
+import { importCommand } from "../src/cli/commands/import.ts";
+import { createProjectCommand } from "../src/cli/commands/create.ts";
+import { saveProfile } from "../src/profiles/ProfileStore.ts";
 
 // The mascot's animated ASCII-art frames write raw cursor-control ANSI
 // sequences straight to stdout — running several full commands (which each

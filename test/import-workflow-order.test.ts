@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { runImportWorkflow } from "../src/features/import/ImportWorkflow.ts";
-import type { ImportSource, ImportSourceContext } from "../src/features/import/ImportSource.ts";
-import type EnvironmentService from "../src/services/EnvironmentService.ts";
+import { runImportWorkflow } from "../src/wordpress/import/ImportWorkflow.ts";
+import type { ImportSource, ImportSourceContext } from "../src/wordpress/import/ImportSource.ts";
+import type EnvironmentService from "../src/environments/EnvironmentService.ts";
 
 /**
  * Regression coverage for phase 1b: ImportWorkflow used to scaffold the

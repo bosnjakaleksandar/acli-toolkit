@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runLocalPreflight } from "../src/services/PreflightService.ts";
+import { runLocalPreflight } from "../src/system/preflight.ts";
 import { CliError } from "../src/core/errors.ts";
 
 test("preflight passes when the required tool is present", async () => {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseSetOverrides } from "../src/services/CliOptionsService.ts";
+import { parseSetOverrides } from "../src/projects/plan/PlanBuilder.ts";
 
 test("parseSetOverrides builds a nested object from dotted key=value pairs", () => {
   // The result's objects are Object.create(null) (see the prototype-pollution

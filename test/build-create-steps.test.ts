@@ -4,10 +4,10 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { StepRunner } from "../src/core/StepRunner.ts";
-import { buildCreateSteps, type CreateStepsSpinner } from "../src/features/create/buildCreateSteps.ts";
+import { buildCreateSteps, type CreateStepsSpinner } from "../src/projects/createPipeline.ts";
 import { TargetExistsError } from "../src/core/errors.ts";
 import type { ProjectPlan } from "../src/core/model/ProjectPlan.ts";
-import type { ScaffoldStrategy } from "../src/core/registry/ProjectTypeRegistry.ts";
+import type { ScaffoldStrategy } from "../src/core/Registry.ts";
 
 /**
  * Coverage for the step pipeline extracted out of createProjectCommand

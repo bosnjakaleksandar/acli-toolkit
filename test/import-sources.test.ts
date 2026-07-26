@@ -4,11 +4,11 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { LocalFolderSource } from "../src/features/import/sources/LocalFolderSource.ts";
-import { SqlManualSource } from "../src/features/import/sources/SqlManualSource.ts";
-import { GitSource } from "../src/features/import/sources/GitSource.ts";
-import { ZipSource } from "../src/features/import/sources/ZipSource.ts";
-import { ImportSourceRegistry } from "../src/features/import/ImportSource.ts";
+import { LocalFolderSource } from "../src/wordpress/import/sources/LocalFolderSource.ts";
+import { SqlManualSource } from "../src/wordpress/import/sources/SqlManualSource.ts";
+import { GitSource } from "../src/wordpress/import/sources/GitSource.ts";
+import { ZipSource } from "../src/wordpress/import/sources/ZipSource.ts";
+import { ImportSourceRegistry } from "../src/wordpress/import/ImportSource.ts";
 import { CliError } from "../src/core/errors.ts";
 
 async function tempDir(prefix: string) {

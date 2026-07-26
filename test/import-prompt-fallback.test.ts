@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { importCommand } from "../src/commands/import.ts";
+import { importCommand } from "../src/cli/commands/import.ts";
 
 // See test/import-command-unification.test.ts for why ACLI_QUIET is set and
 // why failure-path assertions here check process.exitCode rather than

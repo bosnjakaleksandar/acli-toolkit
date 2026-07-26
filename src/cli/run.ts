@@ -1,16 +1,16 @@
 import { Command } from "commander";
-import { getPackageMetadata } from "../utils/packageMetadata.ts";
+import { getPackageMetadata } from "../system/packageMetadata.ts";
 import { maybeUpdate } from "../update/maybeUpdate.ts";
-import { registerCommands } from "./registerCommands.ts";
-import { BRANDING } from "../config/branding.ts";
+import { registerCommands } from "./program.ts";
+import { BRANDING } from "../ui/branding.ts";
 import { select, note } from "@clack/prompts";
-import { ask } from "../utils/prompts.ts";
-import { createProjectCommand } from "../commands/createProject.ts";
-import { importCommand } from "../commands/import.ts";
-import { doctorCommand } from "../commands/doctor.ts";
-import { linkCommand } from "../commands/link.ts";
-import { pullCommand } from "../commands/pull.ts";
-import { showBanner } from "../utils/banner.ts";
+import { ask } from "../ui/prompts.ts";
+import { createProjectCommand } from "./commands/create.ts";
+import { importCommand } from "./commands/import.ts";
+import { doctorCommand } from "./commands/doctor.ts";
+import { linkCommand } from "./commands/link.ts";
+import { pullCommand } from "./commands/pull.ts";
+import { showBanner } from "../ui/banner.ts";
 import { getUserConfigPath } from "../config/paths.ts";
 import fs from "fs-extra";
 

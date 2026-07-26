@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { runImportWorkflow } from "../src/features/import/ImportWorkflow.ts";
-import type { ImportSource, ImportSourceContext } from "../src/features/import/ImportSource.ts";
+import { runImportWorkflow } from "../src/wordpress/import/ImportWorkflow.ts";
+import type { ImportSource, ImportSourceContext } from "../src/wordpress/import/ImportSource.ts";
 
 /**
  * Regression coverage for phase 1c: ImportWorkflow used to track "was a

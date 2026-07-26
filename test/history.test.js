@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { loadLastPlan, saveSuccessfulPlan, savePlanAsPreset } from "../src/services/HistoryService.ts";
-import { loadPreset, loadProfile } from "../src/services/PresetService.ts";
-import { loadConfig } from "../src/services/ConfigService.ts";
+import { loadLastPlan, saveSuccessfulPlan, savePlanAsPreset } from "../src/projects/plan/history.ts";
+import { loadPreset } from "../src/projects/plan/presets.ts";
+import { loadProfile } from "../src/profiles/loadProfile.ts";
+import { loadConfig } from "../src/config/ConfigLoader.ts";
 
 test("history stores reusable fields and excludes secrets", async () => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acli-history-"));
