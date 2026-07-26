@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import { execFileSync } from "node:child_process";
-import { scaffoldGitignore } from "../src/utils/git.ts";
+import { scaffoldGitignore } from "../src/system/gitignore.ts";
 
 function isIgnored(root, relativePath) {
   try {

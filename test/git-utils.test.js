@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
-import { getGitignore, scaffoldGitignore } from "../src/utils/git.ts";
+import { getGitignore, scaffoldGitignore } from "../src/system/gitignore.ts";
 
 const templatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "templates", "gitignore");
 

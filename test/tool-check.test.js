@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkTool, TOOL_CATALOG, toolExists } from "../src/services/ToolCheckService.ts";
+import { checkTool, TOOL_CATALOG, toolExists } from "../src/system/toolCheck.ts";
 
 test("docker check verifies Docker Compose v2, not just the docker binary", () => {
   assert.deepEqual(TOOL_CATALOG.docker.args, ["compose", "version"]);

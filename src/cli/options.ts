@@ -12,6 +12,15 @@
  * they're in.
  */
 
+/**
+ * Union of flags across every `acli profile <subcommand>` — see
+ * registerProfileCommand for which subcommand accepts which. Declared in
+ * the profiles domain (the code that reads these fields) and re-exported
+ * here under its CLI-facing name, so the dependency runs cli -> profiles
+ * like every other command's.
+ */
+export type { ProfileBuilderOptions as ProfileCommandOptions } from "../profiles/ProfileBuilder.ts";
+
 export interface CreateCommandOptions {
   name?: string;
   environment?: string;
@@ -43,68 +52,12 @@ export interface CreateCommandOptions {
   nonInteractive?: boolean;
 }
 
-export interface ImportCommandOptions {
-  source?: string;
-  name?: string;
-  environment?: string;
-  env?: string;
-  mysql?: string;
-  dryRun?: boolean;
-  resume?: boolean;
-  profile?: string;
-  sshHost?: string;
-  sshUser?: string;
-  sshPort?: string;
-  sshKey?: string;
-  remotePath?: string;
-  dbDriver?: string;
-  localPath?: string;
-  repo?: string;
-  branch?: string;
-  zip?: string;
-  sqlFile?: string;
-  remoteUrl?: string;
-  config?: string;
-  skipFiles?: boolean;
-  skipDatabase?: boolean;
-  skipGitLink?: boolean;
-  skipGit?: boolean;
-  keepDump?: boolean;
-  yes?: boolean;
-  nonInteractive?: boolean;
-}
-
-/** Union of flags across every `acli profile <subcommand>` — see registerProfileCommand for which subcommand accepts which. */
-export interface ProfileCommandOptions {
-  template?: string;
-  scope?: "project" | "user";
-  config?: string;
-  host?: string;
-  port?: string;
-  usernameTemplate?: string;
-  identityFile?: string;
-  hostKeyPolicy?: string;
-  projectRoot?: string;
-  wordpressRoot?: string;
-  transport?: string;
-  directories?: string;
-  databaseDriver?: string;
-  dbService?: string;
-  dbHost?: string;
-  dbPort?: string;
-  dbUser?: string;
-  dbPassword?: string;
-  dbName?: string;
-  stagingUrl?: string;
-  localUrl?: string;
-  git?: boolean;
-  force?: boolean;
-  yes?: boolean;
-  json?: boolean;
-  clear?: boolean;
-  output?: string;
-  suffix?: string;
-}
+/**
+ * Union of every `acli import` flag. Declared in wordpress/import (each
+ * source reads its own fields via `resolveOptions`) and re-exported here
+ * under its CLI-facing name, so the dependency runs cli -> wordpress.
+ */
+export type { ImportOptions as ImportCommandOptions } from "../wordpress/import/ImportSource.ts";
 
 /** Union of flags across every `acli config <subcommand>`. */
 export interface ConfigCommandOptions {

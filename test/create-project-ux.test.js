@@ -5,7 +5,7 @@ import {
   buildProjectSummary,
   buildSuccessSummary,
   formatCreateError,
-} from "../src/services/CreateProjectUxService.ts";
+} from "../src/ui/summaries.ts";
 
 const plain = (value) => stripVTControlCharacters(value);
 

@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { importCommand } from "../src/commands/import.ts";
-import { createProjectCommand } from "../src/commands/createProject.ts";
-import { saveProfile } from "../src/services/ProfileService.ts";
+import { importCommand } from "../src/cli/commands/import.ts";
+import { createProjectCommand } from "../src/cli/commands/create.ts";
+import { saveProfile } from "../src/profiles/ProfileStore.ts";
 
 // The mascot's animated ASCII-art frames write raw cursor-control ANSI
 // sequences straight to stdout — running several full commands (which each
 // call mascot.show()) back to back in one node:test file risks corrupting
 // this runner's own IPC-based TAP reporting ("Unable to deserialize cloned
 // data"). --quiet's ACLI_QUIET=1 suppresses that decorative output
-// entirely (see acaCharacter.ts) — the same thing a real non-TTY/CI run
+// entirely (see ui/mascot.ts) — the same thing a real non-TTY/CI run
 // already gets in practice.
 process.env.ACLI_QUIET = "1";
 

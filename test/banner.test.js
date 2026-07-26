@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
 import figlet from "figlet";
-import { showBanner } from "../src/utils/banner.ts";
-import { BRANDING } from "../src/config/branding.ts";
-import { getPackageMetadata } from "../src/utils/packageMetadata.ts";
+import { showBanner } from "../src/ui/banner.ts";
+import { BRANDING } from "../src/ui/branding.ts";
+import { getPackageMetadata } from "../src/system/packageMetadata.ts";
 
 function createOutput({ isTTY = false, columns = 80 } = {}) {
   let contents = "";

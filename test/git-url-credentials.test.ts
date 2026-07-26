@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { hasUrlCredentials, isSafeGitUrl, redactUrlCredentials } from "../src/utils/safety.ts";
-import { GitSource } from "../src/features/import/sources/GitSource.ts";
+import { hasUrlCredentials, isSafeGitUrl, redactUrlCredentials } from "../src/system/safety.ts";
+import { GitSource } from "../src/wordpress/import/sources/GitSource.ts";
 
 /**
  * Regression coverage for phase 1f: a git remote URL embedding credentials

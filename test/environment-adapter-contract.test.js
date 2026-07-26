@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import DockerComposeService from "../src/services/DockerComposeService.ts";
-import LandoService from "../src/services/LandoService.ts";
+import DockerComposeService from "../src/environments/DockerEnvironment.ts";
+import LandoService from "../src/environments/LandoEnvironment.ts";
 
 // Parity gate: every environment adapter must implement the full contract
 // with a working command shape, so a method added to one adapter and
@@ -130,7 +130,7 @@ for (const { name, Adapter } of adapters) {
         if (isImportCommand(args)) {
           importAttempts += 1;
           if (importAttempts === 1) {
-            const { CommandError } = await import("../src/utils/commandRunner.ts");
+            const { CommandError } = await import("../src/system/commandRunner.ts");
             throw new CommandError(command, args, { status: 1, stdout: "", stderr: "ERROR 1045 (28000): Access denied" });
           }
         }

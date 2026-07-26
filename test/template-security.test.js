@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import DockerComposeService from "../src/services/DockerComposeService.ts";
-import LandoService from "../src/services/LandoService.ts";
-import { getGitignore, scaffoldGitignore } from "../src/utils/git.ts";
+import DockerComposeService from "../src/environments/DockerEnvironment.ts";
+import LandoService from "../src/environments/LandoEnvironment.ts";
+import { getGitignore, scaffoldGitignore } from "../src/system/gitignore.ts";
 
 async function tempDir(prefix) {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));

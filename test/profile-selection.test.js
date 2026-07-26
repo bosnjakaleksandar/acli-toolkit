@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { profileOption, profileSummary, resolveProfileSelection } from "../src/services/ProfileSelectionService.ts";
+import { profileOption, profileSummary, resolveProfileSelection } from "../src/profiles/ProfileSelection.ts";
 
 const profiles = {
   "shared-host": { ssh: { host: "example.com", username: "deploy" }, remote: { projectRoot: "/srv/demo", wordpressRoot: "wordpress" }, files: { transport: "rsync" }, database: { driver: "wp-cli" } },

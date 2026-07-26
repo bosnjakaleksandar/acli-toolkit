@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CommandError, runCommandSync } from "../src/utils/commandRunner.ts";
+import { CommandError, runCommandSync } from "../src/system/commandRunner.ts";
 
 test("CommandError redacts a mysqldump-style -p<password> argument from its message", () => {
   const error = new CommandError("ssh", ["-p", "22", "user@host", "mysqldump -h 'db' -p'hunter2' 'wp'"], { status: 1, stdout: "", stderr: "" });

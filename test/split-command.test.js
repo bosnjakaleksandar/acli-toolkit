@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitCommand } from "../src/services/ConfigService.ts";
+import { splitCommand } from "../src/config/references.ts";
 
 // splitCommand parses the string in a secret provider's `{ command: "..." }`
 // reference into an argv array for execFileSync. It has no dedicated tests

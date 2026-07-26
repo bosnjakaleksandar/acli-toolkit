@@ -4,10 +4,10 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { StepRunner } from "../src/core/StepRunner.ts";
-import { buildCreateSteps, type CreateStepsSpinner } from "../src/features/create/buildCreateSteps.ts";
+import { buildCreateSteps, type CreateStepsSpinner } from "../src/projects/createPipeline.ts";
 import { TargetExistsError } from "../src/core/errors.ts";
 import type { ProjectPlan } from "../src/core/model/ProjectPlan.ts";
-import type { ScaffoldStrategy } from "../src/core/registry/ProjectTypeRegistry.ts";
+import ScaffoldStrategy from "../src/projects/strategies/ScaffoldStrategy.ts";
 
 /**
  * Coverage for the step pipeline extracted out of createProjectCommand
@@ -27,13 +27,23 @@ function makeSpinner(): CreateStepsSpinner & { calls: string[] } {
   };
 }
 
-function makeStrategy(overrides: Partial<ScaffoldStrategy> = {}): ScaffoldStrategy & { scaffoldCalls: string[] } {
-  const scaffoldCalls: string[] = [];
-  return {
-    scaffoldCalls,
-    scaffold: async (targetDir: string) => { scaffoldCalls.push(targetDir); },
-    ...overrides,
-  };
+// A real subclass rather than an object literal: ScaffoldStrategy is an
+// abstract class, so a fake that satisfies it is itself proof the pipeline
+// only depends on the declared contract.
+class FakeStrategy extends ScaffoldStrategy {
+  scaffoldCalls: string[] = [];
+
+  constructor() {
+    super(null);
+  }
+
+  override async scaffold(targetDir: string): Promise<void> {
+    this.scaffoldCalls.push(targetDir);
+  }
+}
+
+function makeStrategy(overrides: Partial<ScaffoldStrategy> = {}): FakeStrategy {
+  return Object.assign(new FakeStrategy(), overrides);
 }
 
 async function tempParentDir() {

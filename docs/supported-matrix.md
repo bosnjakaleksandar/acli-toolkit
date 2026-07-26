@@ -21,7 +21,7 @@ React/Next.js/Laravel are deliberately **not** scaffolded by A-CLI's own templat
 - **Docker Compose** — official `wordpress`/`mysql`/`phpmyadmin` images, unified credentials (`wordpress`/`wordpress`/`wordpress`), fixed DB host `db`.
 - **Lando** — the `wordpress` recipe, matching credentials, DB host `database`.
 
-Both adapters implement the same contract (`src/services/EnvironmentService.ts`) and are held to real behavioral parity by `test/environment-adapter-contract.test.js` — a capability added to one and forgotten in the other fails that test.
+Both adapters implement the same contract (`src/environments/EnvironmentService.ts`) and are held to real behavioral parity by `test/environment-adapter-contract.test.js` — a capability added to one and forgotten in the other fails that test.
 
 ## Remote database drivers (existing-WP sync)
 

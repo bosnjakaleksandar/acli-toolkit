@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { getProfileTemplate, listProfileTemplates, PROFILE_TEMPLATES } from "../src/config/profileTemplates.ts";
-import { createProfileCommand } from "../src/commands/profile.ts";
-import { readConfigFile, validateProfileConfig } from "../src/services/ConfigService.ts";
+import { getProfileTemplate, listProfileTemplates, PROFILE_TEMPLATES } from "../src/profiles/templates.ts";
+import { createProfileCommand } from "../src/profiles/ProfileBuilder.ts";
+import { readConfigFile } from "../src/config/ConfigLoader.ts";
+import { validateProfileConfig } from "../src/config/schema.ts";
 
 test("listProfileTemplates exposes name, label, and description for every built-in template", () => {
   const templates = listProfileTemplates();

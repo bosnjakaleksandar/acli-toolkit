@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveDbImage, assertSafeWpVersion, assertSafeTablePrefix, resolveTemplateName } from "../src/utils/templateMap.ts";
+import { resolveDbImage, resolveTemplateName } from "../src/environments/templateMap.ts";
+import { assertSafeWpVersion, assertSafeTablePrefix } from "../src/system/safety.ts";
 
 test("resolveTemplateName maps known aliases and passes through unknown types unchanged", () => {
   assert.equal(resolveTemplateName("wp-existing"), "wordpress");

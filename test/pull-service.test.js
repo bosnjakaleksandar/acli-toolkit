@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/services/PullService.ts";
-import { RemoteProfileService, resolveRemoteProfile } from "../src/services/RemoteProfileService.ts";
+import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/wordpress/pull/PullService.ts";
+import { RemoteHost } from "../src/remote/RemoteHost.ts";
+import { resolveRemoteProfile } from "../src/remote/resolveProfile.ts";
 import { CliError } from "../src/core/errors.ts";
 
 test("resolvePullTargets defaults to every target when nothing is requested", () => {
@@ -111,7 +112,7 @@ test("regression: PullService must not re-resolve an already-resolved profile (r
   // produce an absolute path. Calling it a second time on that already-joined
   // path would incorrectly join projectRoot onto it again. PullService takes
   // ctx.profile as pre-resolved and must pass it straight through to
-  // RemoteProfileService without resolving it again.
+  // RemoteHost without resolving it again.
   await withTempDir(async (dir) => {
     const rawProfile = { ssh: { host: "example.com", username: "deploy" }, remote: { projectRoot: "/srv/demo", wordpressRoot: "wordpress" }, files: { transport: "rsync" }, database: { driver: "wp-cli" } };
     const resolvedProfile = resolveRemoteProfile(rawProfile, { projectName: "demo" });
@@ -119,7 +120,7 @@ test("regression: PullService must not re-resolve an already-resolved profile (r
 
     const sshCalls = [];
     const runner = async (command, args) => { sshCalls.push(args.at(-1)); return Buffer.alloc(200, 1); };
-    const service = new PullService(makeFakeEnvService(), (profile) => new RemoteProfileService(profile, runner));
+    const service = new PullService(makeFakeEnvService(), (profile) => new RemoteHost(profile, runner));
     await service.exportDatabase(dir, resolvedProfile, null);
 
     assert.ok(sshCalls[0].includes("cd '/srv/demo/wordpress'"), `expected single-resolved path, got: ${sshCalls[0]}`);

@@ -1,10 +1,10 @@
 import chalk from "chalk";
 import { checkForUpdate, markUpdateNotified } from "./checkForUpdate.ts";
 import { installLatestVersion } from "./install.ts";
-import { confirmUpdate } from "../prompts/updatePrompt.ts";
-import { BRANDING } from "../config/branding.ts";
-import { mascot } from "../ui/acaCharacter.ts";
-import type { PackageMetadata } from "../utils/packageMetadata.ts";
+import { confirmUpdate } from "../ui/updatePrompt.ts";
+import { BRANDING } from "../ui/branding.ts";
+import { mascot } from "../ui/mascot.ts";
+import type { PackageMetadata } from "../system/packageMetadata.ts";
 
 export async function maybeUpdate(packageMetadata: PackageMetadata): Promise<boolean> {
   mascot.show("thinking", "Checking for A-CLI updates...");

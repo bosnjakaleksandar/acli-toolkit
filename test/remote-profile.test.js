@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSshArgs, databaseCommand, renderTemplate, resolveRemoteProfile, RemoteProfileService } from "../src/services/RemoteProfileService.ts";
+import { RemoteHost } from "../src/remote/RemoteHost.ts";
+import { databaseCommand } from "../src/remote/databaseCommand.ts";
+import { renderTemplate, resolveRemoteProfile } from "../src/remote/resolveProfile.ts";
+import { buildSshArgs } from "../src/remote/sshArgs.ts";
 
 const profile = { ssh: { host: "example.com", username: "{projectName}", identityFile: "~/.ssh/staging", hostKeyPolicy: "accept-new" }, remote: { projectRoot: "/srv/{projectName}", wordpressRoot: "wordpress" }, files: { transport: "rsync" }, database: { driver: "wp-cli" }, urls: { staging: "https://{projectName}.example.com" } };
 
@@ -47,7 +50,7 @@ test("rsync's -e transport honors hostKeyPolicy the same way buildSshArgs does f
   const calls = [];
   const runner = async (command, args) => { calls.push({ command, args }); return ""; };
   const insecureProfile = resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, hostKeyPolicy: "insecure" }, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads" } } } }, { projectName: "demo" });
-  const service = new RemoteProfileService(insecureProfile, runner);
+  const service = new RemoteHost(insecureProfile, runner);
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-hostkey-");
   await service.syncFiles(directory, null);
   const rsyncCall = calls.find((call) => call.command === "rsync");
@@ -75,7 +78,7 @@ test("Docker container discovery uses the declared remote env mapping", () => {
 
 test("database exports request binary-safe command output", async () => {
   let receivedOptions;
-  const service = new RemoteProfileService(
+  const service = new RemoteHost(
     resolveRemoteProfile(profile, { projectName: "demo" }),
     async (_command, _args, options) => { receivedOptions = options; return Buffer.alloc(128, 1); },
   );
@@ -86,7 +89,7 @@ test("database exports request binary-safe command output", async () => {
 
 test("exportDatabase writes staging.sql at mode 0600 (a full DB dump may include real password hashes)", async () => {
   const fs = (await import("fs-extra")).default;
-  const service = new RemoteProfileService(
+  const service = new RemoteHost(
     resolveRemoteProfile(profile, { projectName: "demo" }),
     async () => Buffer.alloc(128, 1),
   );
@@ -105,7 +108,7 @@ test("getRemoteFacts fetches table prefix and siteurl via wp-cli over SSH", asyn
     if (remoteCommand.includes("siteurl")) return "https://demo.staging.example.com";
     throw new Error(`unexpected remote command: ${remoteCommand}`);
   };
-  const service = new RemoteProfileService(resolveRemoteProfile(profile, { projectName: "demo" }), runner);
+  const service = new RemoteHost(resolveRemoteProfile(profile, { projectName: "demo" }), runner);
   const facts = await service.getRemoteFacts();
   assert.deepEqual(facts, { tablePrefix: "wp_demo_", siteUrl: "https://demo.staging.example.com" });
   assert.equal(calls.length, 2);
@@ -117,7 +120,7 @@ test("getRemoteFacts returns nulls for non-wp-cli drivers without making any SSH
   let calls = 0;
   const runner = async () => { calls += 1; return ""; };
   const dockerProfile = resolveRemoteProfile({ ...profile, database: { driver: "docker", service: "db" } }, { projectName: "demo" });
-  const service = new RemoteProfileService(dockerProfile, runner);
+  const service = new RemoteHost(dockerProfile, runner);
   const facts = await service.getRemoteFacts();
   assert.deepEqual(facts, { tablePrefix: null, siteUrl: null });
   assert.equal(calls, 0);
@@ -129,7 +132,7 @@ test("getRemoteFacts tolerates a failing individual command by returning null fo
     if (remoteCommand.includes("table_prefix")) throw new Error("wp-cli not found");
     return "https://demo.staging.example.com";
   };
-  const service = new RemoteProfileService(resolveRemoteProfile(profile, { projectName: "demo" }), runner);
+  const service = new RemoteHost(resolveRemoteProfile(profile, { projectName: "demo" }), runner);
   const facts = await service.getRemoteFacts();
   assert.equal(facts.tablePrefix, null);
   assert.equal(facts.siteUrl, "https://demo.staging.example.com");
@@ -139,7 +142,7 @@ test("getRemoteFacts uses an explicit database.tablePrefix override and skips fe
   const calls = [];
   const runner = async (command, args) => { calls.push(args.at(-1)); return "https://demo.staging.example.com"; };
   const withOverride = resolveRemoteProfile({ ...profile, database: { driver: "wp-cli", tablePrefix: "wp_custom_" } }, { projectName: "demo" });
-  const service = new RemoteProfileService(withOverride, runner);
+  const service = new RemoteHost(withOverride, runner);
   const facts = await service.getRemoteFacts();
   assert.equal(facts.tablePrefix, "wp_custom_");
   assert.equal(facts.siteUrl, "https://demo.staging.example.com");
@@ -147,7 +150,7 @@ test("getRemoteFacts uses an explicit database.tablePrefix override and skips fe
 });
 
 test("getRemoteFacts honors an explicit database.tablePrefix override even for non-wp-cli drivers", async () => {
-  const service = new RemoteProfileService(
+  const service = new RemoteHost(
     resolveRemoteProfile({ ...profile, database: { driver: "docker", service: "db", tablePrefix: "wp_custom_" } }, { projectName: "demo" }),
     async () => { throw new Error("no ssh calls expected"); },
   );
@@ -159,7 +162,7 @@ test("syncFiles resolves target names to their configured remote/local paths", a
   const calls = [];
   const runner = async (command, args) => { calls.push({ command, args }); return ""; };
   const withTargets = resolveRemoteProfile({ ...profile, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads", excludes: ["*.log"] }, mu: { path: "wp-content/mu-plugins" } } } }, { projectName: "demo" });
-  const service = new RemoteProfileService(withTargets, runner);
+  const service = new RemoteHost(withTargets, runner);
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-");
   await service.syncFiles(directory, null);
 
@@ -175,7 +178,7 @@ test("syncFiles honors a target-name subset override without needing path overri
   const calls = [];
   const runner = async (command, args) => { calls.push(args); return ""; };
   const withTargets = resolveRemoteProfile({ ...profile, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads" }, plugins: { path: "wp-content/plugins" } } } }, { projectName: "demo" });
-  const service = new RemoteProfileService(withTargets, runner);
+  const service = new RemoteHost(withTargets, runner);
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-subset-");
   await service.syncFiles(directory, null, { directories: ["uploads"] });
   assert.equal(calls.length, 1);

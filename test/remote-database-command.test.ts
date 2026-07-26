@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { databaseCommand, resolveRemoteProfile } from "../src/services/RemoteProfileService.ts";
-import { runCommand } from "../src/utils/commandRunner.ts";
+import { databaseCommand } from "../src/remote/databaseCommand.ts";
+import { resolveRemoteProfile } from "../src/remote/resolveProfile.ts";
+import { runCommand } from "../src/system/commandRunner.ts";
 
 /**
  * Regression coverage for phase 1e: the `direct` database driver used to

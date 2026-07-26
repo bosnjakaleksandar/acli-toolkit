@@ -1,4 +1,4 @@
-import type { Profile } from "./ResolvedProfile.ts";
+import type { Profile } from "./Profile.ts";
 
 export interface ProjectLink {
   name: string;
