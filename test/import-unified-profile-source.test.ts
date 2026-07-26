@@ -41,6 +41,19 @@ async function tempDir(prefix: string) {
 // a minimal-but-realistic dump comfortably past that floor.
 const FAKE_DUMP_SQL = "-- fake dump for tests, padded well past the 100-byte minimum size floor\nCREATE TABLE `wp_options` (id INT);\n";
 
+// preflight() checks real tool binaries via toolExists() rather than the
+// injected `runner` — real on ubuntu-latest (docker preinstalled) but not on
+// macos-latest CI runners (no docker CLI at all). The two end-to-end tests
+// below only care that runImportWorkflow's orchestration is correct, not
+// that this host actually has docker, so they use this subclass to make
+// preflight's tool check a no-op while still exercising the real ssh probe
+// (via the already-mocked `runner`).
+class NoToolCheckRemoteProfileService extends RemoteProfileService {
+  requiredTools(): string[] {
+    return [];
+  }
+}
+
 test("fetchFiles delegates to RemoteProfileService.syncFiles and is skipped when skipFiles is set", async () => {
   const calls: string[] = [];
   const runner = async (command: string, args: string[] = []) => { calls.push(command); return ""; };
@@ -166,7 +179,7 @@ test("end-to-end via runImportWorkflow: preflight, prefix detection (remote-auth
     if (command === "ssh" && joined.includes("remote.origin.url")) { calls.push("discover-git"); return ""; }
     return "";
   };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteProfileService(profile, runner));
+  const source = createProfileImportSource("profile", "Staging profile", (profile) => new NoToolCheckRemoteProfileService(profile, runner));
 
   const scaffoldCalls: any[] = [];
   const envService = {
@@ -203,7 +216,7 @@ test("end-to-end resume: a remote source's already-fetched dump and detected pre
     if (command === "ssh" && joined.includes("remote.origin.url")) return "";
     return "";
   };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteProfileService(profile, runner));
+  const source = createProfileImportSource("profile", "Staging profile", (profile) => new NoToolCheckRemoteProfileService(profile, runner));
 
   const failingEnv = { scaffold: async () => { throw new Error("simulated interruption"); } } as any;
   const ctx1: any = { targetDir, profile: resolvedProfile(), projectName: "demo", environment: "docker" };
