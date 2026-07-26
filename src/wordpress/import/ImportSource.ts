@@ -13,6 +13,38 @@ import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
  * all, just files that already exist somewhere reachable from this
  * machine.
  */
+export interface ImportOptions {
+  source?: string;
+  name?: string;
+  environment?: string;
+  env?: string;
+  mysql?: string;
+  wpVersion?: string;
+  dryRun?: boolean;
+  resume?: boolean;
+  profile?: string;
+  sshHost?: string;
+  sshUser?: string;
+  sshPort?: string;
+  sshKey?: string;
+  remotePath?: string;
+  dbDriver?: string;
+  localPath?: string;
+  repo?: string;
+  branch?: string;
+  zip?: string;
+  sqlFile?: string;
+  remoteUrl?: string;
+  config?: string;
+  skipFiles?: boolean;
+  skipDatabase?: boolean;
+  skipGitLink?: boolean;
+  skipGit?: boolean;
+  keepDump?: boolean;
+  yes?: boolean;
+  nonInteractive?: boolean;
+}
+
 export interface ImportSourceContext {
   targetDir: string;
   sqlFile?: string;
@@ -42,6 +74,14 @@ export interface ImportSource {
   linkProfile?(targetDir: string, ctx: ImportSourceContext): Promise<string | null>;
   /** Remote sources only: discovers and links the remote site's own git origin into the new local project, if any and if it looks safe to use. */
   linkGit?(targetDir: string, ctx: ImportSourceContext, spinner?: unknown): Promise<void>;
+  /**
+   * Resolves whichever options this source requires and weren't supplied on
+   * the command line, prompting for them when interactive and throwing a
+   * MissingOptionError when not — then writes them onto `ctx`. Owned by the
+   * source rather than by the import command, so adding a source doesn't
+   * mean adding another branch to an if-chain over source ids.
+   */
+  resolveOptions?(options: ImportOptions, ctx: ImportSourceContext, runOptions: { nonInteractive: boolean }): Promise<void>;
   /** Optional richer --dry-run plan (e.g. remote host, required tools) — falls back to the generic {source, project, localEnvironment} plan when absent. */
   buildPlan?(ctx: ImportSourceContext): unknown;
 }

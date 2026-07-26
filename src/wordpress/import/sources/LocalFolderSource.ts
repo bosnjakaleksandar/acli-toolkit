@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { CliError } from "../../../core/errors.ts";
+import { CliError, MissingOptionError } from "../../../core/errors.ts";
+import { askRequiredText } from "../../../ui/prompts.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import { copyWordPressContent, copySqlFile } from "./fileCopy.ts";
 
@@ -12,6 +13,12 @@ interface LocalFolderContext extends ImportSourceContext {
 export const LocalFolderSource: ImportSource = {
   id: "local",
   label: "Local folder already on this machine",
+
+  async resolveOptions(options, ctx: LocalFolderContext, { nonInteractive }) {
+    ctx.localPath = options.localPath || (nonInteractive ? undefined : await askRequiredText("Path to the existing WordPress installation:"));
+    if (!ctx.localPath) throw new MissingOptionError(["--local-path <path>"]);
+    ctx.sqlFile = options.sqlFile;
+  },
 
   async fetchFiles(ctx: LocalFolderContext, spinner?: any) {
     if (!ctx.localPath) throw new CliError("Local folder import requires --local-path <path>.", { code: "USAGE" });

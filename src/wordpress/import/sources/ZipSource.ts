@@ -3,7 +3,8 @@ import fs from "fs-extra";
 import os from "node:os";
 import { runCommand } from "../../../system/commandRunner.ts";
 import { toolExists } from "../../../system/toolCheck.ts";
-import { CliError, describeError } from "../../../core/errors.ts";
+import { CliError, describeError, MissingOptionError } from "../../../core/errors.ts";
+import { askRequiredText } from "../../../ui/prompts.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import { copyWordPressContent, copySqlFile } from "./fileCopy.ts";
 
@@ -38,6 +39,12 @@ async function assertSafeZipEntries(zipPath: string, originalPath: string): Prom
 export const ZipSource: ImportSource = {
   id: "zip",
   label: "Zip archive",
+
+  async resolveOptions(options, ctx: ZipContext, { nonInteractive }) {
+    ctx.zipFile = options.zip || (nonInteractive ? undefined : await askRequiredText("Path to the .zip archive:"));
+    if (!ctx.zipFile) throw new MissingOptionError(["--zip <path>"]);
+    ctx.sqlFile = options.sqlFile;
+  },
 
   async fetchFiles(ctx: ZipContext, spinner?: any) {
     if (!ctx.zipFile) throw new CliError("Zip import requires --zip <path>.", { code: "USAGE" });

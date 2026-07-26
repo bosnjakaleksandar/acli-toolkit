@@ -4,16 +4,11 @@ import fs from "fs-extra";
 import path from "node:path";
 import type { Command } from "commander";
 import { mascot } from "../../ui/mascot.ts";
-import { ask, askRequiredText } from "../../ui/prompts.ts";
+import { ask } from "../../ui/prompts.ts";
 import { CliError, MissingOptionError, TargetExistsError } from "../../core/errors.ts";
 import { runCommand } from "../CommandShell.ts";
 import { readStepState } from "../../core/StepRunner.ts";
-import { ImportSourceRegistry } from "../../wordpress/import/ImportSource.ts";
-import { LocalFolderSource } from "../../wordpress/import/sources/LocalFolderSource.ts";
-import { GitSource } from "../../wordpress/import/sources/GitSource.ts";
-import { SqlManualSource } from "../../wordpress/import/sources/SqlManualSource.ts";
-import { ZipSource } from "../../wordpress/import/sources/ZipSource.ts";
-import { createProfileImportSource, type ProfileImportContext } from "../../wordpress/import/sources/RemoteSource.ts";
+import { importSourceRegistry } from "../../wordpress/import/sourceRegistry.ts";
 import { runImportWorkflow } from "../../wordpress/import/ImportWorkflow.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { maybeInstallDependencies } from "../../system/dependencies.ts";
@@ -22,25 +17,7 @@ import { buildNextSteps } from "../../projects/nextSteps.ts";
 import { runLocalPreflight } from "../../system/preflight.ts";
 import { validateProjectName } from "../../projects/plan/projectName.ts";
 import { buildSuccessSummary, formatCreateError } from "../../ui/summaries.ts";
-import { loadConfig } from "../../config/ConfigLoader.ts";
-import { validateProfileConfig } from "../../config/schema.ts";
-import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
-import { resolveRemoteProfile } from "../../remote/resolveProfile.ts";
 import type { ImportCommandOptions } from "../options.ts";
-import type { Profile } from "../../core/model/Profile.ts";
-
-const importSourceRegistry = new ImportSourceRegistry();
-importSourceRegistry.register(LocalFolderSource);
-importSourceRegistry.register(GitSource);
-importSourceRegistry.register(SqlManualSource);
-importSourceRegistry.register(ZipSource);
-// "profile" (a saved staging profile) and "ssh" (a one-off target with no
-// saved profile) both describe *remote* WordPress hosts. They share one
-// ImportSource implementation (RemoteHost-backed) — the only
-// difference is how ctx.profile gets resolved before the workflow starts,
-// handled below in resolveProfileForImport().
-importSourceRegistry.register(createProfileImportSource("profile", "Staging profile"));
-importSourceRegistry.register(createProfileImportSource("ssh", "One-off SSH target"));
 
 /**
  * `acli import`: brings an existing WordPress site into a new local
@@ -108,7 +85,6 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       // import source needs a value here or that placeholder is left
       // unsubstituted in the generated file.
       wpVersion: options.wpVersion || "latest",
-      branch: options.branch,
       skipFiles: Boolean(options.skipFiles),
       skipDatabase: Boolean(options.skipDatabase),
       skipGitLink: Boolean(options.skipGitLink),
@@ -118,7 +94,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       nonInteractive,
     };
 
-    await resolveSourceOptions(sourceId, options, ctx, nonInteractive);
+    await source.resolveOptions?.(options, ctx, { nonInteractive });
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;
@@ -171,89 +147,6 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
     mascot.stop();
     outro(buildSuccessSummary(targetDir, ctx, nextSteps));
   });
-}
-
-/**
- * Resolves and, when interactive, prompts for whichever fields the chosen
- * source requires and weren't already supplied — mutates `ctx` in place.
- * profile/ssh need a resolved remote profile (see resolveProfileForImport);
- * local/git/zip/sql each need exactly one path/URL of their own.
- */
-async function resolveSourceOptions(sourceId: string, options: ImportCommandOptions, ctx: any, nonInteractive: boolean): Promise<void> {
-  if (sourceId === "profile" || sourceId === "ssh") {
-    const profile = await resolveProfileForImport(sourceId, options, ctx, nonInteractive);
-    ctx.profile = profile;
-    // A staging URL is an extra search-replace source, not a requirement:
-    // the migration reads the real siteurl back out of the imported
-    // database. Falling back to the profile's own declared URL matters for
-    // content that still references an older/alternate hostname the
-    // imported siteurl no longer matches.
-    ctx.stagingUrl = ctx.stagingUrl || profile.urls?.staging || null;
-    return;
-  }
-  if (sourceId === "local") {
-    ctx.localPath = options.localPath || (nonInteractive ? undefined : await askRequiredText("Path to the existing WordPress installation:"));
-    if (!ctx.localPath) throw new MissingOptionError(["--local-path <path>"]);
-    ctx.sqlFile = options.sqlFile;
-    return;
-  }
-  if (sourceId === "git") {
-    ctx.repositoryUrl = options.repo || (nonInteractive ? undefined : await askRequiredText("Git repository URL (HTTPS or SSH) containing wp-content:"));
-    if (!ctx.repositoryUrl) throw new MissingOptionError(["--repo <url>"]);
-    ctx.sqlFile = options.sqlFile;
-    return;
-  }
-  if (sourceId === "zip") {
-    ctx.zipFile = options.zip || (nonInteractive ? undefined : await askRequiredText("Path to the .zip archive:"));
-    if (!ctx.zipFile) throw new MissingOptionError(["--zip <path>"]);
-    ctx.sqlFile = options.sqlFile;
-    return;
-  }
-  if (sourceId === "sql") {
-    ctx.sqlFile = options.sqlFile || (nonInteractive ? undefined : await askRequiredText("Path to the .sql database dump:"));
-    if (!ctx.sqlFile) throw new MissingOptionError(["--sql-file <path>"]);
-  }
-}
-
-/**
- * Resolves ctx.profile for --source profile/ssh: a named/portable saved
- * profile (interactively picked, or offered to create on the spot, via the
- * same ProfileSelectionService `acli create`/`acli link` use), or (ssh) one
- * synthesized in-memory from the one-off --ssh-* flags — no temp file on
- * disk either way, unlike the round-trip the old `create --existing`
- * delegation needed to reuse --profile's file-path support.
- */
-async function resolveProfileForImport(sourceId: string, options: ImportCommandOptions, ctx: any, nonInteractive: boolean): Promise<ProfileImportContext["profile"]> {
-  let rawProfile: Profile;
-  if (sourceId === "profile") {
-    const { config } = await loadConfig({ configPath: options.config });
-    const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive });
-    if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment), `Selected profile: ${selection.profileName}`);
-    rawProfile = selection.profile!;
-  } else {
-    const sshHost = options.sshHost || (nonInteractive ? undefined : await askRequiredText("Remote SSH host:"));
-    const sshUser = options.sshUser || (nonInteractive ? undefined : await askRequiredText("Remote SSH username:"));
-    const remotePath = options.remotePath || (nonInteractive ? undefined : await askRequiredText("Remote WordPress root path:"));
-    if (!sshHost || !sshUser || !remotePath) {
-      throw new MissingOptionError(["--ssh-host <host>", "--ssh-user <user>", "--remote-path <path>"]);
-    }
-    rawProfile = {
-      type: "wordpress",
-      ssh: {
-        host: sshHost,
-        username: sshUser,
-        port: options.sshPort ? Number(options.sshPort) : 22,
-        identityFile: options.sshKey || "",
-        hostKeyPolicy: "accept-new",
-      },
-      remote: { projectRoot: remotePath, wordpressRoot: "." },
-      files: { transport: "rsync" },
-      database: { driver: (options.dbDriver as Profile["database"]["driver"]) || "wp-cli" },
-      ...(options.remoteUrl ? { urls: { staging: options.remoteUrl } } : {}),
-    };
-    validateProfileConfig(rawProfile, "--source ssh profile");
-  }
-  return resolveRemoteProfile(rawProfile, { projectName: ctx.projectName });
 }
 
 

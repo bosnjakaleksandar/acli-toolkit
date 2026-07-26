@@ -2,7 +2,8 @@ import path from "node:path";
 import fs from "fs-extra";
 import os from "node:os";
 import { runCommand } from "../../../system/commandRunner.ts";
-import { CliError, describeError } from "../../../core/errors.ts";
+import { CliError, describeError, MissingOptionError } from "../../../core/errors.ts";
+import { askRequiredText } from "../../../ui/prompts.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../../../system/safety.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import { copyWordPressContent, copySqlFile } from "./fileCopy.ts";
@@ -16,6 +17,13 @@ interface GitContext extends ImportSourceContext {
 export const GitSource: ImportSource = {
   id: "git",
   label: "Git repository",
+
+  async resolveOptions(options, ctx: GitContext, { nonInteractive }) {
+    ctx.repositoryUrl = options.repo || (nonInteractive ? undefined : await askRequiredText("Git repository URL (HTTPS or SSH) containing wp-content:"));
+    if (!ctx.repositoryUrl) throw new MissingOptionError(["--repo <url>"]);
+    ctx.branch = options.branch;
+    ctx.sqlFile = options.sqlFile;
+  },
 
   async fetchFiles(ctx: GitContext, spinner?: any) {
     if (!ctx.repositoryUrl) throw new CliError("Git import requires --repo <url>.", { code: "USAGE" });

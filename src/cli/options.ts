@@ -52,37 +52,12 @@ export interface CreateCommandOptions {
   nonInteractive?: boolean;
 }
 
-export interface ImportCommandOptions {
-  source?: string;
-  name?: string;
-  environment?: string;
-  env?: string;
-  mysql?: string;
-  wpVersion?: string;
-  dryRun?: boolean;
-  resume?: boolean;
-  profile?: string;
-  sshHost?: string;
-  sshUser?: string;
-  sshPort?: string;
-  sshKey?: string;
-  remotePath?: string;
-  dbDriver?: string;
-  localPath?: string;
-  repo?: string;
-  branch?: string;
-  zip?: string;
-  sqlFile?: string;
-  remoteUrl?: string;
-  config?: string;
-  skipFiles?: boolean;
-  skipDatabase?: boolean;
-  skipGitLink?: boolean;
-  skipGit?: boolean;
-  keepDump?: boolean;
-  yes?: boolean;
-  nonInteractive?: boolean;
-}
+/**
+ * Union of every `acli import` flag. Declared in wordpress/import (each
+ * source reads its own fields via `resolveOptions`) and re-exported here
+ * under its CLI-facing name, so the dependency runs cli -> wordpress.
+ */
+export type { ImportOptions as ImportCommandOptions } from "../wordpress/import/ImportSource.ts";
 
 /** Union of flags across every `acli config <subcommand>`. */
 export interface ConfigCommandOptions {
