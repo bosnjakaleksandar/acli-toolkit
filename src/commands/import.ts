@@ -1,11 +1,12 @@
-import { intro, note, outro, spinner } from "@clack/prompts";
+import { intro, note, outro, select, spinner, text } from "@clack/prompts";
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "node:path";
 import type { Command } from "commander";
 import { BRANDING } from "../config/branding.ts";
 import { mascot } from "../ui/acaCharacter.ts";
-import { CliError, TargetExistsError } from "../core/errors.ts";
+import { ask } from "../utils/prompts.ts";
+import { CliError, MissingOptionError, TargetExistsError } from "../core/errors.ts";
 import { readStepState } from "../core/StepRunner.ts";
 import { ImportSourceRegistry } from "../features/import/ImportSource.ts";
 import { LocalFolderSource } from "../features/import/sources/LocalFolderSource.ts";
@@ -22,7 +23,7 @@ import { runLocalPreflight } from "../services/PreflightService.ts";
 import { validateProjectName } from "../services/ProjectValidationService.ts";
 import { buildSuccessSummary, formatCreateError } from "../services/CreateProjectUxService.ts";
 import { loadConfig, validateProfileConfig } from "../services/ConfigService.ts";
-import { loadProfile } from "../services/PresetService.ts";
+import { resolveProfileSelection, profileSummary } from "../services/ProfileSelectionService.ts";
 import { resolveRemoteProfile } from "../services/RemoteProfileService.ts";
 import type { ImportCommandOptions } from "../cli/options.ts";
 import type { Profile } from "../core/model/ResolvedProfile.ts";
@@ -45,9 +46,16 @@ importSourceRegistry.register(createProfileImportSource("ssh", "One-off SSH targ
  * project. Every --source (profile, ssh, local, git, sql, zip) runs through
  * the same ImportWorkflow/StepRunner pipeline — profile/ssh differ only in
  * how ctx.profile is resolved before that pipeline starts.
+ *
+ * Every required field (source, name, environment, and whichever fields the
+ * chosen source itself requires) falls back to an interactive prompt when
+ * unset and the run isn't --yes/--non-interactive — this is what lets
+ * `acli import` work with zero flags from a terminal, and what the
+ * top-level `acli` menu's "Import" choice relies on (it calls this with no
+ * pre-supplied options at all). Non-interactive callers (scripts, --yes)
+ * get a clear MissingOptionError/CliError instead of hanging on a prompt.
  */
 export async function importCommand(options: ImportCommandOptions = {}): Promise<void> {
-  const sourceId = options.source || "profile";
   intro(chalk.bgCyan(chalk.black(` 📥 ${BRANDING.name} IMPORT `)));
 
   let targetDir = "";
@@ -55,21 +63,37 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
   let ctx: any = null;
   let s: ReturnType<typeof spinner> | null = null;
   let resumeCommand: string | null = null;
+  const nonInteractive = Boolean(options.yes || options.nonInteractive);
 
   try {
+    const sourceId = options.source || (nonInteractive ? "profile" : await ask(select, {
+      message: "Where is the WordPress site coming from?",
+      options: importSourceRegistry.list().map((candidate) => ({ label: candidate.label, value: candidate.id })),
+    }) as string);
     const source = importSourceRegistry.get(sourceId);
 
-    if (!options.name) throw new CliError("--name <directory> is required.", { code: "USAGE" });
-    const nameError = validateProjectName(options.name);
+    const name = options.name || (nonInteractive ? undefined : await ask(text, {
+      message: "Project directory/name:",
+      initialValue: "project-name",
+      validate: validateProjectName,
+    }));
+    if (!name) throw new MissingOptionError(["--name <directory>"]);
+    const nameError = validateProjectName(name);
     if (nameError) throw new CliError(nameError, { code: "USAGE" });
-    const environment = options.environment || options.env || "docker";
+
+    let environment = options.environment || options.env;
+    if (!environment) {
+      environment = nonInteractive ? "docker" : (await ask(select, {
+        message: "Which local environment do you prefer?",
+        options: [{ label: "Docker (docker-compose.yaml)", value: "docker" }, { label: "Lando (.lando.yml)", value: "lando" }],
+      })) as string;
+    }
     if (!["docker", "lando"].includes(environment)) {
       throw new CliError(`--environment must be "docker" or "lando" (got "${environment}").`, { code: "USAGE" });
     }
 
-    const nonInteractive = Boolean(options.yes || options.nonInteractive);
     ctx = {
-      projectName: options.name,
+      projectName: name,
       environment,
       appType: "wordpress",
       setupType: "existing-wp",
@@ -80,11 +104,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       // import source needs a value here or that placeholder is left
       // unsubstituted in the generated file.
       wpVersion: "latest",
-      localPath: options.localPath,
-      repositoryUrl: options.repo,
       branch: options.branch,
-      zipFile: options.zip,
-      sqlFile: options.sqlFile,
       skipFiles: Boolean(options.skipFiles),
       skipDatabase: Boolean(options.skipDatabase),
       skipGitLink: Boolean(options.skipGitLink),
@@ -94,9 +114,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       nonInteractive,
     };
 
-    if (sourceId === "profile" || sourceId === "ssh") {
-      ctx.profile = await resolveProfileForImport(sourceId, options, ctx.projectName);
-    }
+    await resolveSourceOptions(sourceId, options, ctx, nonInteractive);
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;
@@ -159,48 +177,90 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
 }
 
 /**
- * Resolves ctx.profile for --source profile/ssh: a named/portable saved
- * profile, or (ssh) one synthesized in-memory from the one-off --ssh-*
- * flags — no temp file on disk either way, unlike the round-trip the old
- * `create --existing` delegation needed to reuse --profile's file-path
- * support.
+ * Resolves and, when interactive, prompts for whichever fields the chosen
+ * source requires and weren't already supplied — mutates `ctx` in place.
+ * profile/ssh need a resolved remote profile (see resolveProfileForImport);
+ * local/git/zip/sql each need exactly one path/URL of their own.
  */
-async function resolveProfileForImport(sourceId: string, options: ImportCommandOptions, projectName: string): Promise<ProfileImportContext["profile"]> {
+async function resolveSourceOptions(sourceId: string, options: ImportCommandOptions, ctx: any, nonInteractive: boolean): Promise<void> {
+  if (sourceId === "profile" || sourceId === "ssh") {
+    ctx.profile = await resolveProfileForImport(sourceId, options, ctx, nonInteractive);
+    return;
+  }
+  if (sourceId === "local") {
+    ctx.localPath = options.localPath || (nonInteractive ? undefined : await requiredText("Path to the existing WordPress installation:"));
+    if (!ctx.localPath) throw new MissingOptionError(["--local-path <path>"]);
+    ctx.sqlFile = options.sqlFile;
+    return;
+  }
+  if (sourceId === "git") {
+    ctx.repositoryUrl = options.repo || (nonInteractive ? undefined : await requiredText("Git repository URL (HTTPS or SSH) containing wp-content:"));
+    if (!ctx.repositoryUrl) throw new MissingOptionError(["--repo <url>"]);
+    ctx.sqlFile = options.sqlFile;
+    return;
+  }
+  if (sourceId === "zip") {
+    ctx.zipFile = options.zip || (nonInteractive ? undefined : await requiredText("Path to the .zip archive:"));
+    if (!ctx.zipFile) throw new MissingOptionError(["--zip <path>"]);
+    ctx.sqlFile = options.sqlFile;
+    return;
+  }
+  if (sourceId === "sql") {
+    ctx.sqlFile = options.sqlFile || (nonInteractive ? undefined : await requiredText("Path to the .sql database dump:"));
+    if (!ctx.sqlFile) throw new MissingOptionError(["--sql-file <path>"]);
+  }
+}
+
+/**
+ * Resolves ctx.profile for --source profile/ssh: a named/portable saved
+ * profile (interactively picked, or offered to create on the spot, via the
+ * same ProfileSelectionService `acli create`/`acli link` use), or (ssh) one
+ * synthesized in-memory from the one-off --ssh-* flags — no temp file on
+ * disk either way, unlike the round-trip the old `create --existing`
+ * delegation needed to reuse --profile's file-path support.
+ */
+async function resolveProfileForImport(sourceId: string, options: ImportCommandOptions, ctx: any, nonInteractive: boolean): Promise<ProfileImportContext["profile"]> {
   let rawProfile: Profile;
   if (sourceId === "profile") {
-    if (!options.profile) throw new CliError("--source profile requires --profile <name|path>.", { code: "USAGE" });
     const { config } = await loadConfig({ configPath: options.config });
-    const loaded = await loadProfile(options.profile, config);
-    if (!loaded) throw new CliError(`Profile "${options.profile}" was not found.`, { code: "PROFILE_NOT_FOUND" });
-    rawProfile = loaded;
+    const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive });
+    if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment), `Selected profile: ${selection.profileName}`);
+    rawProfile = selection.profile!;
   } else {
-    if (!options.sshHost || !options.sshUser || !options.remotePath) {
-      throw new CliError("--source ssh requires --ssh-host, --ssh-user, and --remote-path.", { code: "USAGE" });
+    const sshHost = options.sshHost || (nonInteractive ? undefined : await requiredText("Remote SSH host:"));
+    const sshUser = options.sshUser || (nonInteractive ? undefined : await requiredText("Remote SSH username:"));
+    const remotePath = options.remotePath || (nonInteractive ? undefined : await requiredText("Remote WordPress root path:"));
+    if (!sshHost || !sshUser || !remotePath) {
+      throw new MissingOptionError(["--ssh-host <host>", "--ssh-user <user>", "--remote-path <path>"]);
     }
     rawProfile = {
       type: "wordpress",
       ssh: {
-        host: options.sshHost,
-        username: options.sshUser,
+        host: sshHost,
+        username: sshUser,
         port: options.sshPort ? Number(options.sshPort) : 22,
         identityFile: options.sshKey || "",
         hostKeyPolicy: "accept-new",
       },
-      remote: { projectRoot: options.remotePath, wordpressRoot: "." },
+      remote: { projectRoot: remotePath, wordpressRoot: "." },
       files: { transport: "rsync" },
       database: { driver: (options.dbDriver as Profile["database"]["driver"]) || "wp-cli" },
       ...(options.remoteUrl ? { urls: { staging: options.remoteUrl } } : {}),
     };
     validateProfileConfig(rawProfile, "--source ssh profile");
   }
-  return resolveRemoteProfile(rawProfile, { projectName });
+  return resolveRemoteProfile(rawProfile, { projectName: ctx.projectName });
+}
+
+function requiredText(message: string): Promise<string> {
+  return ask(text, { message, validate: (value: string | undefined) => (value?.trim() ? undefined : "A value is required.") });
 }
 
 export function registerImportCommand(program: Command): void {
   program
     .command("import")
     .description("Import an existing WordPress site into a new local project")
-    .option("--source <source>", "Import source: profile, ssh, local, git, sql, or zip", "profile")
+    .option("--source <source>", "Import source: profile, ssh, local, git, sql, or zip")
     .option("--name <name>", "Project directory/name")
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")

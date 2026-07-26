@@ -27,10 +27,12 @@ process.env.ACLI_QUIET = "1";
  * Both command functions catch their own errors (print + set
  * process.exitCode, never reject) — matching normal CLI behavior — so
  * failure-path assertions here check process.exitCode rather than
- * expecting a rejected promise. Basic --profile/--ssh-* flag validation is
- * covered by manual CLI verification rather than here, since driving
- * several real command invocations through their full error-rendering path
- * in one process is what triggers the IPC issue above.
+ * expecting a rejected promise.
+ *
+ * (Coverage for importCommand's interactive-prompt fallback for missing
+ * required fields lives in test/import-prompt-fallback.test.ts — split into
+ * its own file because this runner's IPC-based TAP reporting corrupts when
+ * too many full command invocations print output within a single test file.)
  */
 
 async function withCwd<T>(dir: string, run: () => Promise<T>): Promise<T> {
