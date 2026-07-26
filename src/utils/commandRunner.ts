@@ -68,9 +68,13 @@ export async function runCommand(
   if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${redactCommandLine(command, args)}`);
   return new Promise((resolve, reject) => {
     const { encoding = "utf8", stdin, ...spawnOptions } = options;
+    // shell: false must win over anything in spawnOptions — letting a caller
+    // override it would let args (which may contain shell metacharacters,
+    // e.g. an untrusted path) be interpreted by a shell instead of passed
+    // straight to execve().
     const child = spawn(command, args, {
-      shell: false,
       ...spawnOptions,
+      shell: false,
     });
 
     if (stdin !== undefined) {
@@ -127,8 +131,8 @@ export function runCommandSync(
 ): SpawnSyncReturns<string> {
   const result = spawnSync(command, args, {
     encoding: "utf8",
-    shell: false,
     ...options,
+    shell: false,
   });
 
   if (result.error || result.status !== 0) {
