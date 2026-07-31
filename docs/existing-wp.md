@@ -20,6 +20,19 @@ acli import --name client-site --profile shared-host \
 
 Remove `--dry-run` to import. Controls include `--skip-files`, `--skip-database`, `--skip-git-link`, and `--keep-dump`. Preflight checks happen before target creation. A failed import preserves whatever was already fetched and prints an exact `acli import --resume --name <name>` command to continue from the failed step instead of starting over.
 
+When Git discovery is enabled, import initializes the local repository, adds the discovered `origin`, fetches it, and makes the remote default branch the local baseline/upstream without checking out over imported files. This is deliberately pull-only: A-CLI never commits and never pushes. Use `--skip-git` to disable local Git completely or `--skip-git-link` to initialize a standalone local repository without connecting it to staging's origin.
+
+If your local `~/.ssh/config` uses separate aliases for Git accounts (for example `github-work` and `github-personal`, both pointing to `github.com`), configure the alias on that staging profile:
+
+```bash
+acli profile git-alias agency-staging github-work --scope user
+acli import --resume --name client-site
+```
+
+The profile's optional `git.sshHostAlias` rewrites only the host part of SSH Git URLs (`git@github.com:org/repo.git` → `git@github-work:org/repo.git`). HTTPS URLs are unchanged. This setting is local configuration, not a repository URL that A-CLI pushes to.
+
+Import also prepares `.gitignore` after the Git baseline is available. If the repository already tracks one, its contents and project-specific rules are preserved and missing WordPress/A-CLI patterns are appended. If no tracked file exists, the complete bundled WordPress template is written; import never leaves a one-line `.acli/` placeholder.
+
 Host-key policy defaults to `strict`; `accept-new` supports automated first connection. Avoid `insecure` outside disposable environments. `acli create` never imports an existing site; the compatibility flag `create --existing` exits with instructions to use `acli import`.
 
 ## How the database import stays reliable across different servers

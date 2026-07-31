@@ -27,6 +27,7 @@ export interface ProfileBuilderOptions {
   stagingUrl?: string;
   localUrl?: string;
   git?: boolean;
+  gitSshHostAlias?: string;
   force?: boolean;
   yes?: boolean;
   json?: boolean;
@@ -65,6 +66,9 @@ export async function createProfileCommand(name: string | undefined, options: Pr
   const stagingUrl = await value(options.stagingUrl, "Staging URL template:", d.stagingUrl ?? "https://{projectName}.staging.example.com");
   const localUrl = await value(options.localUrl, "Local URL (optional; environment default when empty):", d.localUrl ?? "");
   const gitEnabled = options.git === false ? false : options.git === true ? true : nonInteractive ? (d.git ?? true) : await ask(confirm, { message: "Discover and link the remote Git repository?", initialValue: d.git ?? true });
+  const gitSshHostAlias = gitEnabled
+    ? await value(options.gitSshHostAlias, "Local Git SSH Host alias (optional, e.g. github-work):", d.gitSshHostAlias ?? "")
+    : "";
   if (!host || !username || !projectRoot || !wordpressRoot || !stagingUrl) throw new Error("Host, username, project root, WordPress root, and staging URL are required.");
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("SSH port must be between 1 and 65535.");
   const profile = {
@@ -73,7 +77,7 @@ export async function createProfileCommand(name: string | undefined, options: Pr
     remote: { projectRoot, wordpressRoot },
     files: { transport, directories, excludes: ["*.log", "node_modules"] },
     database,
-    git: { enabled: gitEnabled, ...(gitEnabled ? { discoveryPaths: [".", "wp-content/themes/{projectName}"] } : {}) },
+    git: compact({ enabled: gitEnabled, ...(gitEnabled ? { discoveryPaths: [".", "wp-content/themes/{projectName}"] } : {}), sshHostAlias: gitSshHostAlias }),
     urls: { staging: stagingUrl },
     ...(localUrl ? { local: { url: localUrl } } : {}),
   };
@@ -106,7 +110,7 @@ export async function importLegacyProfileCommand(name: string | undefined, optio
     remote: { projectRoot: "{projectName}", wordpressRoot: "wordpress" },
     files: { transport: "rsync", directories: ["uploads", "plugins", "themes"], excludes: ["*.log", "node_modules"] },
     database: { driver: "docker", discovery: "container-name", containerPattern: "{projectName}", executable: "auto", envFile: ".env", userEnv: "DB_USER", passwordEnv: "DB_PASSWORD", nameEnv: "DB_NAME" },
-    git: { enabled: true, includeProjectRoot: true, discoveryPaths: [".", "wp-content/themes/{projectName}"] },
+    git: compact({ enabled: true, includeProjectRoot: true, discoveryPaths: [".", "wp-content/themes/{projectName}"], sshHostAlias: options.gitSshHostAlias }),
     urls: { staging: `https://{projectName}${suffix}`, additionalSearchReplace: [`http://{projectName}${suffix}`] },
   };
 

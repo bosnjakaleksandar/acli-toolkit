@@ -27,6 +27,8 @@ profiles:
       driver: wp-cli
     git:
       enabled: true
+      # Optional local ~/.ssh/config Host alias, e.g. github-work.
+      # sshHostAlias: github-work
       discoveryPaths: [".", "wp-content/themes/{projectName}"]
     urls:
       staging: "https://{projectName}.staging.example.com"

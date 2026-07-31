@@ -9,6 +9,9 @@ All notable changes to this project are documented in this file. The format is b
 - `acli create` now only scaffolds new projects; existing WordPress sites use the separate, profile-backed `acli import` workflow.
 - The interactive main menu now exposes Profiles as the third action, with create/import/export/list/default/delete management.
 - `acli import` validates profiles before asking project questions, automatically selects a sole profile, and asks when several are configured.
+- Profile-backed imports now fetch the discovered Git origin and track its default branch without checking out over imported files; the success summary reports the observed linked branch instead of incorrectly saying `Not initialized`.
+- Profiles can define a machine-local `git.sshHostAlias` (or use `acli profile git-alias`) for developers who select different Git identities through `~/.ssh/config`; interrupted imports can safely apply the alias on resume.
+- WordPress imports now materialize the complete `.gitignore` template instead of leaving only `.acli/`; when the fetched repository already tracks a `.gitignore`, its project-specific rules remain the base and only missing A-CLI rules are appended.
 
 ### Removed
 
@@ -16,6 +19,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Security
 
+- A-CLI's shared command runner now rejects both `git push` and the lower-level `git send-pack`; all Git integration is pull-only and publishing remains an explicit manual user action.
 - Project-scoped `.acli/config.yaml` secret references (`{command: ...}` / `${ENV_VAR}`) now require the file to be trusted before A-CLI will resolve them — content-hash-pinned, auto-trusted for anything A-CLI itself wrote. See [SECURITY.md](SECURITY.md). New `acli config trust` command.
 - `defaults`/`presets` in configuration are now restricted to plain scalar values, closing a path for hiding a secret-command reference under an arbitrary key.
 - Fixed several shell/argv injection paths: `GIT_SSH_COMMAND` construction, rsync's `-e` transport, ssh/scp/rsync username and host handling, git remote URLs (`ext::`/leading-dash rejection), and plugin slugs written into a generated install script.

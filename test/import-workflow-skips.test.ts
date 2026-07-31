@@ -58,6 +58,20 @@ test("skipFiles/skipDatabase/skipGitLink each suppress only their own step", asy
   assert.ok(!calls.includes("linkGit"), "skipGitLink must suppress remote git discovery");
   // Everything not skipped still runs.
   assert.deepEqual(calls, ["preflight", "scaffold", "linkProfile"]);
+  const gitignore = await fs.readFile(path.join(targetDir, ".gitignore"), "utf8");
+  assert.match(gitignore, /^\/wp-config\.php$/m, "import must materialize the WordPress gitignore template even when Git linking is skipped");
+  assert.match(gitignore, /^\.acli\/$/m);
+  await fs.remove(targetDir);
+});
+
+test("--skip-git suppresses remote linking as well as later local initialization", async () => {
+  const targetDir = await tempDir("acli-import-skip-git-");
+  const calls: string[] = [];
+  const ctx: any = { targetDir, skipGitInit: true };
+
+  await runImportWorkflow({ source: makeSource(calls), ctx, targetDir, envService: makeEnvService(calls), resume: false });
+
+  assert.ok(!calls.includes("linkGit"), "--skip-git must prevent linkGit from initializing a repository indirectly");
   await fs.remove(targetDir);
 });
 

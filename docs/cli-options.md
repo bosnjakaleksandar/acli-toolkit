@@ -99,3 +99,7 @@ With no profiles the command fails before asking project questions. One profile 
 - `--skip-git`
 - `--keep-dump`
 - `--yes` or `--non-interactive`
+
+Git linking is read-only toward the remote: A-CLI may discover, fetch, and configure an upstream, but it never runs `git push`. `--skip-git` disables both initialization and remote linking; `--skip-git-link` keeps optional local initialization but disables origin discovery.
+
+If Git authentication is selected through a local SSH config alias, configure it per profile with `acli profile git-alias <profile> <alias> --scope <user|project>`. Profile creation also accepts `--git-ssh-host-alias <alias>`.

@@ -77,8 +77,8 @@ export function buildCreateSteps({ ctx, strategy, targetDir, spinner, resume, on
       title: "Initializing Git repository",
       run: async () => {
         spinner.start(`4/${totalSteps} Initializing Git repository...`);
-        await maybeInitializeGit(targetDir, ctx as any);
-        spinner.stop(ctx.skipGitInit ? `4/${totalSteps} Git initialization skipped.` : `4/${totalSteps} Git repository initialized.`);
+        const git = await maybeInitializeGit(targetDir, ctx as any);
+        spinner.stop(git.initialized ? `4/${totalSteps} Git repository initialized.` : `4/${totalSteps} Git initialization skipped.`);
       },
     },
   ];

@@ -15,7 +15,7 @@ function commandHelp(register: (program: Command) => void, name: string): string
 test("the main menu keeps Create, Import and Profiles as separate first-class actions", () => {
   assert.deepEqual(MAIN_MENU.map(({ value }) => value), ["create", "import", "profiles", "link", "pull", "doctor"]);
   assert.equal(MAIN_MENU[2]!.returnToMenu, true);
-  assert.deepEqual(PROFILE_MENU_OPTIONS.map(({ value }) => value), ["create", "import", "export", "list", "use", "delete", "back"]);
+  assert.deepEqual(PROFILE_MENU_OPTIONS.map(({ value }) => value), ["create", "import", "export", "list", "use", "git-alias", "delete", "back"]);
 });
 
 test("create help contains only new-project controls plus the compatibility error flag", () => {

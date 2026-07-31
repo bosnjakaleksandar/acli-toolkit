@@ -43,6 +43,8 @@ acli profile import ./agency-cloud.profile.yaml agency  # or choose the saved na
 
 `acli profile create` can start from a built-in template for a common kind of hosting setup — run `acli profile templates` to see them (`shared-host`, `docker-staging`, `direct-database`). A template only pre-fills convention-level choices (database driver, content directories, Git discovery); connection specifics like host and username are still asked normally, shown with the template's example as an editable starting point.
 
+For machines that use separate `~/.ssh/config` aliases per Git account, set a profile-local alias with `acli profile git-alias <profile> <alias> --scope user`, or pass `--git-ssh-host-alias <alias>` while creating the profile. It affects only local SSH Git fetches.
+
 ```bash
 acli profile templates
 acli profile create agency-staging --template shared-host --host staging.agency.example.com

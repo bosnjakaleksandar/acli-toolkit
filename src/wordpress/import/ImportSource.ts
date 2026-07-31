@@ -53,7 +53,7 @@ export interface ImportSource {
   /** Writes the `.acli` project link so a later `acli pull` can re-sync from the same profile. */
   linkProfile?(targetDir: string, ctx: ImportSourceContext): Promise<string | null>;
   /** Discovers and safely links the remote site's Git origin, when present. */
-  linkGit?(targetDir: string, ctx: ImportSourceContext, spinner?: unknown): Promise<void>;
+  linkGit?(targetDir: string, ctx: ImportSourceContext, spinner?: unknown): Promise<unknown>;
   /** Optional richer --dry-run plan (e.g. remote host and required tools). */
   buildPlan?(ctx: ImportSourceContext): unknown;
 }

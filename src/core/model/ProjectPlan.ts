@@ -42,6 +42,8 @@ export interface ProjectPlan {
   presetName?: string;
 
   skipGitInit?: boolean;
+  /** Final observed Git state for the success summary; never persisted as configuration. */
+  gitStatus?: string;
   skipFiles?: boolean;
   skipDatabase?: boolean;
   skipGitLink?: boolean;

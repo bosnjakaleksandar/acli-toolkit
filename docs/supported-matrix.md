@@ -47,7 +47,7 @@ Both adapters implement the same contract (`src/environments/EnvironmentService.
 - The remote dump's WordPress core version and the local Docker/Lando image's version (`latest` by default) are independent — a large version gap is the user's responsibility to manage.
 - The Docker template's database host is fixed to the service name `db` (no custom host/port).
 - Multisite dumps import, but URL replacement covers only the discovered `siteurl` plus any explicitly declared `urls.additionalSearchReplace` entries — it does not walk every subsite's URL automatically.
-- Sync is pull-only (remote → local). There is no push (local → remote) in this version.
+- File/database sync and Git integration are pull-only (remote → local). A-CLI may fetch and configure tracking, but its command runner rejects `git push` and `git send-pack`; publishing is always a manual user action.
 
 ## Reliability guarantees
 

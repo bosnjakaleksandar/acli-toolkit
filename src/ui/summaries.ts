@@ -38,7 +38,7 @@ export function buildSuccessSummary(targetDir: string, ctx: ProjectPlan & { depe
   const rows: Array<[string, unknown]> = [
     ["Location", targetDir],
     ...(ctx.appType === "application" ? [] : ([["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]] as Array<[string, unknown]>)),
-    ["Git", ctx.skipGitInit ? "Not initialized" : "Initialized"],
+    ["Git", typeof ctx.gitStatus === "string" ? ctx.gitStatus : ctx.skipGitInit ? "Not initialized (skipped)" : "Initialized"],
     ["Dependencies", ctx.dependenciesInstalled ? "Installed" : "Manual steps may remain"],
   ];
   const warnings = ctx.warnings?.length ? `\n\n${chalk.yellow("Warnings:")}\n${ctx.warnings.map((warning) => `  - ${warning}`).join("\n")}` : "";

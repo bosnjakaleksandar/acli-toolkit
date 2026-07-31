@@ -5,6 +5,7 @@ import { getProjectConfigPath, getUserConfigPath } from "../config/paths.ts";
 import { validateConfig, validateProfileConfig } from "../config/schema.ts";
 import { readWritableConfig, writeConfigAtomic } from "../config/ConfigWriter.ts";
 import type { Profile } from "../core/model/Profile.ts";
+import { isSafeSshHostAlias } from "../system/safety.ts";
 
 export interface ProfileConfigPathOptions {
   scope?: "project" | "user";
@@ -87,6 +88,22 @@ export async function clearDefaultProfile(options: ProfileConfigPathOptions = {}
   const filePath = resolveProfileConfigPath(options);
   const config = await readWritableConfig(filePath, { allowProjectKey: true });
   if (config.defaults) delete config.defaults.profile;
+  await writeConfigAtomic(filePath, config);
+  return filePath;
+}
+
+export async function setProfileGitSshHostAlias(name: string, alias: string | null, options: ProfileWriteOptions = {}): Promise<string> {
+  validateProfileName(name);
+  if (alias !== null && !isSafeSshHostAlias(alias)) throw new Error("Git SSH host alias may contain only letters, numbers, dots, dashes, and underscores.");
+  const filePath = resolveProfileConfigPath(options);
+  if (!(await fs.pathExists(filePath))) throw new Error(`Configuration file not found: ${filePath}`);
+  const config = await readConfigFile(filePath);
+  const profile = config.profiles?.[name];
+  if (!profile) throw new Error(`Profile "${name}" was not found in ${filePath}.`);
+  profile.git ||= {};
+  if (alias === null) delete profile.git.sshHostAlias;
+  else profile.git.sshHostAlias = alias;
+  validateConfig(config, filePath, { allowProjectKey: true });
   await writeConfigAtomic(filePath, config);
   return filePath;
 }

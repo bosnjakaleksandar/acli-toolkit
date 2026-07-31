@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { deleteProfile, saveProfile } from "../src/profiles/ProfileStore.ts";
+import { deleteProfile, saveProfile, setProfileGitSshHostAlias } from "../src/profiles/ProfileStore.ts";
 import { readConfigFile } from "../src/config/ConfigLoader.ts";
 
 const profile = {
@@ -30,4 +30,18 @@ test("profiles can be created, replaced, and deleted in an explicit config", asy
 
 test("profile names are restricted to portable identifiers", async () => {
   await assert.rejects(saveProfile("Bad Profile", profile, { configPath: path.join(os.tmpdir(), "unused-acli.yaml") }), /Profile name/);
+});
+
+test("a local Git SSH alias can be set and cleared without replacing the rest of the profile", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-profile-git-alias-"));
+  const configPath = path.join(directory, "config.yaml");
+  await saveProfile("agency", profile, { configPath });
+  await setProfileGitSshHostAlias("agency", "github-work", { configPath });
+  let saved = await readConfigFile(configPath);
+  assert.equal(saved.profiles.agency.git.sshHostAlias, "github-work");
+  assert.equal(saved.profiles.agency.ssh.host, profile.ssh.host);
+  await assert.rejects(setProfileGitSshHostAlias("agency", "-oProxyCommand=bad", { configPath }), /host alias/i);
+  await setProfileGitSshHostAlias("agency", null, { configPath });
+  saved = await readConfigFile(configPath);
+  assert.equal(saved.profiles.agency.git.sshHostAlias, undefined);
 });

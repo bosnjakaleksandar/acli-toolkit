@@ -66,6 +66,13 @@ test("an explicit CLI flag overrides the template's default for that field", asy
   assert.equal(profile.files.transport, "sftp");
 });
 
+test("--git-ssh-host-alias is stored as a machine-local Git transport override", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-profile-template-"));
+  const { profile } = await createProfileCommand("demo", { template: "shared-host", yes: true, config: path.join(directory, "config.yaml"), host: "h.example.com", gitSshHostAlias: "github-work" });
+  assert.equal(profile.git.sshHostAlias, "github-work");
+  assert.deepEqual(validateProfileConfig(profile), profile);
+});
+
 test("an unknown --template name throws a clear error listing the available templates", async () => {
   await assert.rejects(
     createProfileCommand("demo", { template: "bogus-template", yes: true, config: "/tmp/unused.yaml", host: "h.example.com" }),

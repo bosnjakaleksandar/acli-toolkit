@@ -237,7 +237,11 @@ Laravel combinations create a real Laravel application in `backend/` using `comp
 
 WordPress projects generate the selected Docker or Lando environment, support starter or custom theme repositories, optional branch selection, and optional plugin setup scripts.
 
-`acli create` only scaffolds new projects. `acli import` is the separate existing-WordPress workflow: it uses a configured staging profile to sync files, export the database, scaffold the local environment, discover Git remotes, migrate the database, and link the project so `acli pull` can re-sync it afterward. Create a profile first with `acli profile create`; with one configured profile import selects it automatically, while multiple profiles are presented for selection. Use `acli link` to attach a profile to a directory you did not create with A-CLI. See [docs/existing-wp.md](docs/existing-wp.md) and [docs/supported-matrix.md](docs/supported-matrix.md).
+`acli create` only scaffolds new projects. `acli import` is the separate existing-WordPress workflow: it uses a configured staging profile to sync files, export the database, scaffold the local environment, discover Git remotes, migrate the database, and link the project so `acli pull` can re-sync it afterward. A discovered Git origin is fetched and its default branch becomes the local upstream without overwriting imported files. Git integration is strictly pull-only: A-CLI never commits or pushes, and its command runner rejects push attempts. Create a profile first with `acli profile create`; with one configured profile import selects it automatically, while multiple profiles are presented for selection. Use `acli link` to attach a profile to a directory you did not create with A-CLI. See [docs/existing-wp.md](docs/existing-wp.md) and [docs/supported-matrix.md](docs/supported-matrix.md).
+
+Developers who use separate `~/.ssh/config` aliases for Git accounts can map one per profile, for example: `acli profile git-alias agency-staging github-work --scope user`.
+
+Imported WordPress projects receive the bundled WordPress `.gitignore` rules. An existing remote `.gitignore` is preserved as the base, with only missing A-CLI rules added.
 
 ## A-CLI v2 configuration
 

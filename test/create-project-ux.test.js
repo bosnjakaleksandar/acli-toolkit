@@ -50,6 +50,14 @@ test("success summary gives location and executable next steps", () => {
   assert.match(result, /Next:\n  cd app\n  npm run dev/);
 });
 
+test("success summary reports the observed linked branch instead of the internal skip flag", () => {
+  const result = plain(buildSuccessSummary("/work/app", {
+    projectName: "app", environment: "docker", skipGitInit: true, gitStatus: "Linked to origin/main (pull-only)",
+  }, "  cd app"));
+  assert.match(result, /Git\s+Linked to origin\/main \(pull-only\)/);
+  assert.doesNotMatch(result, /Not initialized/);
+});
+
 test("error summary reports no cleanup needed when failure happened before any files were created", () => {
   const result = plain(formatCreateError(new Error("Missing required tools: docker."), {
     targetDir: "/work/site", ownsTargetDir: false,

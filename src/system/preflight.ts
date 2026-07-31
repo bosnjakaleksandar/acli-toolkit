@@ -13,7 +13,7 @@ export async function runLocalPreflight(ctx: ProjectPlan & { port?: number }): P
   // not required for them, but npm is (create-next-app/create-vite both run
   // through it).
   const required = ctx.appType === "application" ? ["npm"] : [ctx.environment!];
-  if (!ctx.skipGitInit && !ctx.skipGitLink) required.push("git");
+  if (!ctx.skipGitInit) required.push("git");
   if (ctx.useLaravel) required.push("composer", "php");
   const missing = required.filter((command) => !toolExists(command));
   if (missing.length) throw new CliError(`Missing required tools: ${missing.join(", ")}.`, { code: "PREFLIGHT_FAILED", hint: `Run \`acli doctor --environment ${ctx.environment}\` for installation guidance.` });

@@ -5,7 +5,7 @@ import YAML from "yaml";
 import type { Command } from "commander";
 import { ask } from "../../ui/prompts.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
-import { clearDefaultProfile, deleteProfile, renameProfile, saveProfile, setDefaultProfile } from "../../profiles/ProfileStore.ts";
+import { clearDefaultProfile, deleteProfile, renameProfile, saveProfile, setDefaultProfile, setProfileGitSshHostAlias } from "../../profiles/ProfileStore.ts";
 import { listProfileTemplates } from "../../profiles/templates.ts";
 import { createProfileCommand, importLegacyProfileCommand } from "../../profiles/ProfileBuilder.ts";
 import { describeProfile, exportProfile, getCurrentProfile, inspectProfile, listProfiles, readImportableProfile, validateNamedProfile } from "../../profiles/ProfileQuery.ts";
@@ -17,6 +17,7 @@ export const PROFILE_MENU_OPTIONS = [
   { label: "Export a profile", value: "export" },
   { label: "List profiles", value: "list" },
   { label: "Set the default profile", value: "use" },
+  { label: "Configure a Git SSH alias", value: "git-alias" },
   { label: "Delete a profile", value: "delete" },
   { label: "Back to main menu", value: "back" },
 ] as const;
@@ -62,7 +63,7 @@ export async function runProfilesMenu(options: ProfileCommandOptions = {}): Prom
     }
 
     const selected = await ask(select, {
-      message: action === "export" ? "Choose a profile to export:" : action === "delete" ? "Choose a profile to delete:" : "Choose the default staging profile:",
+      message: action === "export" ? "Choose a profile to export:" : action === "delete" ? "Choose a profile to delete:" : action === "git-alias" ? "Choose a profile to configure:" : "Choose the default staging profile:",
       options: rows.map((row) => ({ label: `${row.name} — ${row.description}`, value: row.name })),
     }) as string;
     if (action === "export") {
@@ -86,6 +87,18 @@ export async function runProfilesMenu(options: ProfileCommandOptions = {}): Prom
       if (!(await ask(confirm, { message: `Delete profile "${selected}"?`, initialValue: false }))) continue;
       const file = await deleteProfile(selected, { scope, configPath: options.config });
       note(`Profile "${selected}" deleted.\n${file}`, "Profile deleted");
+      continue;
+    }
+    if (action === "git-alias") {
+      const current = await inspectProfile(selected, { config: options.config }) as any;
+      const alias = await ask(text, {
+        message: "Local ~/.ssh/config Host alias (empty clears it):",
+        initialValue: current.git?.sshHostAlias || "",
+        validate: (value: string | undefined) => !value || /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(value) ? undefined : "Use a valid SSH Host alias.",
+      });
+      const scope = await chooseProfileScope(options, "Where is this profile stored?");
+      const file = await setProfileGitSshHostAlias(selected, alias || null, { scope, configPath: options.config });
+      note(alias ? `Git SSH alias for "${selected}" is now "${alias}".\n${file}` : `Git SSH alias cleared for "${selected}".\n${file}`, "Profile updated");
       continue;
     }
 
@@ -115,7 +128,7 @@ export function registerProfileCommand(program: Command): void {
     .option("--project-root <path>").option("--wordpress-root <path>").option("--transport <transport>").option("--directories <list>")
     .option("--database-driver <driver>").option("--db-service <service>").option("--db-host <host>").option("--db-port <port>")
     .option("--db-user <value>").option("--db-password <value>").option("--db-name <value>").option("--staging-url <url>").option("--local-url <url>")
-    .option("--git", "Enable Git discovery").option("--no-git", "Disable Git discovery").option("--force", "Replace an existing profile").option("--yes", "Do not prompt")
+    .option("--git", "Enable Git discovery").option("--no-git", "Disable Git discovery").option("--git-ssh-host-alias <alias>", "Local ~/.ssh/config Host alias for fetched Git remotes").option("--force", "Replace an existing profile").option("--yes", "Do not prompt")
     .action(async (name: string | undefined, options: ProfileCommandOptions) => { await createProfileCommand(name, options); });
   command.command("list").option("--config <path>").option("--json", "Output machine-readable JSON").action(async (options: ProfileCommandOptions) => {
     const rows = await listProfiles({ config: options.config });
@@ -129,6 +142,13 @@ export function registerProfileCommand(program: Command): void {
     console.log(`${current.name}${current.missing ? " (referenced but not found)" : ` — ${current.description}`}`);
   });
   command.command("use [name]").description("Choose the default staging profile").option("--scope <scope>", "Storage scope: project or user", "project").option("--config <path>").option("--clear", "Clear the default profile").action(async (name: string | undefined, options: ProfileCommandOptions) => { if (options.clear) { const file = await clearDefaultProfile({ scope: options.scope, configPath: options.config }); console.log(`Default profile cleared in ${file}.`); return; } const { rawConfig } = await loadConfig({ configPath: options.config, resolveSecrets: false }); const names = Object.keys(rawConfig.profiles || {}); if (!names.length) throw new Error("No profiles exist. Run `acli profile create` first."); const selected = name || (await ask(select, { message: "Choose the default staging profile:", options: names.map((item) => ({ label: `${item} — ${describeProfile(rawConfig.profiles![item])}`, value: item })) }) as string); if (!rawConfig.profiles?.[selected]) throw new Error(`Profile "${selected}" was not found.`); const file = await setDefaultProfile(selected, { scope: options.scope, configPath: options.config, allowExternal: true }); console.log(`Default profile is now "${selected}" (${file}).`); });
+  command.command("git-alias <name> [alias]").description("Set the local ~/.ssh/config Host alias used to fetch a profile's Git origin")
+    .option("--scope <scope>", "Storage scope: project or user", "project").option("--config <path>").option("--clear", "Clear the configured alias")
+    .action(async (name: string, alias: string | undefined, options: ProfileCommandOptions) => {
+      if (!options.clear && !alias) throw new Error("Git SSH host alias is required, or pass --clear.");
+      const file = await setProfileGitSshHostAlias(name, options.clear ? null : alias!, { scope: options.scope, configPath: options.config });
+      console.log(options.clear ? `Git SSH alias cleared for profile "${name}" (${file}).` : `Git SSH alias for profile "${name}" is now "${alias}" (${file}).`);
+    });
   command.command("inspect <name>").option("--config <path>").action(async (name: string, options: ProfileCommandOptions) => {
     console.log(YAML.stringify(await inspectProfile(name, { config: options.config })));
   });
@@ -164,6 +184,7 @@ export function registerProfileCommand(program: Command): void {
     .option("--host <host>", "SSH host (defaults to $STAGING_SSH_HOST)")
     .option("--suffix <suffix>", "Staging URL suffix (defaults to $STAGING_SUFFIX or .staging)")
     .option("--identity-file <reference>", "SSH identity file or ${ENV_VAR} reference (optional)")
+    .option("--git-ssh-host-alias <alias>", "Local ~/.ssh/config Host alias for fetched Git remotes")
     .option("--scope <scope>", "Storage scope: project or user").option("--config <path>")
     .option("--force", "Replace an existing profile").option("--yes", "Do not prompt")
     .action(async (name: string | undefined, options: ProfileCommandOptions) => { await importLegacyProfileCommand(name, options); });

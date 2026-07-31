@@ -1,10 +1,11 @@
 import { RemoteHost } from "../../../remote/RemoteHost.ts";
 import { writeLink } from "../../../profiles/ProjectLink.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../../../system/safety.ts";
-import { runCommand } from "../../../system/commandRunner.ts";
+import { applyGitSshHostAlias, linkGitRemote } from "../../../system/git.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import type { RemoteFacts } from "../../../core/model/RemoteFacts.ts";
 import type { ResolvedProfile } from "../../../core/model/Profile.ts";
+import { CliError } from "../../../core/errors.ts";
 
 export interface ProfileImportContext extends ImportSourceContext {
   profile: ResolvedProfile;
@@ -14,9 +15,11 @@ export interface ProfileImportContext extends ImportSourceContext {
   skipGitInit?: boolean;
   presetName?: string;
   stagingUrl?: string;
+  gitStatus?: string;
 }
 
 type RemoteHostFactory = (profile: ResolvedProfile) => RemoteHost;
+type GitLinker = typeof linkGitRemote;
 
 /**
  * The saved-profile import source. Reuses RemoteHost directly — the same
@@ -28,6 +31,7 @@ type RemoteHostFactory = (profile: ResolvedProfile) => RemoteHost;
  */
 export function createProfileImportSource(
   remoteHostFactory: RemoteHostFactory = (profile) => new RemoteHost(profile),
+  gitLinker: GitLinker = linkGitRemote,
 ): ImportSource {
   const remote = (ctx: ImportSourceContext) => remoteHostFactory((ctx as ProfileImportContext).profile);
 
@@ -81,9 +85,26 @@ export function createProfileImportSource(
         (spinner as any)?.message?.(`Skipping Git link: remote origin URL looked unsafe (${redactUrlCredentials(found.url)}).`);
         return;
       }
-      c.skipGitInit = true;
-      await runCommand("git", ["init"], { cwd: targetDir });
-      await runCommand("git", ["remote", "add", "origin", found.url], { cwd: targetDir });
+      const localRemoteUrl = applyGitSshHostAlias(found.url, c.profile.git?.sshHostAlias);
+      let result;
+      try {
+        result = await gitLinker(targetDir, localRemoteUrl, undefined, { previousRemoteUrl: found.url });
+      } catch (error: any) {
+        const details = `${error?.stderr || ""}\n${error?.message || ""}`;
+        if (/Permission denied \(publickey\)|Could not read from remote repository/i.test(details)) {
+          const profileName = c.profile.profileName || "<profile>";
+          const configuredAlias = c.profile.git?.sshHostAlias;
+          throw new CliError("Git SSH authentication failed while fetching the discovered origin.", {
+            code: "GIT_AUTH_FAILED",
+            hint: configuredAlias
+              ? `Verify the SSH alias with \`ssh -T git@${configuredAlias}\`, then resume with \`acli import --resume --name ${c.projectName}\`.`
+              : `If ~/.ssh/config uses a Git account alias, run \`acli profile git-alias ${profileName} <alias> --scope user\`, then \`acli import --resume --name ${c.projectName}\`.`,
+          });
+        }
+        throw error;
+      }
+      c.gitStatus = result.summary;
+      return result;
     },
 
     buildPlan(ctx) {
@@ -98,7 +119,7 @@ export function createProfileImportSource(
         remoteWordPressRoot: c.profile.remote.wordpressRoot,
         databaseDriver: c.skipDatabase ? "skipped" : c.profile.database.driver,
         fileTransfer: c.skipFiles ? "skipped" : c.profile.files?.transport || "rsync",
-        gitLink: !c.skipGitLink && c.profile.git?.enabled !== false,
+        gitLink: !c.skipGitInit && !c.skipGitLink && c.profile.git?.enabled !== false,
         // Shown because it decides which URLs get search-replaced: the
         // imported site's own siteurl always is, and this is the extra
         // source folded in alongside it (from --remote-url, or the
