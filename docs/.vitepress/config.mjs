@@ -2,7 +2,7 @@ export default {
   title: "A-CLI",
   description: "A-CLI Developer Toolkit documentation",
 
-  base: "/project-setup/",
+  base: "/acli-toolkit/",
 
   themeConfig: {
     nav: [
