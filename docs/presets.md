@@ -7,7 +7,7 @@ acli preset list
 acli preset inspect react
 ```
 
-Named presets and profiles live in user or project configuration. Portable YAML files are also accepted by `--preset` and `--profile`. Profiles use declarative typed operations; arbitrary scripts are not supported. Complete examples ship in `examples/config`.
+Named presets and profiles live in user or project configuration. Portable YAML files are accepted by `--preset` and by profile-aware commands such as `link` and `doctor`; `acli import` requires a named configured profile, so save a portable file first with `acli profile import`. Profiles use declarative typed operations; arbitrary scripts are not supported. Complete examples ship in `examples/config`.
 
 Create and manage profiles without editing YAML:
 
@@ -24,11 +24,11 @@ acli profile delete agency-staging
 
 `profile create` starts an interactive wizard. Use `--scope user` to make it globally available or `--scope project` to save it in `.acli/config.yaml`. `profile delete`/`rename`/`import` default to `--scope project`; pass `--scope user` to target the global config instead. `profile rename` also repoints `defaults.profile` and any preset's `profile` field in that same file, so renaming can't leave a dangling reference behind.
 
-A profile describes only the remote staging environment. Docker or Lando remains a separate local-environment choice. `profile list` marks the default with `*`; `profile use` changes it and `profile current` explains what will be selected by default.
+A profile describes only the remote staging environment. Docker or Lando remains a separate local-environment choice. `profile list` marks the organizational default with `*`; `profile use` changes it and `profile current` reports it. Import deliberately ignores that default when several profiles exist and asks which one to use.
 
 ## Sharing a profile with colleagues
 
-`profile export` prints (or writes) a profile as a portable YAML file — the same shape a `--preset ./path.yaml` or `--profile ./path.yaml` file already accepts directly, or that a colleague can save as a named profile of their own with `profile import`:
+`profile export` prints (or writes) a portable YAML file. A colleague can save it as a named profile with `profile import` before importing a site:
 
 ```bash
 acli profile export agency-cloud --output agency-cloud.profile.yaml

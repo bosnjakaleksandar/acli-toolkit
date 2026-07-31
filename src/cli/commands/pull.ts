@@ -21,7 +21,7 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
     if (!link) {
       throw new CliError("This directory is not linked to a staging profile.", {
         code: "NOT_LINKED",
-        hint: "Run `acli link` first (or `acli create --existing`, which links automatically).",
+        hint: "Run `acli link` first, or start the project with `acli import`, which links it automatically.",
       });
     }
     if (!link.profile) {

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- `acli create` now only scaffolds new projects; existing WordPress sites use the separate, profile-backed `acli import` workflow.
+- The interactive main menu now exposes Profiles as the third action, with create/import/export/list/default/delete management.
+- `acli import` validates profiles before asking project questions, automatically selects a sole profile, and asks when several are configured.
+
+### Removed
+
+- Removed the one-off SSH, local-folder, Git, ZIP, and SQL import sources and their `--source`-specific flags. Portable profile YAML must be saved with `acli profile import` before use.
+
 ### Security
 
 - Project-scoped `.acli/config.yaml` secret references (`{command: ...}` / `${ENV_VAR}`) now require the file to be trusted before A-CLI will resolve them — content-hash-pinned, auto-trusted for anything A-CLI itself wrote. See [SECURITY.md](SECURITY.md). New `acli config trust` command.
@@ -17,7 +27,6 @@ All notable changes to this project are documented in this file. The format is b
 - Fixed the Laravel `.gitignore` template's anchored rules, which never matched anything because the Laravel app is scaffolded into `backend/`, not the project root.
 - CI: the release workflow now verifies a pushed tag's commit is reachable from `main` before publishing; the test workflow declares explicit `permissions: contents: read`.
 - The published npm package no longer includes source maps (dead weight — `src/` isn't shipped).
-- `acli import --source zip` now rejects an archive containing path-traversal entries before extracting it.
 
 ## [2.0.0]
 

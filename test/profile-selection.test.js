@@ -22,7 +22,39 @@ test("throws when a profile is required, none is specified, and none can be infe
   const twoProfiles = { ...profiles, other: profiles["shared-host"] };
   await assert.rejects(
     () => resolveProfileSelection({ config: { profiles: twoProfiles }, options: {}, attachedProfileName: undefined, required: true, nonInteractive: true }),
-    /requires a profile/,
+    /Missing required option.*--profile/s,
+  );
+});
+
+test("a profile-only workflow rejects zero configured profiles without offering inline creation", async () => {
+  await assert.rejects(
+    () => resolveProfileSelection({ config: { profiles: {} }, required: true, nonInteractive: false, offerCreateWhenMissing: false, configuredOnly: true }),
+    /No staging profiles are configured/,
+  );
+});
+
+test("a profile-only workflow asks which configured profile to use when several exist", async () => {
+  const twoProfiles = { ...profiles, other: { ...profiles["shared-host"], ssh: { ...profiles["shared-host"].ssh, host: "other.example.com" } } };
+  let offered = [];
+  const result = await resolveProfileSelection({
+    config: { profiles: twoProfiles },
+    required: true,
+    nonInteractive: false,
+    configuredOnly: true,
+    chooseProfile: async (names) => { offered = names; return "other"; },
+  });
+  assert.deepEqual(offered, ["shared-host", "other"]);
+  assert.equal(result.profileName, "other");
+});
+
+test("profile-only import rejects portable paths until they are saved in configuration", async () => {
+  await assert.rejects(
+    () => resolveProfileSelection({ config: { profiles }, options: { profile: "./portable.yaml" }, required: true, configuredOnly: true, nonInteractive: true }),
+    (error) => {
+      assert.match(error.message, /not configured/);
+      assert.match(error.hint, /profile import/);
+      return true;
+    },
   );
 });
 

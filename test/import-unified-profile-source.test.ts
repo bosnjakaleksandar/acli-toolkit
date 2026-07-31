@@ -12,11 +12,9 @@ import { runCommand } from "../src/system/commandRunner.ts";
 import type { Profile } from "../src/core/model/Profile.ts";
 
 /**
- * Coverage for phase 4: `--source profile` and `--source ssh` now share one
- * ImportSource implementation (ProfileSource.ts) running through the same
- * ImportWorkflow/StepRunner every other source uses, instead of delegating
- * to a second, separate `create --existing` pipeline. This proves that
- * shared implementation reproduces what ExistingWPStrategy used to do
+ * Coverage for the saved-profile ImportSource running through the shared
+ * ImportWorkflow/StepRunner instead of delegating to a second create path.
+ * The implementation reproduces what ExistingWPStrategy used to do
  * directly: file sync, database export, remote-authoritative prefix
  * detection, project-link writing, and safe/unsafe git-origin linking.
  */
@@ -58,7 +56,7 @@ class NoToolCheckRemoteHost extends RemoteHost {
 test("fetchFiles delegates to RemoteHost.syncFiles and is skipped when skipFiles is set", async () => {
   const calls: string[] = [];
   const runner = async (command: string, args: string[] = []) => { calls.push(command); return ""; };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-files-");
 
   await source.fetchFiles({ targetDir, profile: resolvedProfile(), skipFiles: true } as any);
@@ -72,7 +70,7 @@ test("fetchFiles delegates to RemoteHost.syncFiles and is skipped when skipFiles
 
 test("fetchDatabase delegates to RemoteHost.exportDatabase, writing staging.sql", async () => {
   const runner = async () => Buffer.alloc(200, 1);
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-db-");
 
   const result = await source.fetchDatabase({ targetDir, profile: resolvedProfile() } as any);
@@ -89,13 +87,13 @@ test("getRemoteFacts delegates to RemoteHost.getRemoteFacts (wp-cli driver)", as
     if (remoteCommand.includes("siteurl")) return "https://demo.staging.example.com";
     return "";
   };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
   const facts = await source.getRemoteFacts!({ targetDir: "/tmp/unused", profile: resolvedProfile() } as any);
   assert.deepEqual(facts, { tablePrefix: "wp_demo_", siteUrl: "https://demo.staging.example.com" });
 });
 
 test("linkProfile writes the .acli project link and returns the profile name", async () => {
-  const source = createProfileImportSource("profile", "Staging profile");
+  const source = createProfileImportSource();
   const targetDir = await tempDir("acli-profile-source-link-");
   await fs.ensureDir(targetDir);
 
@@ -118,7 +116,7 @@ test("linkGit links a safe remote git origin and sets skipGitInit so the caller'
   // local git binary on targetDir (same as ExistingWPStrategy's #linkGit
   // always did) — verify via that real repo state, not the fake ssh runner.
   const runner = async (command: string) => (command === "ssh" ? "https://github.com/example/repo.git" : "");
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-git-");
 
   const ctx: any = { targetDir, profile: resolvedProfile() };
@@ -139,7 +137,7 @@ test("linkGit refuses a credential-bearing remote git origin URL and never runs 
     if (command === "ssh") return "https://x-access-token:ghp_SECRET@github.com/example/repo.git";
     return "";
   };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-git-unsafe-");
 
   const ctx: any = { targetDir, profile: resolvedProfile() };
@@ -154,7 +152,7 @@ test("linkGit refuses a credential-bearing remote git origin URL and never runs 
 });
 
 test("buildPlan reports the remote target, transports and required tools for --dry-run", async () => {
-  const source = createProfileImportSource("profile", "Staging profile");
+  const source = createProfileImportSource();
   const profile = resolveRemoteProfile({ ...rawProfile, profileName: "demo" }, { projectName: "demo" });
   const plan = source.buildPlan!({ targetDir: "/tmp/unused", profile, projectName: "demo", environment: "docker" } as any) as Record<string, unknown>;
 
@@ -168,7 +166,7 @@ test("buildPlan reports the remote target, transports and required tools for --d
 });
 
 test("buildPlan falls back to the profile's own urls.staging when no --remote-url was supplied", async () => {
-  const source = createProfileImportSource("profile", "Staging profile");
+  const source = createProfileImportSource();
   const withStagingUrl = { ...rawProfile, profileName: "demo", urls: { staging: "https://demo.staging.example.com" } };
   const profile = resolveRemoteProfile(withStagingUrl, { projectName: "demo" });
   const base = { targetDir: "/tmp/unused", profile, projectName: "demo", environment: "docker" };
@@ -193,7 +191,7 @@ test("end-to-end via runImportWorkflow: preflight, prefix detection (remote-auth
     if (command === "ssh" && joined.includes("remote.origin.url")) { calls.push("discover-git"); return ""; }
     return "";
   };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new NoToolCheckRemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new NoToolCheckRemoteHost(profile, runner));
 
   const scaffoldCalls: any[] = [];
   const envService = {
@@ -219,7 +217,7 @@ test("end-to-end via runImportWorkflow: preflight, prefix detection (remote-auth
   await fs.remove(targetDir);
 });
 
-test("end-to-end resume: a remote source's already-fetched dump and detected prefix survive --resume, matching local sources' behavior", async () => {
+test("end-to-end resume: an already-fetched remote dump and detected prefix survive --resume", async () => {
   const targetDir = await tempDir("acli-profile-source-resume-");
   const runner = async (command: string, args: string[] = []) => {
     const joined = args.join(" ");
@@ -230,7 +228,7 @@ test("end-to-end resume: a remote source's already-fetched dump and detected pre
     if (command === "ssh" && joined.includes("remote.origin.url")) return "";
     return "";
   };
-  const source = createProfileImportSource("profile", "Staging profile", (profile) => new NoToolCheckRemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new NoToolCheckRemoteHost(profile, runner));
 
   const failingEnv = { scaffold: async () => { throw new Error("simulated interruption"); } } as any;
   const ctx1: any = { targetDir, profile: resolvedProfile(), projectName: "demo", environment: "docker" };

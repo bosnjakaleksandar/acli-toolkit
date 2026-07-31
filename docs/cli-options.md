@@ -11,7 +11,7 @@ These apply to every command, not just `create`:
 - `--debug` — show debug details and stack traces on failure
 - `--quiet` — suppress decorative output
 
-Running `acli` with no arguments (in an interactive terminal) opens a menu to create, import, link, pull, or run doctor.
+Running `acli` with no arguments opens an interactive menu in this order: Create, Import, Profiles, Link, Pull, Doctor. Profiles opens a submenu for creating, importing, exporting, listing, selecting a default, and deleting staging profiles.
 
 `acli update` installs the latest published version globally. `acli update --check` reports whether one is available (exit code 1 if so) without installing anything — useful for scripting.
 
@@ -39,7 +39,7 @@ Use `--yes` or `--non-interactive` when automation should fail instead of asking
 acli create --type application --framework nextjs --laravel --name booking-app --yes
 ```
 
-To bring in an *existing* WordPress site rather than scaffolding a new one, use `acli import` instead — see [Import an existing WordPress project](./existing-wp.md). `create --existing` still works as a deprecated alias.
+To bring in an *existing* WordPress site rather than scaffolding a new one, use `acli import` instead — see [Import an existing WordPress project](./existing-wp.md). The compatibility flag `create --existing` now exits with a usage error and points to `acli import`; it never starts an import.
 
 Presets and CLI options can be combined. CLI options override preset values:
 
@@ -60,13 +60,12 @@ acli create --type application --framework nextjs --laravel --name booking-app
 - `--name <name>`
 - `--environment <docker|lando>` or `--env <docker|lando>`
 - `--preset <preset>`
-- `--profile <profile>`
 - `--config <path>`
 - `--set <key=value>`
 - `--dry-run`
 - `--from-last`
 - `--resume`
-- `--existing` (deprecated — use `acli import` instead)
+- `--existing` (compatibility error only — use `acli import`)
 - `--type <application|wordpress>`
 - `--framework <react|nextjs|next>`
 - `--laravel`
@@ -75,11 +74,28 @@ acli create --type application --framework nextjs --laravel --name booking-app
 - `--wp-version <version>`
 - `--theme-repo <url>`
 - `--theme-branch <branch>`
-- `--staging-url <url>`
 - `--ssh-key <path>`
-- `--keep-dump`
+- `--skip-git`
+- `--yes` or `--non-interactive`
+
+## `import` options
+
+`acli import` only imports through a named staging profile from the resolved user/project configuration. Create one with `acli profile create`, or save a portable YAML first with `acli profile import <path>`.
+
+With no profiles the command fails before asking project questions. One profile is selected automatically. With several profiles, interactive mode asks which one to use; `--yes`/`--non-interactive` requires `--profile <name>`.
+
+- `--name <name>`
+- `--environment <docker|lando>` or `--env <docker|lando>`
+- `--profile <name>`
+- `--config <path>`
+- `--mysql <version>`
+- `--wp-version <version>`
+- `--remote-url <url>`
+- `--dry-run`
+- `--resume`
 - `--skip-files`
 - `--skip-database`
 - `--skip-git-link`
 - `--skip-git`
+- `--keep-dump`
 - `--yes` or `--non-interactive`

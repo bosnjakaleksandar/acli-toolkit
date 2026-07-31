@@ -3,7 +3,6 @@ import chalk from "chalk";
 import path from "path";
 import type { Command } from "commander";
 import { collectProjectContext, editProjectContext } from "../../projects/prompts/projectPrompts.ts";
-import { askExistingWpVersions } from "../../projects/prompts/wordpressPrompts.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { loadPreset } from "../../projects/plan/presets.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
@@ -17,8 +16,7 @@ import {
 import { resolveStrategy } from "../../projects/strategies/registry.ts";
 import { mascot } from "../../ui/mascot.ts";
 import { ask } from "../../ui/prompts.ts";
-import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
-import { CliError } from "../../core/errors.ts";
+import { CliError, UsageError } from "../../core/errors.ts";
 import { runCommand } from "../CommandShell.ts";
 import { loadLastPlan, saveSuccessfulPlan } from "../../projects/plan/history.ts";
 import { savePlanAsPreset } from "../../projects/plan/history.ts";
@@ -29,51 +27,20 @@ import {
   formatCreateError,
 } from "../../ui/summaries.ts";
 import { buildCreateSteps } from "../../projects/createPipeline.ts";
-import { importCommand } from "./import.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
-import type { CreateCommandOptions, ImportCommandOptions } from "../options.ts";
-
-/** Translates create's own flags into the equivalent `acli import --source profile` run. */
-function toImportOptions(options: CreateCommandOptions, overrides: Partial<ImportCommandOptions> = {}): ImportCommandOptions {
-  return {
-    source: "profile",
-    name: options.name,
-    environment: options.environment || options.env,
-    mysql: options.mysql,
-    wpVersion: options.wpVersion,
-    profile: options.profile,
-    config: options.config,
-    skipFiles: options.skipFiles,
-    skipDatabase: options.skipDatabase,
-    skipGitLink: options.skipGitLink,
-    skipGit: options.skipGit,
-    keepDump: options.keepDump,
-    remoteUrl: options.stagingUrl,
-    dryRun: options.dryRun,
-    resume: options.resume,
-    yes: options.yes,
-    nonInteractive: options.nonInteractive,
-    ...overrides,
-  };
-}
+import type { CreateCommandOptions } from "../options.ts";
 
 /**
- * Runs the interactive project creation command.
- *
- * Setting up an *existing* WordPress site is not a scaffold at all — it is
- * an import — so both routes into it delegate to `acli import --source
- * profile` rather than to a strategy of their own: the deprecated
- * `--existing` flag, and the interactive "Set up an existing WP project"
- * menu choice (handled after the plan is collected, below). They used to
- * diverge, with the interactive route running a separate hand-rolled
- * pipeline that had no `--resume` support.
+ * Runs the new-project scaffolding command. Existing WordPress projects are
+ * intentionally handled only by `acli import`.
  */
 export async function createProjectCommand(options: CreateCommandOptions = {}): Promise<void> {
-  if (options.existing) {
-    console.warn(chalk.yellow("Warning: 'create --existing' is deprecated. Use 'acli import' instead.\n"));
-    return importCommand(toImportOptions(options));
-  }
   await runCommand({ title: "CREATE", icon: "🚀", failureMessage: "Project creation failed." }, async (shell) => {
+    if (options.existing) {
+      throw new UsageError("`acli create --existing` is no longer supported.", {
+        hint: "Use `acli import` to import an existing WordPress project.",
+      });
+    }
     let targetDir = "";
     let s: ReturnType<typeof spinner> | null = null;
     let ownsTargetDir = false;
@@ -91,40 +58,20 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
       return formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand });
     });
 
-    let { config } = await loadConfig({ configPath: options.config });
+    const { config } = await loadConfig({ configPath: options.config });
     const preset = await loadPreset(options.preset, config);
     const cliContext = normalizeCliOptions(options);
     const setContext = parseSetOverrides(options.set);
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
     const previousPlan = options.fromLast ? await loadLastPlan() : {};
     if (options.fromLast && !previousPlan) throw new Error("No successful create history was found in this directory.");
-    const initialContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext) as ProjectPlan, cliContext);
-    ctx = await collectProjectContext(initialContext, { nonInteractive });
-
-    // Setting up an existing site is an import, not a scaffold. Delegating
-    // here — before profile selection — means the profile is picked once,
-    // inside the import flow, rather than in both. The MySQL/WP versions
-    // are resolved first because "Customize advanced settings?" was already
-    // asked above; `acli import` on its own never asks, so the answer would
-    // otherwise be collected and then silently ignored.
-    if (ctx.setupType === "existing-wp") {
-      const { mysqlVersion, wpVersion } = await askExistingWpVersions(ctx, { nonInteractive });
-      return importCommand(toImportOptions(options, {
-        name: ctx.projectName,
-        environment: ctx.environment,
-        mysql: mysqlVersion,
-        wpVersion,
-        remoteUrl: (ctx.stagingUrl as string | undefined) || options.stagingUrl,
-        profile: options.profile || (typeof ctx.profile === "string" ? ctx.profile : undefined),
-      }));
+    const mergedContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext) as ProjectPlan, cliContext);
+    if (mergedContext.setupType === "existing-wp") {
+      throw new UsageError("This preset or saved plan describes an existing WordPress project.", {
+        hint: "Use `acli import`; create only scaffolds new projects.",
+      });
     }
-
-    const selection = await resolveProfileSelection({ config, options, attachedProfileName: ctx.profile as string | undefined, required: false, nonInteractive });
-    config = selection.config;
-    if (selection.profile) {
-      (ctx as any).profile = selection.profile;
-      if (!nonInteractive) note(profileSummary(selection.profile, ctx.environment), `Selected profile: ${selection.profileName}`);
-    }
+    ctx = await collectProjectContext(withoutImportContext(mergedContext), { nonInteractive });
     const envService = resolveEnvironmentService(ctx.environment!);
     const strategy = resolveStrategy(ctx, envService);
 
@@ -203,13 +150,12 @@ export function registerCreateCommand(program: Command): void {
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")
     .option("--preset <preset>", "Use a named preset or portable YAML preset file")
-    .option("--profile <profile>", "Use a named or portable remote environment profile")
     .option("--config <path>", "Use an explicit A-CLI configuration file")
     .option("--set <key=value>", "Override a non-secret configuration value", collect, [] as string[])
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--from-last", "Reuse the last successful create plan from this directory")
     .option("--resume", "Continue an interrupted create run instead of starting over")
-    .option("--existing", "Shortcut for setting up an existing WordPress project")
+    .option("--existing", "Unsupported compatibility flag; use `acli import`")
     .option("--type <type>", "Project type: application or wordpress")
     .option("--framework <framework>", "Application framework: react, nextjs, or next")
     .option("--laravel", "Add Laravel as a backend for application projects")
@@ -218,12 +164,7 @@ export function registerCreateCommand(program: Command): void {
     .option("--wp-version <version>", "WordPress version")
     .option("--theme-repo <url>", "Theme repository URL")
     .option("--theme-branch <branch>", "Theme repository branch")
-    .option("--staging-url <url>", "Optional extra search-replace source; the imported site's actual URL is detected automatically")
     .option("--ssh-key <path>", "SSH private key path")
-    .option("--keep-dump", "Keep staging.sql after a successful migration")
-    .option("--skip-files", "Skip remote WordPress file transfer")
-    .option("--skip-database", "Skip remote database export and local import")
-    .option("--skip-git-link", "Skip remote Git discovery and linking")
     .option("--skip-git", "Skip Git repository initialization")
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
@@ -231,3 +172,10 @@ export function registerCreateCommand(program: Command): void {
 }
 
 function collect(value: string, previous: string[]): string[] { return [...previous, value]; }
+
+/** Import-only defaults must never affect a fresh scaffold. */
+function withoutImportContext(ctx: ProjectPlan): ProjectPlan {
+  const clean: ProjectPlan = { ...ctx, setupType: "new" };
+  for (const key of ["profile", "stagingUrl", "skipFiles", "skipDatabase", "skipGitLink", "keepDump"]) delete clean[key];
+  return clean;
+}

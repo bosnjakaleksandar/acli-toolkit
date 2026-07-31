@@ -43,7 +43,7 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "tsc -p tsconfig.json && node scripts/copy-templates.mjs",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-templates.mjs",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "npm run typecheck && node --test",
     "prepack": "npm run build",

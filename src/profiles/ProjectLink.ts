@@ -44,7 +44,7 @@ export async function writeLink(root: string, link: ProjectLink): Promise<string
 }
 
 /**
- * `link` (and `create --existing`) write .acli/config.yaml into a directory
+ * `link` and profile-backed `import` write .acli/config.yaml into a directory
  * that may already be a tracked git repo the user didn't scaffold with
  * A-CLI — nothing else would ever add `.acli/` to that repo's .gitignore.
  * Idempotent: does nothing if the file already excludes it (however it's

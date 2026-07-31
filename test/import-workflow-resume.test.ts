@@ -22,7 +22,6 @@ async function tempDir(prefix: string) {
 
 function makeFakeSource(sql: string): ImportSource {
   return {
-    id: "fake",
     label: "Fake source",
     async fetchFiles() {},
     async fetchDatabase(ctx: ImportSourceContext) {
@@ -72,7 +71,6 @@ test("a --resume run still imports a database dump that was fetched in the inter
 test("a --resume run with --skip-database (no dump ever fetched) does not attempt to import on resume either", async () => {
   const targetDir = await tempDir("acli-import-resume-skipdb-");
   const source: ImportSource = {
-    id: "fake-skip",
     label: "Fake source",
     async fetchFiles() {},
     async fetchDatabase() { throw new Error("must not be called when skipDatabase is set"); },

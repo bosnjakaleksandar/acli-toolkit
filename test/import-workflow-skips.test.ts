@@ -10,9 +10,8 @@ import type EnvironmentService from "../src/environments/EnvironmentService.ts";
 /**
  * Ported from the deleted test/existing-wp-scaffold.test.js, which asserted
  * these behaviors against ExistingWPStrategy's own hand-rolled pipeline.
- * That pipeline is gone — `acli create`'s existing-WordPress route now runs
- * this same ImportWorkflow — so the guarantees move here, where they cover
- * every import source rather than only the profile one.
+ * That pipeline is gone; the guarantees now live in the shared import
+ * workflow instead of being duplicated inside the profile source.
  */
 
 const DUMP = "CREATE TABLE `wp_options` (id INT);\nCREATE TABLE `wp_posts` (id INT);\nCREATE TABLE `wp_users` (id INT);";
@@ -23,7 +22,6 @@ async function tempDir(prefix: string) {
 
 function makeSource(calls: string[]): ImportSource {
   return {
-    id: "fake",
     label: "Fake source",
     async preflight() { calls.push("preflight"); },
     async fetchFiles() { calls.push("fetchFiles"); },

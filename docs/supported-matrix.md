@@ -9,12 +9,14 @@ A precise reference for what A-CLI can create and sync, and the known edges of t
 | WordPress theme (`wp-theme`) | A-CLI (starter theme or a custom repo) | Docker or Lando |
 | WordPress + WooCommerce (`wp-woo`) | A-CLI | Docker or Lando |
 | WordPress + React (`wp-react`) | A-CLI | Docker or Lando |
-| Existing WordPress site (`existing-wp`) | Synced from a staging profile (see below) | Docker or Lando |
+| Existing WordPress site (`existing-wp`, via `acli import`) | Synced from a configured staging profile (see below) | Docker or Lando |
 | React | [`create-vite`](https://vite.dev) (official) | none — its own dev server |
 | Next.js | [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app) (official) | none — its own dev server |
 | Laravel + React/Next.js | `composer create-project laravel/laravel` (official) + the frontend generator above | none — `php artisan serve` + the frontend's own dev server |
 
 React/Next.js/Laravel are deliberately **not** scaffolded by A-CLI's own templates — they're handed to the official generators so the result always reflects that ecosystem's current best practice, not a copy that can drift out of date. See [React](./react.md), [Next.js](./nextjs.md), [Laravel](./laravel.md).
+
+`acli create` handles only the new-project rows. Existing WordPress sites always enter through the separate, profile-only `acli import` command.
 
 ## Local environments (WordPress only)
 
