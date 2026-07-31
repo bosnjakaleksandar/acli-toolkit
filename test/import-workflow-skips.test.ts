@@ -10,9 +10,8 @@ import type EnvironmentService from "../src/environments/EnvironmentService.ts";
 /**
  * Ported from the deleted test/existing-wp-scaffold.test.js, which asserted
  * these behaviors against ExistingWPStrategy's own hand-rolled pipeline.
- * That pipeline is gone — `acli create`'s existing-WordPress route now runs
- * this same ImportWorkflow — so the guarantees move here, where they cover
- * every import source rather than only the profile one.
+ * That pipeline is gone; the guarantees now live in the shared import
+ * workflow instead of being duplicated inside the profile source.
  */
 
 const DUMP = "CREATE TABLE `wp_options` (id INT);\nCREATE TABLE `wp_posts` (id INT);\nCREATE TABLE `wp_users` (id INT);";
@@ -23,7 +22,6 @@ async function tempDir(prefix: string) {
 
 function makeSource(calls: string[]): ImportSource {
   return {
-    id: "fake",
     label: "Fake source",
     async preflight() { calls.push("preflight"); },
     async fetchFiles() { calls.push("fetchFiles"); },
@@ -60,6 +58,20 @@ test("skipFiles/skipDatabase/skipGitLink each suppress only their own step", asy
   assert.ok(!calls.includes("linkGit"), "skipGitLink must suppress remote git discovery");
   // Everything not skipped still runs.
   assert.deepEqual(calls, ["preflight", "scaffold", "linkProfile"]);
+  const gitignore = await fs.readFile(path.join(targetDir, ".gitignore"), "utf8");
+  assert.match(gitignore, /^\/wp-config\.php$/m, "import must materialize the WordPress gitignore template even when Git linking is skipped");
+  assert.match(gitignore, /^\.acli\/$/m);
+  await fs.remove(targetDir);
+});
+
+test("--skip-git suppresses remote linking as well as later local initialization", async () => {
+  const targetDir = await tempDir("acli-import-skip-git-");
+  const calls: string[] = [];
+  const ctx: any = { targetDir, skipGitInit: true };
+
+  await runImportWorkflow({ source: makeSource(calls), ctx, targetDir, envService: makeEnvService(calls), resume: false });
+
+  assert.ok(!calls.includes("linkGit"), "--skip-git must prevent linkGit from initializing a repository indirectly");
   await fs.remove(targetDir);
 });
 

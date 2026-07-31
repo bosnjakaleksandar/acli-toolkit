@@ -42,6 +42,7 @@ Thumbs.db
 # Environment / Local                    #
 # -------------------------------------- #
 
+/wp-config.php
 .env
 .env.*
 !.env.example

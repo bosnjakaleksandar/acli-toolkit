@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
-import { getGitignore, scaffoldGitignore } from "../src/system/gitignore.ts";
+import { getGitignore, mergeGitignoreContents, mergeGitignoreForImport, scaffoldGitignore } from "../src/system/gitignore.ts";
 
 const templatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "templates", "gitignore");
 
@@ -45,4 +45,28 @@ test("scaffoldGitignore writes the resolved template to <targetDir>/.gitignore",
   const written = await fs.readFile(path.join(directory, ".gitignore"), "utf8");
   assert.equal(written, await getGitignore("wordpress"));
   await fs.remove(directory);
+});
+
+test("import replaces the one-line .acli placeholder with the complete WordPress template", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-git-utils-import-"));
+  await fs.writeFile(path.join(directory, ".gitignore"), ".acli/\n");
+  await mergeGitignoreForImport(directory, "wordpress");
+  const written = await fs.readFile(path.join(directory, ".gitignore"), "utf8");
+  assert.equal(written, await getGitignore("wordpress"));
+  assert.match(written, /^\/wp-config\.php$/m);
+  assert.match(written, /^\/wp-content\/uploads\/$/m);
+  await fs.remove(directory);
+});
+
+test("import preserves a remote project .gitignore and appends only missing A-CLI template rules", async () => {
+  const remote = "# Project-specific rules\n/custom-cache/\n/wp-admin/\n";
+  const current = ".acli/\n";
+  const template = await getGitignore("wordpress");
+  const merged = mergeGitignoreContents(current, template, remote);
+
+  assert.ok(merged.startsWith(remote.trimEnd()), "the tracked remote file must remain the authoritative base");
+  assert.match(merged, /^\/custom-cache\/$/m);
+  assert.match(merged, /^\.acli\/$/m);
+  assert.match(merged, /^\/wp-config\.php$/m);
+  assert.equal(merged.match(/^\/wp-admin\/$/gm)?.length, 1, "an existing remote rule must not be duplicated");
 });

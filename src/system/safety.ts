@@ -50,6 +50,11 @@ export function isSafeGitUrl(url: unknown): url is string {
   return URL_SCHEME_GIT_URL.test(value) || SCP_LIKE_GIT_URL.test(value) || SAFE_LOCAL_GIT_PATH.test(value);
 }
 
+/** SSH config `Host` aliases are single argv-safe host tokens, never paths or options. */
+export function isSafeSshHostAlias(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(value);
+}
+
 /**
  * Best-effort masking of credential-bearing URL userinfo (`scheme://user:pass@host`
  * → `scheme://***@host`) wherever it appears inside free-form text — spinner

@@ -1,19 +1,16 @@
 # Import an existing WordPress project
 
-`acli import` brings an existing WordPress site into a new local project. It supports several sources via `--source`:
+`acli import` brings an existing WordPress site into a new local project through a saved [staging profile](./presets.md). The profile describes SSH, remote paths, content transfer, database source, Git discovery, and URLs. Database drivers are `wp-cli`, `docker`, and `direct`; file transport is `rsync` or `sftp` (through SCP).
 
-- **`profile`** (default) — a saved [staging profile](./presets.md) describing SSH, remote paths, content transfer, database source, Git discovery, and URLs. Database drivers are `wp-cli`, `docker`, and `direct`; file transport is `rsync` or `sftp` (through SCP).
-- **`ssh`** — a one-off SSH target with no saved profile: `--ssh-host`, `--ssh-user`, `--remote-path`, and optionally `--ssh-port`/`--ssh-key`/`--db-driver`/`--remote-url`.
-- **`local`** — copy WordPress files already on this machine: `--local-path <path>`.
-- **`git`** — clone a repository containing a `wp-content` directory: `--repo <url>` (optionally `--branch`).
-- **`zip`** — extract a `.zip` archive containing `wp-content` (e.g. a hosting-panel export): `--zip <path>`. Requires the `unzip` command.
-- **`sql`** — import only a database dump, with no file sync at all.
+Create a profile first with `acli profile create` or the Profiles entry in the main menu. A portable profile YAML must be saved with `acli profile import <path>` before import can use it.
 
-`local`, `git`, `zip`, and `sql` all accept `--sql-file <path>` for the database dump, and `--remote-url` as an extra search-replace source.
+Profile selection happens before project questions:
 
-Create a profile interactively with `acli profile create`. When `acli import --source profile` is run interactively and no profiles exist, it offers to start this wizard automatically.
+- No configured profiles: import stops with instructions to create one.
+- One configured profile: it is selected automatically.
+- Several configured profiles: interactive mode asks which one to use; non-interactive mode requires `--profile <name>`.
 
-After choosing a profile, A-CLI shows its remote host/database/transport summary and separately asks whether the generated local project should use Docker or Lando.
+After profile selection, A-CLI asks for the project name and whether the generated local project should use Docker or Lando, then shows the selected remote host/database/transport summary.
 
 ```bash
 export ACLI_SSH_KEY="$HOME/.ssh/staging"
@@ -21,17 +18,22 @@ acli import --name client-site --profile shared-host \
   --config ./examples/config/shared-host.yaml --dry-run --yes
 ```
 
+Remove `--dry-run` to import. Controls include `--skip-files`, `--skip-database`, `--skip-git-link`, and `--keep-dump`. Preflight checks happen before target creation. A failed import preserves whatever was already fetched and prints an exact `acli import --resume --name <name>` command to continue from the failed step instead of starting over.
+
+When Git discovery is enabled, import initializes the local repository, adds the discovered `origin`, fetches it, and makes the remote default branch the local baseline/upstream without checking out over imported files. This is deliberately pull-only: A-CLI never commits and never pushes. Use `--skip-git` to disable local Git completely or `--skip-git-link` to initialize a standalone local repository without connecting it to staging's origin.
+
+If your local `~/.ssh/config` uses separate aliases for Git accounts (for example `github-work` and `github-personal`, both pointing to `github.com`), configure the alias on that staging profile:
+
 ```bash
-# A local WordPress backup, no remote host involved
-acli import --source local --name client-site --environment docker \
-  --local-path ~/Downloads/client-site-backup --sql-file ~/Downloads/client-site.sql
+acli profile git-alias agency-staging github-work --scope user
+acli import --resume --name client-site
 ```
 
-Remove `--dry-run` to import. Controls include `--skip-files`, `--skip-database`, `--skip-git-link` (profile/ssh only), and `--keep-dump`. Preflight checks happen before target creation. A failed import preserves whatever was already fetched and prints an exact `--resume` command to continue from the step that failed, instead of starting over — it never reports success after a partial or failed migration.
+The profile's optional `git.sshHostAlias` rewrites only the host part of SSH Git URLs (`git@github.com:org/repo.git` → `git@github-work:org/repo.git`). HTTPS URLs are unchanged. This setting is local configuration, not a repository URL that A-CLI pushes to.
 
-Host-key policy for profile-based sources defaults to `strict`; `accept-new` supports automated first connection. Avoid `insecure` outside disposable environments.
+Import also prepares `.gitignore` after the Git baseline is available. If the repository already tracks one, its contents and project-specific rules are preserved and missing WordPress/A-CLI patterns are appended. If no tracked file exists, the complete bundled WordPress template is written; import never leaves a one-line `.acli/` placeholder.
 
-`create --existing` still works — it's a deprecated alias for `acli import --source profile`.
+Host-key policy defaults to `strict`; `accept-new` supports automated first connection. Avoid `insecure` outside disposable environments. `acli create` never imports an existing site; the compatibility flag `create --existing` exits with instructions to use `acli import`.
 
 ## How the database import stays reliable across different servers
 
@@ -44,7 +46,7 @@ See the [Supported Matrix](./supported-matrix.md) for the full reference. Summar
 
 ## Daily re-syncs with `acli link` and `acli pull`
 
-`acli import --source profile` scaffolds a project, links it to its staging profile, and runs an initial full sync — but real work happens after that first import. Two commands cover the rest of the project's life:
+`acli import` scaffolds a project, links it to its staging profile, and runs an initial full sync — but real work happens after that first import. Two commands cover the rest of the project's life:
 
 - **`acli link`** connects an *already existing* local directory (one you didn't create with `acli create`/`acli import`, e.g. a checked-out repo) to a staging profile, without touching its files. It writes the same `project:` link that a profile-based import writes automatically, and generates a local environment file if one isn't already present.
 - **`acli pull [targets...]`** selectively re-syncs a linked project: `acli pull db`, `acli pull uploads plugins themes`, or bare `acli pull` (interactive picker, or every target non-interactively) for a full re-sync. A database pull always asks for confirmation before overwriting your local database unless `--yes` is passed. `--dry-run` prints the resolved plan without changing anything; `--keep-dump` preserves `staging.sql` after a database pull.

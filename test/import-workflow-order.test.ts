@@ -22,7 +22,6 @@ async function tempDir(prefix: string) {
 
 function makeFakeSource(sql: string): ImportSource {
   return {
-    id: "fake",
     label: "Fake source",
     async fetchFiles() {},
     async fetchDatabase(ctx: ImportSourceContext) {
@@ -60,7 +59,6 @@ test("detects the table prefix before scaffolding, so the local environment is t
 test("scaffolds normally (with the wp_ default) when the source supplies no database dump", async () => {
   const targetDir = await tempDir("acli-import-order-nodump-");
   const source: ImportSource = {
-    id: "fake-no-dump",
     label: "Fake source (no dump)",
     async fetchFiles() {},
     async fetchDatabase() { return { hasDump: false }; },

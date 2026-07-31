@@ -58,6 +58,8 @@ export interface Profile {
     enabled?: boolean;
     includeProjectRoot?: boolean;
     discoveryPaths?: string[];
+    /** Local ~/.ssh/config Host alias used only when fetching an SSH Git origin. */
+    sshHostAlias?: string;
   };
   urls?: {
     staging?: string;

@@ -6,6 +6,7 @@ import { StepRunner } from "../../core/StepRunner.ts";
 import type { ImportSource, ImportSourceContext } from "./ImportSource.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
+import { mergeGitignoreForImport } from "../../system/gitignore.ts";
 
 export interface ImportWorkflowOptions {
   source: ImportSource;
@@ -118,9 +119,20 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       id: "link-git",
       title: "Linking Git repository",
       run: async () => {
-        if (!source.linkGit || ctx.skipGitLink) return;
+        if (!source.linkGit || ctx.skipGitLink || ctx.skipGitInit) return null;
         spinner?.message?.("Discovering remote Git repository...");
-        await source.linkGit(targetDir, ctx, spinner);
+        return source.linkGit(targetDir, ctx, spinner);
+      },
+      onSkip: (result: any) => {
+        if (result?.summary) ctx.gitStatus = result.summary;
+      },
+    },
+    {
+      id: "gitignore",
+      title: "Preparing WordPress Git ignore rules",
+      run: async () => {
+        spinner?.message?.("Preparing WordPress .gitignore rules...");
+        await mergeGitignoreForImport(targetDir, "wordpress");
       },
     },
     {

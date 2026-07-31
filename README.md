@@ -168,7 +168,7 @@ acli create --name salon --preset wordpress --environment lando
 For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required values are reported as errors instead of prompts:
 
 ```bash
-acli import --name client-site --environment lando --yes
+acli import --name client-site --profile agency --environment lando --yes
 acli create --type application --framework nextjs --laravel --name booking-app --yes
 ```
 
@@ -237,7 +237,11 @@ Laravel combinations create a real Laravel application in `backend/` using `comp
 
 WordPress projects generate the selected Docker or Lando environment, support starter or custom theme repositories, optional branch selection, and optional plugin setup scripts.
 
-`acli import` brings an existing WordPress site into a new local project: syncs staging files, exports the staging database, scaffolds the local environment, detects Git remotes, imports the database, and runs search-replace — linked to its staging profile automatically, so `acli pull` can re-sync it afterward. Besides a saved profile (the default), `--source` also accepts a one-off `ssh` target, a `local` folder, a `git` repo, a `.zip` export, or a bare `sql` dump. Use `acli link` to attach a profile to a directory you didn't create with `acli create`/`acli import` (e.g. a checked-out repo). `acli create --existing` still works as a deprecated alias for `acli import --source profile`. See [docs/existing-wp.md](docs/existing-wp.md) for every source and the daily `acli link`/`acli pull` workflow, and [docs/supported-matrix.md](docs/supported-matrix.md) for exactly what's supported and its known limitations.
+`acli create` only scaffolds new projects. `acli import` is the separate existing-WordPress workflow: it uses a configured staging profile to sync files, export the database, scaffold the local environment, discover Git remotes, migrate the database, and link the project so `acli pull` can re-sync it afterward. A discovered Git origin is fetched and its default branch becomes the local upstream without overwriting imported files. Git integration is strictly pull-only: A-CLI never commits or pushes, and its command runner rejects push attempts. Create a profile first with `acli profile create`; with one configured profile import selects it automatically, while multiple profiles are presented for selection. Use `acli link` to attach a profile to a directory you did not create with A-CLI. See [docs/existing-wp.md](docs/existing-wp.md) and [docs/supported-matrix.md](docs/supported-matrix.md).
+
+Developers who use separate `~/.ssh/config` aliases for Git accounts can map one per profile, for example: `acli profile git-alias agency-staging github-work --scope user`.
+
+Imported WordPress projects receive the bundled WordPress `.gitignore` rules. An existing remote `.gitignore` is preserved as the base, with only missing A-CLI rules added.
 
 ## A-CLI v2 configuration
 
@@ -267,7 +271,7 @@ If Laravel generation fails, install Composer and PHP, then rerun the command.
 
 If a theme clone fails, verify the repository URL, selected branch, and SSH key access.
 
-If an existing WordPress sync fails, run a dry run and verify the selected profile, SSH access, transfer tool, and remote WordPress path. A failed `create`/`import` never deletes what it already fetched — it prints an exact `--resume` command to continue from the step that failed instead of starting over.
+If an existing WordPress sync fails, run a dry run and verify the selected profile, SSH access, transfer tool, and remote WordPress path. A failed import never deletes what it already fetched — it prints an exact `--resume` command to continue from the step that failed instead of starting over.
 
 If Docker database import fails, start the environment manually and inspect container logs:
 

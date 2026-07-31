@@ -141,13 +141,13 @@ test("a StepFailedError carries the resumeCommand supplied to the StepRunner con
   const runner = new StepRunner(
     [{ id: "a", title: "Step A", run: async () => { throw new Error("boom"); } }],
     dir,
-    { resumeCommand: "acli import --source git --resume --name demo" },
+    { resumeCommand: "acli import --resume --name demo" },
   );
   await assert.rejects(
     () => runner.run(),
     (error: unknown) => {
       assert.ok(error instanceof StepFailedError);
-      assert.equal(error.resumeCommand, "acli import --source git --resume --name demo");
+      assert.equal(error.resumeCommand, "acli import --resume --name demo");
       return true;
     },
   );

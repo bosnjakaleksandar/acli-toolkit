@@ -2,6 +2,7 @@ import path from "node:path";
 import { CONFIG_VERSION } from "./defaults.ts";
 import type { AcliConfig, ProjectLink } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/Profile.ts";
+import { isSafeSshHostAlias } from "../system/safety.ts";
 
 const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);
@@ -65,6 +66,7 @@ function validateProfile(profile: Profile, label: string, errors: string[]): voi
   if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
   if (profile.database?.tablePrefix !== undefined && typeof profile.database.tablePrefix !== "string") errors.push(`${label}: database.tablePrefix must be a string.`);
   if (profile.database?.normalizeCollations !== undefined && typeof profile.database.normalizeCollations !== "boolean") errors.push(`${label}: database.normalizeCollations must be a boolean.`);
+  if (profile.git?.sshHostAlias !== undefined && !isSafeSshHostAlias(profile.git.sshHostAlias)) errors.push(`${label}: git.sshHostAlias must be a valid SSH config Host alias (letters, numbers, dots, dashes, and underscores).`);
 }
 
 function validatePlanFields(fields: Record<string, unknown>, label: string, errors: string[]): void {

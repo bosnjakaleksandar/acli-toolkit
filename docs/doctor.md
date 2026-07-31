@@ -11,13 +11,13 @@ Doctor only checks what the selected workflow actually needs, so it never fails 
 - **If the preset uses Laravel** (`useLaravel: true`, e.g. the `laravel-react`/`laravel-next` presets): Composer, PHP
 - **If a staging profile applies** (`--profile`, or a preset's `profile`): SSH, and rsync or SCP depending on the profile's `files.transport`
 
-WP-CLI is never checked — it's optional locally; Docker/Lando workflows run `wp` commands inside the environment. `unzip` (used by `acli import --source zip`) isn't checked either.
+WP-CLI is never checked — it's optional locally; Docker/Lando workflows run `wp` commands inside the environment.
 
 Missing tools are reported with a suggested fix.
 
 ## Checking a specific workflow
 
-Doctor mirrors `acli create`'s own resolution of preset/profile/environment, so pass the same options to check exactly what that run would need:
+Doctor can resolve a create preset/local environment or an import staging profile, so pass the matching options to check exactly what that workflow needs:
 
 ```bash
 acli doctor --preset wordpress --environment docker

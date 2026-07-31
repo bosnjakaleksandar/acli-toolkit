@@ -10,7 +10,7 @@ import type { ResolvedProfile } from "./Profile.ts";
  *
  * Kept intentionally permissive (most fields optional, `[key: string]:
  * unknown` escape hatch) because the concrete field set still depends on
- * which ProjectType/ImportSource is selected, and several collaborators
+ * which project or import workflow is selected, and several collaborators
  * (strategies, CliOptionsService, PresetService) remain untyped JS until
  * later phases convert them. Tightening this into a discriminated union
  * per project type is expected once those conversions land.
@@ -42,6 +42,8 @@ export interface ProjectPlan {
   presetName?: string;
 
   skipGitInit?: boolean;
+  /** Final observed Git state for the success summary; never persisted as configuration. */
+  gitStatus?: string;
   skipFiles?: boolean;
   skipDatabase?: boolean;
   skipGitLink?: boolean;

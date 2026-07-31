@@ -26,7 +26,6 @@ export interface CreateCommandOptions {
   environment?: string;
   env?: string;
   preset?: string;
-  profile?: string;
   config?: string;
   set?: string[];
   dryRun?: boolean;
@@ -41,21 +40,16 @@ export interface CreateCommandOptions {
   wpVersion?: string;
   themeRepo?: string;
   themeBranch?: string;
-  stagingUrl?: string;
   sshKey?: string;
-  keepDump?: boolean;
-  skipFiles?: boolean;
-  skipDatabase?: boolean;
-  skipGitLink?: boolean;
   skipGit?: boolean;
   yes?: boolean;
   nonInteractive?: boolean;
 }
 
 /**
- * Union of every `acli import` flag. Declared in wordpress/import (each
- * source reads its own fields via `resolveOptions`) and re-exported here
- * under its CLI-facing name, so the dependency runs cli -> wordpress.
+ * `acli import` is intentionally profile-only. The import-domain shape is
+ * re-exported here so command registration and the remote import source
+ * agree on the same public option surface.
  */
 export type { ImportOptions as ImportCommandOptions } from "../wordpress/import/ImportSource.ts";
 

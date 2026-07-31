@@ -8,11 +8,13 @@ import { importCommand } from "./commands/import.ts";
 import { doctorCommand } from "./commands/doctor.ts";
 import { linkCommand } from "./commands/link.ts";
 import { pullCommand } from "./commands/pull.ts";
+import { runProfilesMenu } from "./commands/profile.ts";
 
 /** Entries in the bare-`acli` menu, paired with the handler each one runs. */
-const MENU: Array<{ label: string; value: string; run: (options: any) => Promise<void> }> = [
+export const MAIN_MENU: Array<{ label: string; value: string; run: (options: any) => Promise<void>; returnToMenu?: boolean }> = [
   { label: "Create a project", value: "create", run: (options) => createProjectCommand(options) },
   { label: "Import an existing WordPress site", value: "import", run: (options) => importCommand(options) },
+  { label: "Profiles", value: "profiles", run: (options) => runProfilesMenu(options), returnToMenu: true },
   { label: "Link an existing project to a staging profile", value: "link", run: (options) => linkCommand(options) },
   { label: "Pull files/database from a linked profile", value: "pull", run: (options) => pullCommand([], options) },
   { label: "Check system requirements", value: "doctor", run: (options) => doctorCommand(options) },
@@ -28,18 +30,20 @@ export async function runMainMenu(options: any): Promise<boolean> {
   await showBanner();
   if (!(await fs.pathExists(getUserConfigPath()))) {
     note(
-      "No configuration found yet — that's normal for a first run.\nRun `acli config init` to write a starter config, or just pick an option below;\ncommands that need a staging profile will offer to create one on the spot.",
+      "No configuration found yet — that's normal for a first run.\nChoose Profiles to create a staging profile before importing,\nor choose Create to scaffold a new project.",
       "Get started",
     );
   }
 
-  const action = await ask(select, {
-    message: "What would you like to do?",
-    options: [...MENU.map(({ label, value }) => ({ label, value })), { label: "Show command help", value: "help" }],
-  });
+  while (true) {
+    const action = await ask(select, {
+      message: "What would you like to do?",
+      options: [...MAIN_MENU.map(({ label, value }) => ({ label, value })), { label: "Show command help", value: "help" }],
+    });
 
-  const choice = MENU.find((entry) => entry.value === action);
-  if (!choice) return false;
-  await choice.run(options);
-  return true;
+    const choice = MAIN_MENU.find((entry) => entry.value === action);
+    if (!choice) return false;
+    await choice.run(options);
+    if (!choice.returnToMenu) return true;
+  }
 }

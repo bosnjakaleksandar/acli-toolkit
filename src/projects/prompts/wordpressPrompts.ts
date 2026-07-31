@@ -142,21 +142,3 @@ export function normalizePlugins(plugins: unknown): string[] {
   if (invalid.length) throw new Error(`Invalid plugin slug(s): ${invalid.join(", ")}. Plugin slugs may only contain lowercase letters, digits, and hyphens.`);
   return list;
 }
-
-/**
- * Resolves the MySQL/WordPress versions for an existing-WordPress import.
- * A preset value always wins; otherwise the questions are only asked when
- * the user opted into "Customize advanced settings?" — declining it is what
- * makes the default journey actually shorter. Lando ignores wpVersion (its
- * recipe pins WordPress itself), so it is not asked for there.
- */
-export async function askExistingWpVersions(ctx: ProjectPlan, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<{ mysqlVersion: string; wpVersion: string }> {
-  const skipAdvancedPrompts = nonInteractive || !ctx.customizeAdvanced;
-  const mysqlVersion = hasPresetValue(ctx, "mysqlVersion")
-    ? ctx.mysqlVersion as string
-    : skipAdvancedPrompts ? "8.0" : await askMysqlVersion();
-  const wpVersion = ctx.environment === "docker"
-    ? hasPresetValue(ctx, "wpVersion") ? ctx.wpVersion as string : skipAdvancedPrompts ? "latest" : await askWpVersion()
-    : "latest";
-  return { mysqlVersion, wpVersion };
-}

@@ -35,13 +35,7 @@ export function normalizeCliOptions(options: any = {}): ProjectPlan {
   assignIfPresent(normalized, "wpVersion", options.wpVersion);
   assignIfPresent(normalized, "themeRepo", options.themeRepo);
   assignIfPresent(normalized, "themeBranch", options.themeBranch);
-  assignIfPresent(normalized, "stagingUrl", options.stagingUrl);
   assignIfPresent(normalized, "sshKeyPath", options.sshKey);
-
-  if (options.keepDump) normalized.keepDump = true;
-  if (options.skipFiles) normalized.skipFiles = true;
-  if (options.skipDatabase) normalized.skipDatabase = true;
-  if (options.skipGitLink) normalized.skipGitLink = true;
 
   if (options.skipGit) normalized.skipGitInit = true;
   if (options.yes || options.nonInteractive) normalized.nonInteractive = true;
@@ -67,12 +61,6 @@ export function normalizeCliOptions(options: any = {}): ProjectPlan {
     normalized.appType = "wordpress";
     normalized.wpType = normalizeWpType(options.wpType) as ProjectPlan["wpType"];
     normalized.projectType = normalized.wpType!;
-  }
-
-  if (options.existing) {
-    normalized.setupType = "existing-wp";
-    normalized.appType = "wordpress";
-    normalized.projectType = "wp-existing";
   }
 
   return validateProjectContext(normalized, { source: "CLI option" });
@@ -147,7 +135,7 @@ export function validateProjectContext(ctx: ProjectPlan = {}, { source = "projec
 export function assertRequiredProjectContext(ctx: ProjectPlan = {}): void {
   const missing: string[] = [];
 
-  addMissing(missing, ctx, "setupType", "--type <application|wordpress> or --existing");
+  addMissing(missing, ctx, "setupType", "--type <application|wordpress>");
   addMissing(missing, ctx, "projectName", "--name <name>");
   // Application projects (React/Next.js/Laravel) no longer use Docker/Lando
   // — they're scaffolded by their official generators and run via their own

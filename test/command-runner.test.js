@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CommandError, runCommandSync } from "../src/system/commandRunner.ts";
+import { CommandError, runCommand, runCommandSync } from "../src/system/commandRunner.ts";
 
 test("CommandError redacts a mysqldump-style -p<password> argument from its message", () => {
   const error = new CommandError("ssh", ["-p", "22", "user@host", "mysqldump -h 'db' -p'hunter2' 'wp'"], { status: 1, stdout: "", stderr: "" });
@@ -25,4 +25,15 @@ test("runCommandSync never invokes a shell, even if the caller's options include
   // to execve() it's one literal argument printed verbatim on one line.
   const result = runCommandSync("echo", ["hello; echo INJECTED"], { shell: true });
   assert.equal(result.stdout.trim(), "hello; echo INJECTED");
+});
+
+test("the shared runner blocks every direct Git push before spawning Git", async () => {
+  assert.throws(
+    () => runCommandSync("git", ["push", "origin", "main"]),
+    /policy forbids pushing/i,
+  );
+  await assert.rejects(
+    () => runCommand("/usr/bin/git", ["send-pack", "origin", "main"]),
+    /policy forbids pushing/i,
+  );
 });

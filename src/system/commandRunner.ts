@@ -65,6 +65,7 @@ export async function runCommand(
   options: RunCommandOptions = {},
   onProgress: ((line: string) => void) | null = null,
 ): Promise<string | Buffer> {
+  assertCommandPolicy(command, args);
   if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${redactCommandLine(command, args)}`);
   return new Promise((resolve, reject) => {
     const { encoding = "utf8", stdin, ...spawnOptions } = options;
@@ -129,6 +130,7 @@ export function runCommandSync(
   args: string[] = [],
   options: Record<string, unknown> = {},
 ): SpawnSyncReturns<string> {
+  assertCommandPolicy(command, args);
   const result = spawnSync(command, args, {
     encoding: "utf8",
     ...options,
@@ -144,6 +146,19 @@ export function runCommandSync(
   }
 
   return result;
+}
+
+/**
+ * Git remotes are read-only from A-CLI's point of view. Keeping this guard in
+ * the shared process runner makes the promise architectural rather than a
+ * convention at individual call sites: even a future accidental `git push`
+ * (or its lower-level `send-pack` equivalent) is rejected before Git starts.
+ */
+function assertCommandPolicy(command: string, args: string[]): void {
+  const executable = command.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase();
+  if (executable !== "git" && executable !== "git.exe") return;
+  if (!args.some((arg) => arg === "push" || arg === "send-pack")) return;
+  throw new Error("A-CLI policy forbids pushing to Git remotes. Commit and push manually when you are ready.");
 }
 
 /**

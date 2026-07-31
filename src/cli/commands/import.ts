@@ -8,7 +8,7 @@ import { ask } from "../../ui/prompts.ts";
 import { CliError, MissingOptionError, TargetExistsError } from "../../core/errors.ts";
 import { runCommand } from "../CommandShell.ts";
 import { readStepState } from "../../core/StepRunner.ts";
-import { importSourceRegistry } from "../../wordpress/import/sourceRegistry.ts";
+import { ProfileImportSource } from "../../wordpress/import/sources/RemoteSource.ts";
 import { runImportWorkflow } from "../../wordpress/import/ImportWorkflow.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { maybeInstallDependencies } from "../../system/dependencies.ts";
@@ -17,21 +17,18 @@ import { buildNextSteps } from "../../projects/nextSteps.ts";
 import { runLocalPreflight } from "../../system/preflight.ts";
 import { validateProjectName } from "../../projects/plan/projectName.ts";
 import { buildSuccessSummary, formatCreateError } from "../../ui/summaries.ts";
+import { loadConfig } from "../../config/ConfigLoader.ts";
+import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
+import { resolveRemoteProfile } from "../../remote/resolveProfile.ts";
 import type { ImportCommandOptions } from "../options.ts";
 
 /**
- * `acli import`: brings an existing WordPress site into a new local
- * project. Every --source (profile, ssh, local, git, sql, zip) runs through
- * the same ImportWorkflow/StepRunner pipeline — profile/ssh differ only in
- * how ctx.profile is resolved before that pipeline starts.
+ * `acli import`: brings an existing WordPress site into a new local project
+ * through a configured staging profile.
  *
- * Every required field (source, name, environment, and whichever fields the
- * chosen source itself requires) falls back to an interactive prompt when
- * unset and the run isn't --yes/--non-interactive — this is what lets
- * `acli import` work with zero flags from a terminal, and what the
- * top-level `acli` menu's "Import" choice relies on (it calls this with no
- * pre-supplied options at all). Non-interactive callers (scripts, --yes)
- * get a clear MissingOptionError/CliError instead of hanging on a prompt.
+ * Profile availability is checked before any project questions: no profile
+ * is an error, a sole profile is selected automatically, and multiple
+ * profiles are presented for selection unless --profile already chose one.
  */
 export async function importCommand(options: ImportCommandOptions = {}): Promise<void> {
   await runCommand({ title: "IMPORT", icon: "📥", failureMessage: "Import failed." }, async (shell) => {
@@ -47,11 +44,17 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       return formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand: ownsTargetDir ? resumeCommand : null, action: "Import" });
     });
 
-    const sourceId = options.source || (nonInteractive ? "profile" : await ask(select, {
-      message: "Where is the WordPress site coming from?",
-      options: importSourceRegistry.list().map((candidate) => ({ label: candidate.label, value: candidate.id })),
-    }) as string);
-    const source = importSourceRegistry.get(sourceId);
+    const { config } = await loadConfig({ configPath: options.config });
+    const selection = await resolveProfileSelection({
+      config,
+      options,
+      attachedProfileName: undefined,
+      required: true,
+      nonInteractive,
+      offerCreateWhenMissing: false,
+      configuredOnly: true,
+    });
+    const source = ProfileImportSource;
 
     const name = options.name || (nonInteractive ? undefined : await ask(text, {
       message: "Project directory/name:",
@@ -94,17 +97,19 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       nonInteractive,
     };
 
-    await source.resolveOptions?.(options, ctx, { nonInteractive });
+    ctx.profile = resolveRemoteProfile(selection.profile!, { projectName: ctx.projectName });
+    ctx.stagingUrl = ctx.stagingUrl || ctx.profile.urls?.staging || undefined;
+    if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment), `Selected profile: ${selection.profileName}`);
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;
-    resumeCommand = `acli import --source ${sourceId} --resume --name ${ctx.projectName}`;
+    resumeCommand = `acli import --resume --name ${ctx.projectName}`;
 
     if (options.dryRun) {
       const envServiceForPlan = resolveEnvironmentService(ctx.environment);
       const plan = source.buildPlan
         ? { ...(source.buildPlan(ctx) as Record<string, unknown>), localUrl: envServiceForPlan.getLocalUrl(ctx) }
-        : { source: sourceId, project: ctx.projectName, localEnvironment: ctx.environment };
+        : { profile: selection.profileName, project: ctx.projectName, localEnvironment: ctx.environment };
       note(JSON.stringify(plan, null, 2), "Import plan");
       outro(chalk.green("Dry run complete. No project files or remote state were changed."));
       return;
@@ -153,8 +158,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
 export function registerImportCommand(program: Command): void {
   program
     .command("import")
-    .description("Import an existing WordPress site into a new local project")
-    .option("--source <source>", "Import source: profile, ssh, local, git, sql, or zip")
+    .description("Import an existing WordPress site through a configured staging profile")
     .option("--name <name>", "Project directory/name")
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")
@@ -162,29 +166,12 @@ export function registerImportCommand(program: Command): void {
     .option("--wp-version <version>", "WordPress version")
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--resume", "Continue an interrupted import run instead of starting over")
-    // source: profile
-    .option("--profile <profile>", "Use a named or portable staging profile (--source profile)")
-    // source: ssh (one-off, no saved profile)
-    .option("--ssh-host <host>", "Remote SSH host (--source ssh)")
-    .option("--ssh-user <user>", "Remote SSH username (--source ssh)")
-    .option("--ssh-port <port>", "Remote SSH port (--source ssh)")
-    .option("--ssh-key <path>", "SSH private key path (--source ssh)")
-    .option("--remote-path <path>", "Remote WordPress root (--source ssh)")
-    .option("--db-driver <driver>", "Remote database driver: wp-cli, docker, or direct (--source ssh)")
-    // source: local
-    .option("--local-path <path>", "Path to an existing WordPress installation (--source local)")
-    // source: git
-    .option("--repo <url>", "Git repository URL containing wp-content (--source git)")
-    .option("--branch <branch>", "Git branch to clone (--source git)")
-    // source: zip
-    .option("--zip <path>", "Path to a .zip archive containing wp-content (--source zip)")
-    // shared: database dump (local, git, sql, zip)
-    .option("--sql-file <path>", "Path to a .sql database dump")
+    .option("--profile <profile>", "Use a configured staging profile")
     .option("--remote-url <url>", "The site's real/original URL, used as an extra search-replace source")
     .option("--config <path>", "Use an explicit A-CLI configuration file")
     .option("--skip-files", "Skip the file transfer step")
     .option("--skip-database", "Skip the database import step")
-    .option("--skip-git-link", "Skip remote Git discovery and linking (--source profile/ssh)")
+    .option("--skip-git-link", "Skip remote Git discovery and linking")
     .option("--skip-git", "Skip Git repository initialization")
     .option("--keep-dump", "Keep staging.sql after a successful migration")
     .option("--yes", "Run without interactive prompts when all required options are supplied")

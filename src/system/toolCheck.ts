@@ -28,7 +28,6 @@ export const TOOL_CATALOG: Record<string, ToolCheck> = {
   ssh: { label: "SSH", command: "ssh", args: ["-V"], fix: "Install OpenSSH." },
   rsync: { label: "rsync", command: "rsync", args: ["--version"], fix: "Install rsync for the selected profile." },
   scp: { label: "SCP", command: "scp", args: ["-V"], fix: "Install an SCP client for the selected profile." },
-  unzip: { label: "unzip", command: "unzip", args: ["-v"], fix: "Install unzip for `acli import --source zip`." },
 };
 
 export function checkTool(key: string): ToolCheckResult | null {

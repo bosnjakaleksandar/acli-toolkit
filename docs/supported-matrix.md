@@ -9,12 +9,14 @@ A precise reference for what A-CLI can create and sync, and the known edges of t
 | WordPress theme (`wp-theme`) | A-CLI (starter theme or a custom repo) | Docker or Lando |
 | WordPress + WooCommerce (`wp-woo`) | A-CLI | Docker or Lando |
 | WordPress + React (`wp-react`) | A-CLI | Docker or Lando |
-| Existing WordPress site (`existing-wp`) | Synced from a staging profile (see below) | Docker or Lando |
+| Existing WordPress site (`existing-wp`, via `acli import`) | Synced from a configured staging profile (see below) | Docker or Lando |
 | React | [`create-vite`](https://vite.dev) (official) | none — its own dev server |
 | Next.js | [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app) (official) | none — its own dev server |
 | Laravel + React/Next.js | `composer create-project laravel/laravel` (official) + the frontend generator above | none — `php artisan serve` + the frontend's own dev server |
 
 React/Next.js/Laravel are deliberately **not** scaffolded by A-CLI's own templates — they're handed to the official generators so the result always reflects that ecosystem's current best practice, not a copy that can drift out of date. See [React](./react.md), [Next.js](./nextjs.md), [Laravel](./laravel.md).
+
+`acli create` handles only the new-project rows. Existing WordPress sites always enter through the separate, profile-only `acli import` command.
 
 ## Local environments (WordPress only)
 
@@ -45,7 +47,7 @@ Both adapters implement the same contract (`src/environments/EnvironmentService.
 - The remote dump's WordPress core version and the local Docker/Lando image's version (`latest` by default) are independent — a large version gap is the user's responsibility to manage.
 - The Docker template's database host is fixed to the service name `db` (no custom host/port).
 - Multisite dumps import, but URL replacement covers only the discovered `siteurl` plus any explicitly declared `urls.additionalSearchReplace` entries — it does not walk every subsite's URL automatically.
-- Sync is pull-only (remote → local). There is no push (local → remote) in this version.
+- File/database sync and Git integration are pull-only (remote → local). A-CLI may fetch and configure tracking, but its command runner rejects `git push` and `git send-pack`; publishing is always a manual user action.
 
 ## Reliability guarantees
 

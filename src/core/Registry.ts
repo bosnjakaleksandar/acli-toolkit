@@ -5,10 +5,9 @@ export interface Identified {
 
 /**
  * An id-keyed collection of pluggable entries, preserving registration
- * order. Backs both the project-type registry (`acli create`'s scaffold
- * strategies) and the import-source registry (`acli import`'s sources) —
- * adding a new project type or import source is one `register()` call
- * rather than another branch in a shared if-chain.
+ * order. Backs the project-type registry used by `acli create`, so adding a
+ * scaffold strategy is one `register()` call rather than another branch in
+ * a shared if-chain.
  *
  * Registration order is meaningful: `find()` returns the *first* matching
  * entry, which is what lets a registry declare a catch-all fallback by
@@ -18,7 +17,7 @@ export class Registry<T extends Identified> {
   #entries: T[] = [];
   #label: string;
 
-  /** @param label What this registry holds, used in error messages (e.g. "project type", "import source"). */
+  /** @param label What this registry holds, used in error messages (e.g. "project type"). */
   constructor(label: string) {
     this.#label = label;
   }
