@@ -1,11 +1,13 @@
 import { confirm, multiselect, outro, spinner } from "@clack/prompts";
 import chalk from "chalk";
+import path from "node:path";
 import type { Command } from "commander";
 import { ask } from "../../ui/prompts.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
-import { loadProfile } from "../../profiles/loadProfile.ts";
+import { loadProfile, resolveProfileReferences } from "../../profiles/loadProfile.ts";
 import { resolveRemoteProfile } from "../../remote/resolveProfile.ts";
-import { readLink } from "../../profiles/ProjectLink.ts";
+import { findProjectRoot, readLink } from "../../profiles/ProjectLink.ts";
+import { getProjectConfigPath } from "../../config/paths.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { PullService, resolvePullTargets, ALL_TARGETS } from "../../wordpress/pull/PullService.ts";
 import { mascot } from "../../ui/mascot.ts";
@@ -17,11 +19,18 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
   await runCommand({ title: "PULL", icon: "⬇", failureMessage: "Pull failed." }, async () => {
     const cwd = process.cwd();
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
-    const link = await readLink(cwd);
-    if (!link) {
+    const projectRoot = await findProjectRoot(cwd);
+    if (!projectRoot) {
       throw new CliError("This directory is not linked to a staging profile.", {
         code: "NOT_LINKED",
         hint: "Run `acli link` first, or start the project with `acli import`, which links it automatically.",
+      });
+    }
+    const link = await readLink(projectRoot);
+    if (!link) {
+      throw new CliError("This project link disappeared while it was being read.", {
+        code: "NOT_LINKED",
+        hint: "Run `acli link` again, then retry the pull.",
       });
     }
     if (!link.profile) {
@@ -45,8 +54,12 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
       })) as string[];
     }
 
-    const { config } = await loadConfig({ configPath: options.config });
-    const rawProfile = typeof link.profile === "string" ? await loadProfile(link.profile, config) : link.profile;
+    const explicitConfigPath = options.config ? path.resolve(cwd, options.config) : undefined;
+    const { config } = await loadConfig({ cwd: projectRoot, configPath: explicitConfigPath });
+    const profileOptions = options.dryRun ? { commandRunner: () => "redacted" } : {};
+    const rawProfile = typeof link.profile === "string"
+      ? await loadProfile(link.profile, config, projectRoot, profileOptions)
+      : await resolveProfileReferences(link.profile, { sourcePath: getProjectConfigPath(projectRoot), ...profileOptions });
     if (!rawProfile) throw new CliError(`Profile "${link.profile}" was not found.`, { code: "PROFILE_NOT_FOUND" });
     const profile = resolveRemoteProfile(rawProfile, { projectName: link.name });
 
@@ -63,13 +76,13 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
 
     const envService = resolveEnvironmentService(link.environment);
     const pull = new PullService(envService);
-    const ctx = { projectName: link.name, environment: link.environment, profile, keepDump: Boolean(options.keepDump) };
+    const ctx = { projectName: link.name, environment: link.environment, profile, keepDump: Boolean(options.keepDump), resumeCommand: "acli pull db --keep-dump" };
 
     await mascot.show("working", `Pulling ${finalTargets.join(", ")}...`);
     mascot.stop();
     const s = spinner();
     s.start(`Pulling ${finalTargets.join(", ")}...`);
-    await pull.pull(cwd, ctx, finalTargets, { keepDump: Boolean(options.keepDump) }, s);
+    await pull.pull(projectRoot, ctx, finalTargets, { keepDump: Boolean(options.keepDump) }, s);
     s.stop("Pull complete.");
 
     await mascot.show("success", "Pull complete.");

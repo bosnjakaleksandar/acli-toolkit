@@ -16,6 +16,7 @@ export interface ResolveProfileSelectionParams {
   offerCreateWhenMissing?: boolean;
   configuredOnly?: boolean;
   chooseProfile?: (names: string[], config: AcliConfig) => Promise<string>;
+  commandRunner?: (command: string) => string;
 }
 
 export interface ResolveProfileSelectionResult {
@@ -32,7 +33,7 @@ export interface ResolveProfileSelectionResult {
  * convenience; `acli import` disables it and requires an already-configured
  * named profile.
  */
-export async function resolveProfileSelection({ config, options = {}, attachedProfileName, required, nonInteractive, offerCreateWhenMissing = true, configuredOnly = false, chooseProfile }: ResolveProfileSelectionParams): Promise<ResolveProfileSelectionResult> {
+export async function resolveProfileSelection({ config, options = {}, attachedProfileName, required, nonInteractive, offerCreateWhenMissing = true, configuredOnly = false, chooseProfile, commandRunner }: ResolveProfileSelectionParams): Promise<ResolveProfileSelectionResult> {
   let availableProfiles = Object.keys(config.profiles || {});
   if (required && configuredOnly && availableProfiles.length === 0) {
     throw new CliError("No staging profiles are configured.", {
@@ -65,7 +66,7 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
   if (required && !profileName && availableProfiles.length > 1 && nonInteractive) {
     throw new MissingOptionError(["--profile <name>"], { hint: `Choose one of: ${availableProfiles.join(", ")}.` });
   }
-  const profile = await loadProfile(profileName, config);
+  const profile = await loadProfile(profileName, config, process.cwd(), commandRunner ? { commandRunner } : {});
   if (required && !profile) throw new Error("This workflow requires a profile. Run `acli profile create` or pass --profile.");
   return { config, profileName, profile };
 }

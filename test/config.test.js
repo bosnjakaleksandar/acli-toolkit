@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
 import { loadConfig } from "../src/config/ConfigLoader.ts";
+import { loadProfile } from "../src/profiles/loadProfile.ts";
 import { deepMerge } from "../src/config/merge.ts";
 import { getUserConfigPath } from "../src/config/paths.ts";
 import { redactSecrets } from "../src/config/redaction.ts";
@@ -94,12 +95,12 @@ test("loadConfig refuses to resolve secrets from an untrusted, auto-discovered p
   assert.ok(unresolved.rawConfig.profiles.attacker);
 
   // ACLI_TRUST_PROJECT_CONFIG=1 bypasses the check for a single run.
-  const bypassed = await loadConfig({ cwd, env: { ...env, ACLI_TRUST_PROJECT_CONFIG: "1" } });
+  const bypassed = await loadConfig({ cwd, env: { ...env, ACLI_TRUST_PROJECT_CONFIG: "1" }, resolveProfiles: true });
   assert.equal(bypassed.config.profiles.attacker.database.password, "pwned");
 
   // Trusting the file's current content (as `acli config trust` would) allows it through, without the bypass flag.
   await trustConfig(projectConfigPath, attackerProfileYaml, env);
-  const trusted = await loadConfig({ cwd, env });
+  const trusted = await loadConfig({ cwd, env, resolveProfiles: true });
   assert.equal(trusted.config.profiles.attacker.database.password, "pwned");
 
   // Editing the file after trusting it invalidates the previous approval (content-hash pinning, like direnv).
@@ -107,6 +108,60 @@ test("loadConfig refuses to resolve secrets from an untrusted, auto-discovered p
   await assert.rejects(() => loadConfig({ cwd, env }), /Refusing to resolve secrets/);
 
   await fs.remove(cwd);
+  await fs.remove(configHome);
+});
+
+test("loadConfig leaves profiles unresolved and loadProfile resolves only the selected profile", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-lazy-profile-"));
+  const file = path.join(directory, "config.yaml");
+  await fs.writeFile(file, `version: 1
+profiles:
+  selected:
+    ssh: { host: selected.example.com, username: deploy }
+    remote: { projectRoot: /srv/selected, wordpressRoot: wordpress }
+    database: { driver: direct, password: "\${SELECTED_PASSWORD}" }
+  unrelated:
+    ssh: { host: unrelated.example.com, username: deploy }
+    remote: { projectRoot: /srv/unrelated, wordpressRoot: wordpress }
+    database: { driver: direct, password: "\${MISSING_UNRELATED_PASSWORD}" }
+`);
+
+  const env = { SELECTED_PASSWORD: "selected-secret" };
+  const { config } = await loadConfig({ configPath: file, env });
+  assert.equal(config.profiles.selected.database.password, "${SELECTED_PASSWORD}");
+  assert.equal(config.profiles.unrelated.database.password, "${MISSING_UNRELATED_PASSWORD}");
+
+  const profile = await loadProfile("selected", config, directory, { env });
+  assert.equal(profile.database.password, "selected-secret");
+  await fs.remove(directory);
+});
+
+test("external profile commands require content-hash trust before execution", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-external-profile-"));
+  const configHome = await fs.mkdtemp(path.join(os.tmpdir(), "acli-external-profile-home-"));
+  const profilePath = path.join(directory, "portable.yaml");
+  const yaml = `profile:
+  ssh: { host: staging.example.com, username: deploy }
+  remote: { projectRoot: /srv/demo, wordpressRoot: wordpress }
+  database: { driver: direct, password: { command: "secret-provider read" } }
+`;
+  await fs.writeFile(profilePath, yaml);
+  const env = { ACLI_CONFIG_HOME: configHome };
+  let executions = 0;
+  const commandRunner = () => { executions += 1; return "resolved-secret"; };
+
+  await assert.rejects(
+    () => loadProfile("portable.yaml", { profiles: {} }, directory, { env, commandRunner }),
+    /Refusing to resolve secrets from profile source/,
+  );
+  assert.equal(executions, 0, "an untrusted profile must not execute its provider command");
+
+  await trustConfig(profilePath, yaml, env);
+  const profile = await loadProfile("portable.yaml", { profiles: {} }, directory, { env, commandRunner });
+  assert.equal(profile.database.password, "resolved-secret");
+  assert.equal(executions, 1);
+
+  await fs.remove(directory);
   await fs.remove(configHome);
 });
 

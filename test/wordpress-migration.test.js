@@ -107,7 +107,8 @@ test("a failed import is fatal and preserves the dump with a resume command", as
         assert.ok(error instanceof CliError);
         assert.match(error.message, /import failed/);
         assert.match(error.message, /Database dump preserved/);
-        assert.match(error.message, /acli create --resume --preset client-recipe --profile shared-host --name demo --skip-files --keep-dump/);
+        assert.match(error.message, /acli import --resume --name demo/);
+        assert.doesNotMatch(error.message, /acli create --resume/);
         return true;
       },
     );

@@ -65,7 +65,7 @@ export function registerConfigCommand(program: Command): void {
       console.log(`Trusted ${filePath}. Its secret references will be resolved until the file's contents change.`);
     });
   command.command("show").option("--resolved", "Resolve layered configuration and secret references").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {
-    const result = await loadConfig({ configPath: options.config, resolveSecrets: Boolean(options.resolved) });
+    const result = await loadConfig({ configPath: options.config, resolveSecrets: Boolean(options.resolved), resolveProfiles: Boolean(options.resolved) });
     console.log(YAML.stringify(redactSecrets(options.resolved ? result.config : result.rawConfig)));
   });
   command.command("validate").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {

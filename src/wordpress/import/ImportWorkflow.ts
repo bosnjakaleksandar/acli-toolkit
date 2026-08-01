@@ -143,7 +143,7 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
           spinner?.message?.("No database dump supplied; skipping database import and search-replace.");
           return;
         }
-        await migrationService.importAndReplace(targetDir, ctx, spinner);
+        await migrationService.importAndReplace(targetDir, { ...ctx, resumeCommand }, spinner);
         // A dump of a real site contains user password hashes, so it is not
         // left lying in the new project directory once it has been imported
         // — the same cleanup PullService.importDatabase does for `acli

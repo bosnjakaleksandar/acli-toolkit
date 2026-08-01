@@ -9,6 +9,7 @@ import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileS
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { readLink, writeLink } from "../../profiles/ProjectLink.ts";
 import { CliError } from "../../core/errors.ts";
+import { validateProjectName } from "../../projects/plan/projectName.ts";
 import { runCommand } from "../CommandShell.ts";
 import type { LinkCommandOptions } from "../options.ts";
 
@@ -27,11 +28,13 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
     }
 
     const projectName = options.name || path.basename(cwd);
+    const nameError = validateProjectName(projectName);
+    if (nameError) throw new CliError(nameError, { code: "USAGE" });
     const environment: string = options.environment || (nonInteractive ? "docker" : await ask(select, { message: "Which local environment does this project use?", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }] }) as string);
     if (!["docker", "lando"].includes(environment)) throw new CliError(`Unknown local environment "${environment}".`, { code: "INVALID_ENVIRONMENT", hint: "Use docker or lando." });
 
     let { config } = await loadConfig({ configPath: options.config });
-    const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive });
+    const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive, commandRunner: () => "redacted" });
     config = selection.config;
     if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile!, environment)));
 

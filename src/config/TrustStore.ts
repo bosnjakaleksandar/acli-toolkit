@@ -23,18 +23,30 @@ export function hashConfigContent(content: string): string {
 
 export async function isConfigTrusted(filePath: string, content: string, env: EnvLike = process.env): Promise<boolean> {
   const store = await readTrustStore(env);
-  return store[path.resolve(filePath)] === hashConfigContent(content);
+  const resolvedPath = path.resolve(filePath);
+  const canonicalPath = await canonicalTrustPath(resolvedPath);
+  const hash = hashConfigContent(content);
+  // Keep accepting entries written by older versions under the lexical path.
+  return store[canonicalPath] === hash || store[resolvedPath] === hash;
 }
 
 /** Records the given file's current content hash as trusted. Called automatically whenever A-CLI itself writes a config file, and available via `acli config trust` for files a user wants to approve manually. */
 export async function trustConfig(filePath: string, content: string, env: EnvLike = process.env): Promise<void> {
   const storePath = getTrustStorePath(env);
   const store = await readTrustStore(env);
-  store[path.resolve(filePath)] = hashConfigContent(content);
+  store[await canonicalTrustPath(path.resolve(filePath))] = hashConfigContent(content);
   await fs.ensureDir(path.dirname(storePath));
   const temporary = `${storePath}.${process.pid}.tmp`;
   await fs.writeFile(temporary, JSON.stringify(store, null, 2), { mode: 0o600 });
   await fs.rename(temporary, storePath);
+}
+
+async function canonicalTrustPath(filePath: string): Promise<string> {
+  try {
+    return await fs.realpath(filePath);
+  } catch {
+    return filePath;
+  }
 }
 
 async function readTrustStore(env: EnvLike): Promise<Record<string, string>> {

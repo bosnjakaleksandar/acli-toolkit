@@ -37,6 +37,13 @@ test("writeLink rejects a project name with characters unsafe for a filesystem/p
   await fs.remove(root);
 });
 
+test("writeLink rejects project names that begin with a CLI option prefix", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-option-name-"));
+  await assert.rejects(() => writeLink(root, { name: "--help", environment: "docker" }), /must start with a letter or number/);
+  await assert.rejects(() => writeLink(root, { name: "-site", environment: "docker" }), /must start with a letter or number/);
+  await fs.remove(root);
+});
+
 test("writeLink adds .acli/ to the project's .gitignore when linking into an existing, already-tracked repo", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-gitignore-"));
   await fs.writeFile(path.join(root, ".gitignore"), "node_modules/\n");

@@ -14,6 +14,9 @@ export interface LoadConfigOptions {
   configPath?: string;
   env?: Record<string, string | undefined>;
   resolveSecrets?: boolean;
+  /** Resolve every configured profile too. Normal workflows leave profiles
+   * unresolved and let loadProfile resolve only the selected one. */
+  resolveProfiles?: boolean;
 }
 
 export interface LoadConfigResult {
@@ -22,7 +25,7 @@ export interface LoadConfigResult {
   sources: Array<{ name: string; value: AcliConfig }>;
 }
 
-export async function loadConfig({ cwd = process.cwd(), configPath, env = process.env, resolveSecrets = true }: LoadConfigOptions = {}): Promise<LoadConfigResult> {
+export async function loadConfig({ cwd = process.cwd(), configPath, env = process.env, resolveSecrets = true, resolveProfiles = false }: LoadConfigOptions = {}): Promise<LoadConfigResult> {
   const sources: Array<{ name: string; value: AcliConfig }> = [{ name: "built-in defaults", value: structuredClone(BUILT_IN_CONFIG) as AcliConfig }];
   // Only the project-scoped file (or an explicit --config, which behaves like
   // one) may declare a `project:` link — the user-level config is shared
@@ -68,8 +71,28 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
 
   const config = sources.reduce((result, source) => deepMerge(result, source.value), {} as AcliConfig);
   validateConfig(config, "resolved configuration", { allowProjectKey: true });
-  const resolved = resolveSecrets ? (resolveReferences(config, { env }) as AcliConfig) : config;
+  const resolved = resolveSecrets ? resolveConfigReferences(config, env, resolveProfiles) : config;
   return { config: resolved, rawConfig: config, sources };
+}
+
+/**
+ * Profiles may contain secret-provider commands. Resolving the whole config
+ * here used to execute every profile even when the command did not use one.
+ * Keep named and inline profiles raw until loadProfile/the consuming command
+ * has selected the one it actually needs. `config show --resolved` opts into
+ * resolving all profiles explicitly.
+ */
+function resolveConfigReferences(config: AcliConfig, env: Record<string, string | undefined>, resolveProfiles: boolean): AcliConfig {
+  if (resolveProfiles) return resolveReferences(config, { env }) as AcliConfig;
+
+  const { profiles, project, ...rest } = config;
+  const inlineProfile = project && typeof project.profile === "object" ? project.profile : undefined;
+  const resolvableProject = project && inlineProfile ? { ...project, profile: undefined } : project;
+  const resolved = resolveReferences({ ...rest, ...(resolvableProject ? { project: resolvableProject } : {}) }, { env }) as AcliConfig;
+
+  if (profiles) resolved.profiles = profiles;
+  if (inlineProfile && resolved.project) resolved.project.profile = inlineProfile;
+  return resolved;
 }
 
 export async function readConfigFile(filePath: string): Promise<AcliConfig> {
