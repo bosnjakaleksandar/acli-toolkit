@@ -1,6 +1,7 @@
 import fs from "fs-extra";
 import path from "path";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
+import { shellSingleQuote, wpCliInstallShell } from "../../wordpress/wpCliInstaller.ts";
 
 /** Generates `scripts/install-wp-plugins.sh` (and, if requested, a WP-CLI install step) for a scaffolded WordPress project — a no-op when neither plugins nor installWpCli were requested. */
 export async function writeWordPressSetupScript(targetDir: string, ctx: ProjectPlan): Promise<void> {
@@ -18,7 +19,7 @@ export async function writeWordPressSetupScript(targetDir: string, ctx: ProjectP
     "set -euo pipefail",
     "",
     ctx.installWpCli && ctx.environment === "docker"
-      ? "docker compose exec -T wordpress bash -lc 'command -v wp >/dev/null || (curl -fsSL -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp)'"
+      ? `docker compose exec -T wordpress bash -lc ${shellSingleQuote(`command -v wp >/dev/null || { ${wpCliInstallShell()}; }`)}`
       : "",
     ...(ctx.plugins ?? []).map((plugin: string) => `${wpCommand} plugin install ${plugin} --activate`),
     "",

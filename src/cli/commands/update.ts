@@ -25,11 +25,12 @@ export async function updateCommand(packageName: string): Promise<void> {
 
 /** Report-only variant for scripting: prints the result and sets exit code 1 if an update is available, without installing anything. */
 export async function checkUpdateCommand(packageMetadata: PackageMetadata): Promise<void> {
-  const { latestVersion } = await checkForUpdate({
+  const { latestVersion, status } = await checkForUpdate({
     packageName: packageMetadata.name,
     currentVersion: packageMetadata.version,
     onOffline: () => { console.log(chalk.gray("Update check unavailable (offline or registry unreachable).")); },
   });
+  if (status === "offline") return;
   if (latestVersion) {
     console.log(`${BRANDING.name} ${latestVersion} is available (current: ${packageMetadata.version}). Run \`acli update\` to install.`);
     process.exitCode = 1;

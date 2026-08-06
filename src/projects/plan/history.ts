@@ -1,8 +1,8 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { redactSecrets } from "../../config/redaction.ts";
-import { trustConfig } from "../../config/TrustStore.ts";
-import YAML from "yaml";
+import { readWritableConfig, writeConfigAtomic } from "../../config/ConfigWriter.ts";
+import { validateConfig } from "../../config/schema.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 
 const VERSION = 1;
@@ -50,15 +50,12 @@ export async function saveSuccessfulPlan(ctx: ProjectPlan, { cwd = process.cwd()
 
 export async function savePlanAsPreset(name: string, ctx: ProjectPlan, { cwd = process.cwd(), configPath }: { cwd?: string; configPath?: string } = {}): Promise<string> {
   const filePath = configPath ? path.resolve(cwd, configPath) : path.join(cwd, ".acli", "config.yaml");
-  let config: { version: number; defaults: Record<string, unknown>; presets: Record<string, unknown>; profiles: Record<string, unknown> } = { version: 1, defaults: {}, presets: {}, profiles: {} };
-  if (await fs.pathExists(filePath)) config = YAML.parse(await fs.readFile(filePath, "utf8")) || config;
+  const config = await readWritableConfig(filePath, { allowProjectKey: true });
   config.presets ||= {};
   const safeCtx = toSafeCtx(ctx);
-  config.presets[name] = redactSecrets(Object.fromEntries(Object.entries(safeCtx).filter(([key, value]) => SAFE_KEYS.has(key) && key !== "projectName" && value !== undefined)));
-  const content = YAML.stringify(config);
-  await fs.ensureDir(path.dirname(filePath));
-  await fs.writeFile(filePath, content, { mode: 0o600 });
-  await trustConfig(filePath, content);
+  config.presets[name] = redactSecrets(Object.fromEntries(Object.entries(safeCtx).filter(([key, value]) => SAFE_KEYS.has(key) && key !== "projectName" && value !== undefined))) as Record<string, unknown>;
+  validateConfig(config, filePath, { allowProjectKey: true });
+  await writeConfigAtomic(filePath, config);
   return filePath;
 }
 

@@ -49,10 +49,27 @@ export function resolveReferences(value: unknown, { env = process.env, commandRu
 function defaultSecretCommand(command: string): string {
   const [program, ...args] = splitCommand(command);
   if (!program) throw new Error("Secret command cannot be empty.");
-  return execFileSync(program, args, { encoding: "utf8", shell: false, stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync(program, args, { encoding: "utf8", shell: false, stdio: ["ignore", "pipe", "ignore"], timeout: 15_000, maxBuffer: 1024 * 1024 }).trim();
 }
 
 export function splitCommand(command: string): string[] {
-  const matches = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
-  return matches.map((part) => part.replace(/^(["'])|(["'])$/g, ""));
+  const result: string[] = [];
+  let token = "";
+  let quote: "'" | '"' | null = null;
+  for (const character of command) {
+    if (quote) {
+      if (character === quote) quote = null;
+      else token += character;
+      continue;
+    }
+    if (character === "'" || character === '"') { quote = character; continue; }
+    if (/\s/.test(character)) {
+      if (token) { result.push(token); token = ""; }
+      continue;
+    }
+    token += character;
+  }
+  if (quote) throw new Error("Secret command contains an unterminated quote.");
+  if (token) result.push(token);
+  return result;
 }

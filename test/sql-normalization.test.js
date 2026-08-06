@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSqlDump, NORMALIZATION_STEPS } from "../src/wordpress/migration/sqlNormalization.ts";
+import { normalizeSqlDump, normalizeSqlDumpFile, NORMALIZATION_STEPS } from "../src/wordpress/migration/sqlNormalization.ts";
+import fs from "fs-extra";
+import os from "node:os";
+import path from "node:path";
 
 test("strips the MariaDB sandbox-mode marker", () => {
   const input = Buffer.from("/*M!999999\\- enable the sandbox mode */;\nCREATE TABLE wp_posts (id INT);\n");
@@ -68,4 +71,18 @@ test("normalizeCollations: false only skips one step's spinner message, not all 
   normalizeSqlDump(Buffer.from("SELECT 1;"), { spinner, normalizeCollations: false });
   assert.equal(messages.length, NORMALIZATION_STEPS.length - 1);
   assert.ok(!messages.some((message) => message.includes("normalize-collations")));
+});
+
+test("file normalization streams replacements and preserves long INSERT lines", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-stream-normalize-"));
+  const filePath = path.join(directory, "staging.sql");
+  const longInsert = `INSERT INTO wp_posts VALUES ('${"x".repeat(200_000)}');`;
+  await fs.writeFile(filePath, `/*M!999999\\- enable the sandbox mode */\nCREATE DATABASE \`remote\`;\nUSE \`remote\`;\n${longInsert}\nCREATE TABLE t (c TEXT) COLLATE=utf8mb4_uca1400_ai_ci;\n`);
+
+  await normalizeSqlDumpFile(filePath);
+  const result = await fs.readFile(filePath, "utf8");
+  assert.doesNotMatch(result, /sandbox mode|CREATE DATABASE|^USE /m);
+  assert.match(result, /utf8mb4_unicode_520_ci/);
+  assert.ok(result.includes(longInsert));
+  await fs.remove(directory);
 });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkTool, TOOL_CATALOG, toolExists } from "../src/system/toolCheck.ts";
+import { checkTool, meetsMinimumVersion, TOOL_CATALOG, toolExists } from "../src/system/toolCheck.ts";
 
 test("docker check verifies Docker Compose v2, not just the docker binary", () => {
   assert.deepEqual(TOOL_CATALOG.docker.args, ["compose", "version"]);
@@ -30,4 +30,11 @@ test("checkTool returns null for an unknown catalog key", () => {
 test("toolExists mirrors checkTool().ok and is false for unknown keys", () => {
   assert.equal(toolExists("node"), true);
   assert.equal(toolExists("not-a-real-tool"), false);
+});
+
+test("minimum-version checks reject runtimes below the supported floor", () => {
+  assert.equal(meetsMinimumVersion("v22.17.9", "22.18.0"), false);
+  assert.equal(meetsMinimumVersion("v22.18.0", "22.18.0"), true);
+  assert.equal(meetsMinimumVersion("PHP 8.3.6 (cli)", "8.2.0"), true);
+  assert.equal(TOOL_CATALOG.node.minimumVersion, "22.18.0");
 });

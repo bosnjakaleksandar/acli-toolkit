@@ -1,4 +1,6 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { createWriteStream } from "node:fs";
+import { finished } from "node:stream/promises";
 import { redactUrlCredentials } from "./safety.ts";
 
 interface CommandResultLike {
@@ -53,6 +55,8 @@ interface RunCommandOptions {
    * instead of embedding it in this command's own argv.
    */
   stdin?: string | Buffer;
+  /** Stream stdout directly to this file instead of retaining it in memory. */
+  stdoutFile?: string;
   [key: string]: unknown;
 }
 
@@ -68,7 +72,7 @@ export async function runCommand(
   assertCommandPolicy(command, args);
   if (process.env.ACLI_VERBOSE === "1" || process.env.ACLI_DEBUG === "1") console.error(`> ${redactCommandLine(command, args)}`);
   return new Promise((resolve, reject) => {
-    const { encoding = "utf8", stdin, ...spawnOptions } = options;
+    const { encoding = "utf8", stdin, stdoutFile, ...spawnOptions } = options;
     // shell: false must win over anything in spawnOptions — letting a caller
     // override it would let args (which may contain shell metacharacters,
     // e.g. an untrusted path) be interpreted by a shell instead of passed
@@ -90,9 +94,12 @@ export async function runCommand(
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
+    const outputStream = stdoutFile ? createWriteStream(stdoutFile, { flags: "w", mode: 0o600 }) : null;
+    const outputFinished = outputStream ? finished(outputStream) : Promise.resolve();
+    if (outputStream) child.stdout?.pipe(outputStream);
 
     child.stdout?.on("data", (data) => {
-      stdoutChunks.push(Buffer.from(data));
+      if (!outputStream) stdoutChunks.push(Buffer.from(data));
       emitProgress(data.toString("utf8"), onProgress);
     });
 
@@ -101,9 +108,22 @@ export async function runCommand(
       emitProgress(data.toString("utf8"), onProgress);
     });
 
-    child.on("error", reject);
-    child.on("close", (code) => {
+    child.on("error", (error) => {
+      outputStream?.destroy();
+      reject(error);
+    });
+    child.on("close", async (code) => {
+      try {
+        await outputFinished;
+      } catch (error) {
+        reject(error);
+        return;
+      }
       if (code === 0) {
+        if (outputStream) {
+          resolve(encoding === null ? Buffer.alloc(0) : "");
+          return;
+        }
         const output = Buffer.concat(stdoutChunks);
         resolve(encoding === null ? output : output.toString(encoding).trim());
         return;

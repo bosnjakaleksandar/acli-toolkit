@@ -10,6 +10,7 @@ const PROFILE_KEYS = new Set(["type", "ssh", "remote", "files", "database", "git
 const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "linkedAt"]);
 const DB_DRIVERS = new Set(["wp-cli", "docker", "direct"]);
 const FILE_TRANSPORTS = new Set(["rsync", "sftp"]);
+const HOST_KEY_POLICIES = new Set(["strict", "accept-new", "insecure"]);
 
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
   const errors: string[] = [];
@@ -58,6 +59,8 @@ function validateProfile(profile: Profile, label: string, errors: string[]): voi
   if (((profile as unknown as Record<string, unknown>).type || "wordpress") !== "wordpress") errors.push(`${label}: type must be "wordpress".`);
   if (!profile.ssh?.host) errors.push(`${label}: ssh.host is required.`);
   if (!profile.ssh?.username) errors.push(`${label}: ssh.username is required.`);
+  if (profile.ssh?.port !== undefined && !isValidPort(profile.ssh.port)) errors.push(`${label}: ssh.port must be an integer from 1 to 65535.`);
+  if (profile.ssh?.hostKeyPolicy !== undefined && !HOST_KEY_POLICIES.has(profile.ssh.hostKeyPolicy)) errors.push(`${label}: ssh.hostKeyPolicy must be strict, accept-new, or insecure.`);
   if (!profile.remote?.projectRoot) errors.push(`${label}: remote.projectRoot is required.`);
   if (!profile.remote?.wordpressRoot) errors.push(`${label}: remote.wordpressRoot is required.`);
   const transport = profile.files?.transport || "rsync";
@@ -66,6 +69,7 @@ function validateProfile(profile: Profile, label: string, errors: string[]): voi
   if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
   if (profile.database?.tablePrefix !== undefined && typeof profile.database.tablePrefix !== "string") errors.push(`${label}: database.tablePrefix must be a string.`);
   if (profile.database?.normalizeCollations !== undefined && typeof profile.database.normalizeCollations !== "boolean") errors.push(`${label}: database.normalizeCollations must be a boolean.`);
+  if (profile.database?.port !== undefined && !isValidPort(profile.database.port)) errors.push(`${label}: database.port must be an integer from 1 to 65535.`);
   if (profile.git?.sshHostAlias !== undefined && !isSafeSshHostAlias(profile.git.sshHostAlias)) errors.push(`${label}: git.sshHostAlias must be a valid SSH config Host alias (letters, numbers, dots, dashes, and underscores).`);
 }
 
@@ -107,3 +111,8 @@ function validateProjectLink(link: ProjectLink, label: string, errors: string[])
 }
 
 export function isObject(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
+
+function isValidPort(value: unknown): boolean {
+  const numeric = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+  return typeof numeric === "number" && Number.isInteger(numeric) && numeric >= 1 && numeric <= 65535;
+}

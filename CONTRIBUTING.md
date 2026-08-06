@@ -12,7 +12,7 @@ npm run build   # compiles src/ -> dist/ and copies templates
 npm test        # typecheck + the full test suite
 ```
 
-Node `>=20` is required; CI also runs the full suite on Node 22 (needed for native TypeScript execution in tests) and a Node 20 smoke test against the built `dist/`.
+Node `>=22.18` is required; CI runs the full suite and packaged-CLI smoke tests on Node 22.18.
 
 ## Making a change
 

@@ -36,7 +36,23 @@ export interface BuildCreateStepsOptions {
  * flow.
  */
 export function buildCreateSteps({ ctx, strategy, targetDir, spinner, resume, onOwnsTargetDir, onNextSteps }: BuildCreateStepsOptions): Step[] {
-  const totalSteps = 4;
+  const rawScaffoldSteps = strategy.buildScaffoldSteps?.(targetDir, ctx, spinner) || [{
+    id: "scaffold",
+    title: "Creating project files",
+    run: () => strategy.scaffold(targetDir, ctx, spinner),
+  }];
+  const totalSteps = rawScaffoldSteps.length + 3;
+  const scaffoldSteps = rawScaffoldSteps.map((step, offset) => ({
+    ...step,
+    run: async () => {
+      spinner.message(`${offset + 2}/${totalSteps} ${step.title}...`);
+      await fs.ensureDir(targetDir);
+      onOwnsTargetDir();
+      const result = await step.run();
+      spinner.stop(`${offset + 2}/${totalSteps} ${step.title}.`);
+      return result;
+    },
+  }));
   return [
     {
       id: "preflight",
@@ -49,24 +65,14 @@ export function buildCreateSteps({ ctx, strategy, targetDir, spinner, resume, on
         await strategy.preflight?.(ctx, spinner);
       },
     },
-    {
-      id: "scaffold",
-      title: "Creating project files",
-      run: async () => {
-        spinner.message(`2/${totalSteps} Creating project files...`);
-        await fs.ensureDir(targetDir);
-        onOwnsTargetDir();
-        await strategy.scaffold(targetDir, ctx, spinner);
-        spinner.stop(`2/${totalSteps} Project files created.`);
-      },
-    },
+    ...scaffoldSteps,
     {
       id: "dependencies",
       title: "Preparing dependencies",
       run: async () => {
         const installPlan = await buildNextSteps(targetDir, ctx);
-        spinner.start(`3/${totalSteps} Preparing dependencies...`);
-        spinner.stop(`3/${totalSteps} Dependency plan ready.`);
+        spinner.start(`${totalSteps - 1}/${totalSteps} Preparing dependencies...`);
+        spinner.stop(`${totalSteps - 1}/${totalSteps} Dependency plan ready.`);
         const nextSteps = await maybeInstallDependencies(installPlan, spinner, ctx);
         (ctx as any).dependenciesInstalled = !nextSteps.includes(" install");
         onNextSteps(nextSteps);
@@ -76,9 +82,9 @@ export function buildCreateSteps({ ctx, strategy, targetDir, spinner, resume, on
       id: "git",
       title: "Initializing Git repository",
       run: async () => {
-        spinner.start(`4/${totalSteps} Initializing Git repository...`);
+        spinner.start(`${totalSteps}/${totalSteps} Initializing Git repository...`);
         const git = await maybeInitializeGit(targetDir, ctx as any);
-        spinner.stop(git.initialized ? `4/${totalSteps} Git repository initialized.` : `4/${totalSteps} Git initialization skipped.`);
+        spinner.stop(git.initialized ? `${totalSteps}/${totalSteps} Git repository initialized.` : `${totalSteps}/${totalSteps} Git initialization skipped.`);
       },
     },
   ];

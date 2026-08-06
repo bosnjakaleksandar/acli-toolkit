@@ -1,6 +1,6 @@
 # Installation
 
-Install A-CLI globally with Node.js 20 or newer:
+Install A-CLI globally with Node.js 22.18 or newer:
 
 ```bash
 npm install --global acli-toolkit

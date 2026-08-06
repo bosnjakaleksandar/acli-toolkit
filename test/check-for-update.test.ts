@@ -92,6 +92,7 @@ test("a genuine network failure (not a 404) still reports offline and is not cac
 
   assert.equal(result.latestVersion, null);
   assert.ok(offlineError instanceof Error);
+  assert.equal(result.status, "offline");
   assert.equal(await fs.pathExists(cachePath), false, "a genuine failure should not be cached, so the next run retries instead of waiting out the 24h window");
 });
 

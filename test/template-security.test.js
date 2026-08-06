@@ -24,6 +24,15 @@ test("generated docker-compose.yaml never publishes a port without a 127.0.0.1 h
   await fs.remove(dir);
 });
 
+test("generated Docker and Lando configs use the pinned WordPress default when no version is supplied", async () => {
+  const dir = await tempDir("acli-tpl-default-wp-version-");
+  await new DockerComposeService({ runner: async () => "" }).scaffold(dir, "wordpress", { projectName: "demo", mysqlVersion: "8.0", tablePrefix: "wp_" });
+  await new LandoService({ runner: async () => "" }).scaffold(dir, "wordpress", { projectName: "demo", mysqlVersion: "8.0", tablePrefix: "wp_" });
+  assert.match(await fs.readFile(path.join(dir, "docker-compose.yaml"), "utf8"), /image:\s*wordpress:7\.0\.2/);
+  assert.match(await fs.readFile(path.join(dir, ".lando.yml"), "utf8"), /wp core download --version="7\.0\.2"/);
+  await fs.remove(dir);
+});
+
 test("generated docker-compose.yaml's phpMyAdmin service does not auto-authenticate (no PMA_USER/PMA_PASSWORD)", async () => {
   const dir = await tempDir("acli-tpl-docker-pma-");
   const service = new DockerComposeService({ runner: async () => "" });
@@ -31,6 +40,8 @@ test("generated docker-compose.yaml's phpMyAdmin service does not auto-authentic
   const content = await fs.readFile(path.join(dir, "docker-compose.yaml"), "utf8");
   assert.doesNotMatch(content, /PMA_USER/);
   assert.doesNotMatch(content, /PMA_PASSWORD/);
+  assert.match(content, /image:\s*phpmyadmin:5\.2\.3/);
+  assert.doesNotMatch(content, /image:\s*phpmyadmin:latest/);
   await fs.remove(dir);
 });
 
@@ -57,6 +68,16 @@ test("a non-default table prefix reaches the generated .lando.yml, not the wp_ d
   await fs.remove(dir);
 });
 
+test("the requested WordPress version reaches the generated .lando.yml", async () => {
+  const dir = await tempDir("acli-tpl-lando-wp-version-");
+  const service = new LandoService({ runner: async () => "" });
+  await service.scaffold(dir, "wordpress", { projectName: "demo", mysqlVersion: "8.0", wpVersion: "6.8.2", tablePrefix: "wp_" });
+  const content = await fs.readFile(path.join(dir, ".lando.yml"), "utf8");
+  assert.match(content, /wp core download --version="6\.8\.2"/);
+  assert.doesNotMatch(content, /\{\{WP_VERSION\}\}/);
+  await fs.remove(dir);
+});
+
 test("generated .lando.yml never pipes a downloaded script directly into a shell (curl | bash)", async () => {
   const dir = await tempDir("acli-tpl-lando-");
   const service = new LandoService({ runner: async () => "" });
@@ -64,6 +85,7 @@ test("generated .lando.yml never pipes a downloaded script directly into a shell
   const content = await fs.readFile(path.join(dir, ".lando.yml"), "utf8");
   assert.doesNotMatch(content, /curl[^\n]*\|\s*bash/);
   assert.doesNotMatch(content, /curl[^\n]*\|\s*sh\b/);
+  assert.match(content, /NODE_VERSION=22\.18\.0/);
   await fs.remove(dir);
 });
 

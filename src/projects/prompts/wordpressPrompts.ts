@@ -3,6 +3,7 @@ import { ask, askMysqlVersion, askSshKeyPath, askWpVersion } from "../../ui/prom
 import { hasPresetValue } from "../plan/presets.ts";
 import { isSafePluginSlug } from "../../system/safety.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
 
 /**
  * Collects every WordPress-specific project setting via interactive prompts
@@ -20,24 +21,24 @@ export async function askWordPressQuestions(ctx: ProjectPlan, { nonInteractive =
   const wpVersion = hasPresetValue(ctx, "wpVersion")
     ? ctx.wpVersion
     : nonInteractive
-      ? "latest"
+      ? DEFAULT_WORDPRESS_VERSION
       : await askWpVersion();
 
   let themeRepo = ctx.themeRepo;
   if (!hasPresetValue(ctx, "themeRepo") && nonInteractive) {
     themeRepo = process.env.WP_THEME_REPO || "";
   } else if (!hasPresetValue(ctx, "themeRepo")) {
-    const defaultRepo = process.env.WP_THEME_REPO || "git@github.com:starter-theme.git";
+    const defaultRepo = process.env.WP_THEME_REPO;
     const themeChoice = await ask(select, {
       message: "How do you want to create the theme?",
       options: [
-        { label: `Starter theme (${defaultRepo})`, value: "starter" },
+        ...(defaultRepo ? [{ label: `Configured starter theme (${defaultRepo})`, value: "starter" }] : []),
         { label: "Custom theme repository", value: "custom" },
         { label: "No template (scaffold minimal theme files)", value: "" },
       ],
     });
 
-    if (themeChoice === "starter") themeRepo = defaultRepo;
+    if (themeChoice === "starter") themeRepo = defaultRepo || "";
     if (themeChoice === "custom") {
       themeRepo = await ask(text, {
         message: "Theme repository URL (HTTPS or SSH):",
@@ -67,11 +68,12 @@ export async function askWordPressQuestions(ctx: ProjectPlan, { nonInteractive =
     sshKeyPath = ctx.sshKeyPath || "";
   }
 
-  const plugins = hasPresetValue(ctx, "plugins")
+  let plugins = hasPresetValue(ctx, "plugins")
     ? normalizePlugins(ctx.plugins)
     : nonInteractive || !ctx.customizeAdvanced
       ? []
       : await askPlugins();
+  if (ctx.projectType === "wp-woo" && !plugins.includes("woocommerce")) plugins = ["woocommerce", ...plugins];
 
   const installWpCli = hasPresetValue(ctx, "installWpCli")
     ? Boolean(ctx.installWpCli)

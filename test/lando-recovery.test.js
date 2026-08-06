@@ -84,15 +84,17 @@ test("ensureWpCli verifies via `lando wp --version` and throws a clear error whe
   });
 });
 
-test("regression: recovery removes a leftover wp-config.php, since the recipe only creates one if none already exists on the (bind-mounted) webroot", async () => {
+test("regression: recovery preserves a customized wp-config.php and keeps a protected backup", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-lando-recover-wpconfig-"));
-  await fs.writeFile(path.join(directory, "wp-config.php"), "<?php define('DB_PASSWORD', 'stale-value');");
+  const original = "<?php\ndefine('DB_PASSWORD', 'stale-value');\ndefine('CUSTOM_SETTING', true);\n";
+  await fs.writeFile(path.join(directory, "wp-config.php"), original);
 
   const runner = async () => "";
   const lando = new LandoService({ runner });
   await lando.recoverDb(directory, null);
 
-  assert.equal(await fs.pathExists(path.join(directory, "wp-config.php")), false, "recovery must remove the stale wp-config.php so `wp config create` regenerates it");
+  assert.equal(await fs.readFile(path.join(directory, "wp-config.php"), "utf8"), original);
+  assert.equal(await fs.readFile(path.join(directory, ".acli", "recovery", "wp-config.php.before-db-recovery"), "utf8"), original);
   await fs.remove(directory);
 });
 

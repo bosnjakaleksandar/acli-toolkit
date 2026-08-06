@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node-version: [22]
+        node-version: [22.18.0]
 
     runs-on: ${{ matrix.os }}
 
@@ -38,7 +38,7 @@ jobs:
       - run: npm pack --dry-run
 
   dist-smoke:
-    # The published artifact is plain compiled JS (engines >=20), so verify
+    # Verify the built artifact on the exact declared runtime floor.
     # the built dist/ actually runs on the declared floor version — this
     # doesn't need native TS execution, just tsc + node running plain JS.
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: 22.18.0
           cache: npm
 
       - run: npm ci
@@ -69,7 +69,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: 22.18.0
           cache: npm
 
       - run: npm ci

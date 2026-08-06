@@ -83,7 +83,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
         preset: ctx!.presetName || options.preset || null,
         project: ctx!.projectName,
         projectType: ctx!.projectType,
-        localEnvironment: ctx!.environment,
+        ...(ctx!.appType === "wordpress" ? { localEnvironment: ctx!.environment } : {}),
       };
       console.log(JSON.stringify(redactSecrets(plan), null, 2));
       outro(chalk.green("Dry run complete. No project files or remote state were changed."));
@@ -126,7 +126,10 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
       onOwnsTargetDir: () => { ownsTargetDir = true; },
       onNextSteps: (result) => { nextSteps = result; },
     });
-    const stepRunner = new StepRunner(steps, targetDir, { resumeCommand: `acli create --resume --name ${finalCtx.projectName}` });
+    const stepRunner = new StepRunner(steps, targetDir, {
+      resumeCommand: `acli create --resume --name ${finalCtx.projectName}`,
+      fingerprint: { command: "create", plan: redactSecrets(finalCtx) },
+    });
 
     await stepRunner.run({ resume: Boolean(options.resume) });
 

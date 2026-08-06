@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { CliError, describeError } from "../../core/errors.ts";
-import { normalizeSqlDump } from "./sqlNormalization.ts";
+import { normalizeSqlDumpFile } from "./sqlNormalization.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 
@@ -15,9 +15,8 @@ export default class WordPressMigrationService {
     if (!(await fs.pathExists(dumpPath))) throw new CliError("Database export completed without creating staging.sql.", { code: "DUMP_MISSING" });
 
     try {
-      const sql = await fs.readFile(dumpPath);
       const normalizeCollations = ctx.profile?.database?.normalizeCollations !== false;
-      await fs.writeFile(dumpPath, normalizeSqlDump(sql, { spinner, normalizeCollations }));
+      await normalizeSqlDumpFile(dumpPath, { spinner, normalizeCollations });
 
       await this.envService.start(targetDir, spinner);
       await this.envService.importDb(targetDir, "staging.sql", spinner);

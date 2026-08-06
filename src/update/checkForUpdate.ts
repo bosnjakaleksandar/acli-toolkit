@@ -14,6 +14,7 @@ export interface CheckForUpdateOptions {
 export interface CheckForUpdateResult {
   latestVersion: string | null;
   alreadyNotified: boolean;
+  status: "ok" | "offline";
 }
 
 /**
@@ -45,20 +46,20 @@ export async function checkForUpdate({ packageName, currentVersion, now = Date.n
       // every time.
       if (error instanceof PackageNotFoundError) {
         await writeUpdateCache({ lastChecked: now, latestVersion: currentVersion, notifiedVersion: null }, cachePath).catch(() => {});
-        return { latestVersion: null, alreadyNotified: false };
+        return { latestVersion: null, alreadyNotified: false, status: "ok" };
       }
       await onOffline?.(error);
-      return { latestVersion: null, alreadyNotified: false };
+      return { latestVersion: null, alreadyNotified: false, status: "offline" };
     }
   }
   let isNewer = false;
   try {
     isNewer = isNewerVersion(latestVersion, currentVersion);
   } catch {
-    return { latestVersion: null, alreadyNotified: false };
+    return { latestVersion: null, alreadyNotified: false, status: "ok" };
   }
-  if (!isNewer) return { latestVersion: null, alreadyNotified: false };
-  return { latestVersion, alreadyNotified: notifiedVersion === latestVersion };
+  if (!isNewer) return { latestVersion: null, alreadyNotified: false, status: "ok" };
+  return { latestVersion, alreadyNotified: notifiedVersion === latestVersion, status: "ok" };
 }
 
 /** Records that the user has now been told about this pending version, so the next check this window can skip straight to a quiet reminder. */

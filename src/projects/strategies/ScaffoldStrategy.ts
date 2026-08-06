@@ -1,6 +1,7 @@
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
+import type { Step } from "../../core/StepRunner.ts";
 
 /**
  * What every project type must supply to be scaffolded by `acli create`.
@@ -27,6 +28,10 @@ export default abstract class ScaffoldStrategy {
   }
 
   abstract scaffold(targetDir: string, ctx: ProjectPlan, spinner?: Spinner | null): Promise<void>;
+
+  /** Optional resumable substeps for strategies whose scaffold has multiple
+   * independently expensive generators (for example Laravel + frontend). */
+  buildScaffoldSteps?(targetDir: string, ctx: ProjectPlan, spinner?: Spinner | null): Step[];
 
   /** Opt-in: verifies this project type's own requirements before any files are written. */
   preflight?(ctx: ProjectPlan, spinner?: Spinner | null): Promise<void>;

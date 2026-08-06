@@ -193,9 +193,35 @@ test("a step's return value is persisted under its id and handed to onSkip when 
   await fs.remove(dir);
 });
 
-test("readStepState treats a pre-v2 state file (no stepData, predating the current step sequence) as unresumable", async () => {
+test("readStepState treats a pre-v3 state file (no fingerprint, predating safe resume) as unresumable", async () => {
   const dir = await tempDir();
   await fs.outputJSON(getStateFilePath(dir), { version: 1, completedSteps: ["scaffold"], updatedAt: new Date().toISOString() });
   assert.equal(await readStepState(dir), null);
+  await fs.remove(dir);
+});
+
+test("resume refuses state created for a different plan even when step ids match", async () => {
+  const dir = await tempDir();
+  const first = new StepRunner(
+    [
+      { id: "a", title: "Step A", run: async () => {} },
+      { id: "b", title: "Step B", run: async () => { throw new Error("boom"); } },
+    ],
+    dir,
+    { fingerprint: { command: "create", framework: "react", environment: "docker" } },
+  );
+  await assert.rejects(() => first.run());
+
+  let resumedStepRan = false;
+  const changed = new StepRunner(
+    [
+      { id: "a", title: "Step A", run: async () => {} },
+      { id: "b", title: "Step B", run: async () => { resumedStepRan = true; } },
+    ],
+    dir,
+    { fingerprint: { command: "create", framework: "nextjs", environment: "docker" } },
+  );
+  await assert.rejects(() => changed.run({ resume: true }), /Cannot resume because the project plan.*changed/s);
+  assert.equal(resumedStepRan, false);
   await fs.remove(dir);
 });

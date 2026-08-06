@@ -84,7 +84,8 @@ test("database exports request binary-safe command output", async () => {
   );
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-binary-");
   await service.exportDatabase(directory);
-  assert.deepEqual(receivedOptions, { encoding: null });
+  assert.equal(receivedOptions.encoding, null);
+  assert.equal(receivedOptions.stdoutFile, `${directory}/staging.sql`);
 });
 
 test("exportDatabase writes staging.sql at mode 0600 (a full DB dump may include real password hashes)", async () => {

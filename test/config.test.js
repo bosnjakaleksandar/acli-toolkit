@@ -13,6 +13,7 @@ import { validateConfig, validateProfileConfig } from "../src/config/schema.ts";
 import { normalizeProfile } from "../src/profiles/normalizeProfile.ts";
 import { writeConfigAtomic } from "../src/config/ConfigWriter.ts";
 import { isConfigTrusted, trustConfig } from "../src/config/TrustStore.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../src/config/defaults.ts";
 
 async function withEnv(overrides, run) {
   const original = {};
@@ -187,6 +188,7 @@ test("explicit config overrides built-in defaults", async () => {
   await fs.writeFile(file, "version: 1\ndefaults:\n  environment: lando\n");
   const { config } = await loadConfig({ configPath: file });
   assert.equal(config.defaults.environment, "lando");
+  assert.equal(config.defaults.wpVersion, DEFAULT_WORDPRESS_VERSION);
 });
 
 test("user config paths are platform appropriate", () => {
@@ -236,4 +238,11 @@ test("validateProfileConfig accepts a database.tablePrefix override and rejects 
 test("validateProfileConfig accepts database.normalizeCollations as a boolean and rejects other types", () => {
   assert.equal(validateProfileConfig({ ...baseProfile, database: { driver: "wp-cli", normalizeCollations: false } }).database.normalizeCollations, false);
   assert.throws(() => validateProfileConfig({ ...baseProfile, database: { driver: "wp-cli", normalizeCollations: "no" } }), /normalizeCollations must be a boolean/);
+});
+
+test("validateProfileConfig enforces SSH/database port ranges and host-key policy", () => {
+  assert.throws(() => validateProfileConfig({ ...baseProfile, ssh: { ...baseProfile.ssh, port: 0 } }), /ssh\.port/);
+  assert.throws(() => validateProfileConfig({ ...baseProfile, database: { driver: "direct", port: 70000 } }), /database\.port/);
+  assert.throws(() => validateProfileConfig({ ...baseProfile, ssh: { ...baseProfile.ssh, hostKeyPolicy: "whatever" } }), /hostKeyPolicy/);
+  assert.doesNotThrow(() => validateProfileConfig({ ...baseProfile, ssh: { ...baseProfile.ssh, port: "2222", hostKeyPolicy: "accept-new" } }));
 });

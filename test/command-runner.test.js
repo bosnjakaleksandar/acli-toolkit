@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CommandError, runCommand, runCommandSync } from "../src/system/commandRunner.ts";
+import fs from "fs-extra";
+import os from "node:os";
+import path from "node:path";
 
 test("CommandError redacts a mysqldump-style -p<password> argument from its message", () => {
   const error = new CommandError("ssh", ["-p", "22", "user@host", "mysqldump -h 'db' -p'hunter2' 'wp'"], { status: 1, stdout: "", stderr: "" });
@@ -36,4 +39,15 @@ test("the shared runner blocks every direct Git push before spawning Git", async
     () => runCommand("/usr/bin/git", ["send-pack", "origin", "main"]),
     /policy forbids pushing/i,
   );
+});
+
+test("runCommand can stream stdout directly to a mode-0600 file", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-command-stream-"));
+  const outputPath = path.join(directory, "output.bin");
+  const result = await runCommand(process.execPath, ["-e", "process.stdout.write(Buffer.alloc(256 * 1024, 7))"], { encoding: null, stdoutFile: outputPath });
+  assert.equal(result.length, 0);
+  const stat = await fs.stat(outputPath);
+  assert.equal(stat.size, 256 * 1024);
+  assert.equal(stat.mode & 0o777, 0o600);
+  await fs.remove(directory);
 });

@@ -1,3 +1,7 @@
+import fs from "fs-extra";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+
 // Ordered, named normalization steps applied to a remote WordPress SQL dump
 // before it is imported locally. Keeping these as a documented list (rather
 // than inline buffer edits) makes it possible to extend the pipeline without
@@ -45,6 +49,110 @@ export function normalizeSqlDump(buffer: Buffer, { spinner, normalizeCollations 
     result = step.apply(result);
   }
   return result;
+}
+
+/** Normalizes a dump through bounded-memory transforms and atomically swaps
+ * the result into place. The buffer API remains for small/unit-test inputs. */
+export async function normalizeSqlDumpFile(filePath: string, { spinner, normalizeCollations = true }: NormalizeSqlDumpOptions = {}): Promise<void> {
+  const temporaryPath = `${filePath}.${process.pid}.normalized.tmp`;
+  const transforms: Transform[] = [];
+  for (const step of NORMALIZATION_STEPS) {
+    if (step.name === "normalize-collations" && !normalizeCollations) continue;
+    spinner?.message(`Normalizing SQL: ${step.name}...`);
+    if (step.name === "strip-create-database") transforms.push(new SqlStatementFilter());
+    if (step.name === "strip-sandbox-marker") transforms.push(new BufferReplaceTransform(Buffer.from("/*M!999999\\- enable the sandbox mode */"), Buffer.alloc(0)));
+    if (step.name === "normalize-collations") {
+      for (const [from, to] of COLLATION_REPLACEMENTS) transforms.push(new BufferReplaceTransform(from, to));
+    }
+  }
+
+  try {
+    await pipeline(fs.createReadStream(filePath), ...transforms, fs.createWriteStream(temporaryPath, { mode: 0o600 }));
+    await fs.move(temporaryPath, filePath, { overwrite: true });
+    await fs.chmod(filePath, 0o600);
+  } catch (error) {
+    await fs.remove(temporaryPath).catch(() => {});
+    throw error;
+  }
+}
+
+class BufferReplaceTransform extends Transform {
+  #search: Buffer;
+  #replacement: Buffer;
+  #carry = Buffer.alloc(0);
+
+  constructor(search: Buffer, replacement: Buffer) {
+    super();
+    this.#search = search;
+    this.#replacement = replacement;
+  }
+
+  override _transform(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+    const input = Buffer.concat([this.#carry, chunk]);
+    const keep = Math.min(this.#search.length - 1, input.length);
+    const boundary = input.length - keep;
+    let offset = 0;
+    let index: number;
+    while ((index = input.indexOf(this.#search, offset)) !== -1 && index < boundary) {
+      this.push(input.subarray(offset, index));
+      this.push(this.#replacement);
+      offset = index + this.#search.length;
+    }
+    const safeEnd = Math.max(offset, boundary);
+    this.push(input.subarray(offset, safeEnd));
+    this.#carry = input.subarray(safeEnd);
+    callback();
+  }
+
+  override _flush(callback: (error?: Error | null) => void): void {
+    this.push(replaceBuffer(this.#carry, this.#search, this.#replacement));
+    callback();
+  }
+}
+
+class SqlStatementFilter extends Transform {
+  static readonly MAX_FILTERABLE_LINE = 64 * 1024;
+  #line = Buffer.alloc(0);
+  #passthroughLine = false;
+
+  override _transform(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+    if (this.#passthroughLine) {
+      const newline = chunk.indexOf(0x0a);
+      if (newline === -1) {
+        this.push(chunk);
+        callback();
+        return;
+      }
+      this.push(chunk.subarray(0, newline + 1));
+      this.#passthroughLine = false;
+      chunk = chunk.subarray(newline + 1);
+    }
+    let input = Buffer.concat([this.#line, chunk]);
+    let newline: number;
+    while ((newline = input.indexOf(0x0a)) !== -1) {
+      this.#emitLine(input.subarray(0, newline + 1));
+      input = input.subarray(newline + 1);
+    }
+    if (input.length > SqlStatementFilter.MAX_FILTERABLE_LINE) {
+      this.push(input);
+      this.#line = Buffer.alloc(0);
+      this.#passthroughLine = true;
+    } else {
+      this.#line = input;
+    }
+    callback();
+  }
+
+  override _flush(callback: (error?: Error | null) => void): void {
+    if (this.#line.length) this.#emitLine(this.#line);
+    callback();
+  }
+
+  #emitLine(line: Buffer): void {
+    const trimmed = line.toString("latin1").trim();
+    if (/^CREATE DATABASE\b/i.test(trimmed) || /^USE\s+`[^`]+`\s*;?\s*$/i.test(trimmed)) return;
+    this.push(line);
+  }
 }
 
 function stripCreateDatabaseStatements(buffer: Buffer): Buffer {

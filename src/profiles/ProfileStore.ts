@@ -42,7 +42,13 @@ export async function deleteProfile(name: string, options: ProfileWriteOptions =
   if (!(await fs.pathExists(filePath))) throw new Error(`Configuration file not found: ${filePath}`);
   const config = await readConfigFile(filePath);
   if (!config.profiles?.[name]) throw new Error(`Profile "${name}" was not found in ${filePath}.`);
+  const references = findProfileReferences(config, name);
+  if (references.length && !options.force) {
+    throw new Error(`Profile "${name}" is still referenced by ${references.join(", ")}. Update those references first, or pass --force to clear them while deleting.`);
+  }
+  if (options.force) clearProfileReferences(config, name);
   delete config.profiles[name];
+  validateConfig(config, filePath, { allowProjectKey: true });
   await writeConfigAtomic(filePath, config);
   return filePath;
 }
@@ -51,8 +57,8 @@ export async function deleteProfile(name: string, options: ProfileWriteOptions =
  * Renames a profile within a single config file (the "project" or "user"
  * scope resolved from options — never both, mirroring saveProfile/deleteProfile).
  * Also repoints anything else in that same file that names the profile —
- * `defaults.profile` and any preset's `profile` field — so a rename can't
- * silently leave a dangling reference to the old name behind.
+ * `defaults.profile`, any preset's `profile` field, and `project.profile` —
+ * so a rename can't silently leave a dangling reference to the old name.
  */
 export async function renameProfile(oldName: string, newName: string, options: ProfileWriteOptions = {}): Promise<string> {
   validateProfileName(oldName);
@@ -68,6 +74,7 @@ export async function renameProfile(oldName: string, newName: string, options: P
   for (const preset of Object.values(config.presets || {})) {
     if (preset && typeof preset === "object" && (preset as any).profile === oldName) (preset as any).profile = newName;
   }
+  if (typeof config.project?.profile === "string" && config.project.profile === oldName) config.project.profile = newName;
   validateConfig(config, filePath, { allowProjectKey: true });
   await writeConfigAtomic(filePath, config);
   return filePath;
@@ -110,4 +117,20 @@ export async function setProfileGitSshHostAlias(name: string, alias: string | nu
 
 export function validateProfileName(name: string): void {
   if (!/^[a-z0-9][a-z0-9-_]*$/.test(name || "")) throw new Error("Profile name may contain lowercase letters, numbers, dashes, and underscores.");
+}
+
+function findProfileReferences(config: Awaited<ReturnType<typeof readConfigFile>>, name: string): string[] {
+  const references: string[] = [];
+  if (config.defaults?.profile === name) references.push("defaults.profile");
+  for (const [presetName, preset] of Object.entries(config.presets || {})) {
+    if (preset?.profile === name) references.push(`presets.${presetName}.profile`);
+  }
+  if (config.project?.profile === name) references.push("project.profile");
+  return references;
+}
+
+function clearProfileReferences(config: Awaited<ReturnType<typeof readConfigFile>>, name: string): void {
+  if (config.defaults?.profile === name) delete config.defaults.profile;
+  for (const preset of Object.values(config.presets || {})) if (preset?.profile === name) delete preset.profile;
+  if (config.project?.profile === name) delete config.project.profile;
 }

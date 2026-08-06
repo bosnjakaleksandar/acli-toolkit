@@ -1,4 +1,5 @@
 import path from "node:path";
+import crypto from "node:crypto";
 import fs from "fs-extra";
 import { StepFailedError } from "./errors.ts";
 
@@ -25,9 +26,10 @@ export interface StepRunnerCallbacks {
 }
 
 export interface StepState {
-  version: 2;
+  version: 3;
   completedSteps: string[];
   stepData: Record<string, unknown>;
+  fingerprint: string;
   updatedAt: string;
 }
 
@@ -41,25 +43,26 @@ export function getStateFilePath(targetDir: string): string {
  * and written before step IDs were reordered for the import workflow) is
  * deliberately treated as unresumable rather than partially trusted — resuming
  * against it could skip steps that never actually ran under the current step
- * sequence. Callers surface this as "nothing to resume"; the fix is to
- * restart the run.
+ * sequence. State versions before v3 also lack the plan fingerprint needed
+ * to prove the current options match the interrupted run, so callers surface
+ * them as "nothing to resume"; the safe fix is to restart the run.
  */
 export async function readStepState(targetDir: string): Promise<StepState | null> {
   const statePath = getStateFilePath(targetDir);
   if (!(await fs.pathExists(statePath))) return null;
   try {
     const value = await fs.readJSON(statePath);
-    if (value?.version === 2 && Array.isArray(value.completedSteps) && value.stepData && typeof value.stepData === "object") return value;
+    if (value?.version === 3 && Array.isArray(value.completedSteps) && value.stepData && typeof value.stepData === "object" && typeof value.fingerprint === "string") return value;
     return null;
   } catch {
     return null;
   }
 }
 
-async function writeStepState(targetDir: string, completedSteps: string[], stepData: Record<string, unknown>): Promise<void> {
+async function writeStepState(targetDir: string, completedSteps: string[], stepData: Record<string, unknown>, fingerprint: string): Promise<void> {
   const statePath = getStateFilePath(targetDir);
   await fs.ensureDir(path.dirname(statePath));
-  const state: StepState = { version: 2, completedSteps, stepData, updatedAt: new Date().toISOString() };
+  const state: StepState = { version: 3, completedSteps, stepData, fingerprint, updatedAt: new Date().toISOString() };
   await fs.writeJSON(statePath, state, { spaces: 2 });
 }
 
@@ -83,6 +86,7 @@ export class StepRunner {
   #steps: Step[];
   #targetDir: string;
   #resumeCommand?: string;
+  #fingerprint: string;
 
   /**
    * @param resumeCommand The exact command the user should run to continue
@@ -90,14 +94,20 @@ export class StepRunner {
    * undefined to omit the hint entirely rather than guess it; StepRunner has
    * no way to know which CLI command (create, import, ...) is driving it.
    */
-  constructor(steps: Step[], targetDir: string, { resumeCommand }: { resumeCommand?: string } = {}) {
+  constructor(steps: Step[], targetDir: string, { resumeCommand, fingerprint }: { resumeCommand?: string; fingerprint?: unknown } = {}) {
     this.#steps = steps;
     this.#targetDir = targetDir;
     this.#resumeCommand = resumeCommand;
+    this.#fingerprint = createFingerprint({ stepIds: steps.map((step) => step.id), context: fingerprint ?? null });
   }
 
   async run(options: StepRunnerCallbacks & { resume?: boolean } = {}): Promise<{ completedSteps: string[]; stepData: Record<string, unknown> }> {
     const priorState = options.resume ? await readStepState(this.#targetDir) : null;
+    if (options.resume && priorState && priorState.fingerprint !== this.#fingerprint) {
+      throw new Error(
+        "Cannot resume because the project plan, profile, environment, or step sequence changed since the interrupted run. Re-run with the original options, or start a fresh project without --resume.",
+      );
+    }
     const alreadyDone = new Set(priorState?.completedSteps ?? []);
     const completedSteps = [...alreadyDone];
     const stepData: Record<string, unknown> = { ...(priorState?.stepData ?? {}) };
@@ -118,11 +128,27 @@ export class StepRunner {
       }
       stepData[step.id] = result;
       completedSteps.push(step.id);
-      await writeStepState(this.#targetDir, completedSteps, stepData);
+      await writeStepState(this.#targetDir, completedSteps, stepData, this.#fingerprint);
       options.onStepComplete?.(step, index, this.#steps.length);
     }
 
     await clearStepState(this.#targetDir);
     return { completedSteps, stepData };
   }
+}
+
+function createFingerprint(value: unknown): string {
+  return crypto.createHash("sha256").update(stableStringify(value)).digest("hex");
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }

@@ -8,6 +8,7 @@ import { buildCreateSteps, type CreateStepsSpinner } from "../src/projects/creat
 import { TargetExistsError } from "../src/core/errors.ts";
 import type { ProjectPlan } from "../src/core/model/ProjectPlan.ts";
 import ScaffoldStrategy from "../src/projects/strategies/ScaffoldStrategy.ts";
+import LaravelStrategy from "../src/projects/strategies/LaravelStrategy.ts";
 
 /**
  * Coverage for the step pipeline extracted out of createProjectCommand
@@ -131,5 +132,32 @@ test("with --resume: true, the preflight step skips the pre-existing-directory c
   await new StepRunner(steps, targetDir).run({ resume: true });
 
   assert.equal(strategy.scaffoldCalls.length, 1, "scaffold must run once resume bypasses the exists-check");
+  await fs.remove(parent);
+});
+
+test("Laravel resume does not rerun a completed frontend generator after Composer fails", async () => {
+  const parent = await tempParentDir();
+  const targetDir = path.join(parent, "demo");
+  const spinner = makeSpinner();
+  const frontend = makeStrategy();
+  let composerAttempts = 0;
+  const strategy = new LaravelStrategy(null, frontend, {
+    hasCommand: () => true,
+    runner: async () => {
+      composerAttempts += 1;
+      if (composerAttempts === 1) throw new Error("composer failed");
+      return "";
+    },
+  });
+  const ctx: ProjectPlan = { projectName: "demo", appType: "application", framework: "react", nonInteractive: true, skipGitInit: true };
+  const makeSteps = (resume: boolean) => buildCreateSteps({ ctx, strategy, targetDir, spinner, resume, onOwnsTargetDir: () => {}, onNextSteps: () => {} });
+
+  const firstSteps = makeSteps(false);
+  assert.deepEqual(firstSteps.map((step) => step.id), ["preflight", "scaffold-frontend", "scaffold-backend", "scaffold-project-files", "dependencies", "git"]);
+  await assert.rejects(() => new StepRunner(firstSteps, targetDir).run(), /Creating Laravel backend.*composer failed/s);
+
+  await new StepRunner(makeSteps(true), targetDir).run({ resume: true });
+  assert.equal(frontend.scaffoldCalls.length, 1, "the frontend generator must remain skipped on resume");
+  assert.equal(composerAttempts, 2);
   await fs.remove(parent);
 });

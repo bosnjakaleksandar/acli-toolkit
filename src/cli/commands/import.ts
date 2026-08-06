@@ -21,6 +21,7 @@ import { loadConfig } from "../../config/ConfigLoader.ts";
 import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
 import { resolveRemoteProfile } from "../../remote/resolveProfile.ts";
 import type { ImportCommandOptions } from "../options.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
 
 /**
  * `acli import`: brings an existing WordPress site into a new local project
@@ -88,7 +89,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       // its wordpress image tag (see DockerEnvironment.scaffold) — every
       // import source needs a value here or that placeholder is left
       // unsubstituted in the generated file.
-      wpVersion: options.wpVersion || "latest",
+      wpVersion: options.wpVersion || config.defaults?.wpVersion || DEFAULT_WORDPRESS_VERSION,
       skipFiles: Boolean(options.skipFiles),
       skipDatabase: Boolean(options.skipDatabase),
       skipGitLink: Boolean(options.skipGitLink),

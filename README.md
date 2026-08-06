@@ -15,7 +15,7 @@ It supports:
 
 ## Installation
 
-Node.js 20 or newer is required.
+Node.js 22.18 or newer is required.
 
 Run without installing:
 
@@ -215,7 +215,7 @@ projectName: acme-site
 projectType: wordpress
 environment: lando
 mysqlVersion: "8.0"
-wpVersion: latest
+wpVersion: "7.0.2"
 themeRepo: https://github.com/example/starter-theme.git
 themeBranch: main
 plugins: [advanced-custom-fields]

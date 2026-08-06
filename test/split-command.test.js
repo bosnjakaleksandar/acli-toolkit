@@ -28,10 +28,8 @@ test("splitCommand does not interpret backslash as an escape character — a bac
   assert.deepEqual(splitCommand("echo foo\\ bar"), ["echo", "foo\\", "bar"]);
 });
 
-test("splitCommand silently drops an unterminated quote character rather than throwing", () => {
-  // Documents current behavior: the lone `"` is dropped, not treated as a
-  // parse error and not treated as the start of an unterminated token.
-  assert.deepEqual(splitCommand('echo "unterminated'), ["echo", "unterminated"]);
+test("splitCommand rejects an unterminated quoted argument", () => {
+  assert.throws(() => splitCommand('echo "unterminated'), /unterminated quote/);
 });
 
 test("splitCommand returns an empty array for an empty or whitespace-only string", () => {

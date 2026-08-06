@@ -7,6 +7,7 @@ import type { ImportSource, ImportSourceContext } from "./ImportSource.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import { mergeGitignoreForImport } from "../../system/gitignore.ts";
+import { redactSecrets } from "../../config/redaction.ts";
 
 export interface ImportWorkflowOptions {
   source: ImportSource;
@@ -154,6 +155,19 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
     },
   ];
 
-  const runner = new StepRunner(steps, targetDir, { resumeCommand });
+  const runner = new StepRunner(steps, targetDir, {
+    resumeCommand,
+    fingerprint: {
+      command: "import",
+      projectName: ctx.projectName,
+      environment: ctx.environment,
+      mysqlVersion: (ctx as any).mysqlVersion,
+      wpVersion: (ctx as any).wpVersion,
+      skipFiles: ctx.skipFiles,
+      skipDatabase: ctx.skipDatabase,
+      skipGitLink: ctx.skipGitLink,
+      profile: redactSecrets(ctx.profile),
+    },
+  });
   await runner.run({ resume: Boolean(resume) });
 }

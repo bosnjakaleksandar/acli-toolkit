@@ -1,6 +1,7 @@
 import { text, select, confirm, isCancel, cancel } from "@clack/prompts";
 import fs from "fs-extra";
 import { mascot } from "./mascot.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../config/defaults.ts";
 
 export async function ask<F extends (options: any) => Promise<any>>(promptFn: F, options: Parameters<F>[0]): Promise<Exclude<Awaited<ReturnType<F>>, symbol>> {
   const result = await promptFn(options);
@@ -26,8 +27,8 @@ export async function askMysqlVersion(): Promise<string> {
 
 export async function askWpVersion(): Promise<string> {
   return ask(text, {
-    message: 'WordPress version (latest or specify version like "6.9.4"):',
-    initialValue: "latest",
+    message: `WordPress version (pinned default ${DEFAULT_WORDPRESS_VERSION}, or "latest"):`,
+    initialValue: DEFAULT_WORDPRESS_VERSION,
   });
 }
 

@@ -28,7 +28,7 @@
     "create-project": "./bin/create-project"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.18.0"
   },
   "repository": {
     "type": "git",

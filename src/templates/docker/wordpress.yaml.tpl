@@ -27,7 +27,7 @@ services:
       WORDPRESS_TABLE_PREFIX: {{TABLE_PREFIX}}
 
   phpmyadmin:
-    image: phpmyadmin:latest
+    image: phpmyadmin:5.2.3
     platform: linux/amd64
     depends_on:
       - db

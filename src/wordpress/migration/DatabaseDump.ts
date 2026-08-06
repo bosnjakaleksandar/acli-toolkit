@@ -28,8 +28,7 @@ export default class DatabaseDumpService {
   async detectTablePrefix(targetDir: string, spinner: Spinner | null = null, remoteFacts: Partial<RemoteFacts> | null = null): Promise<string> {
     spinner?.message("Detecting WordPress table prefix...");
     const dumpPath = path.join(targetDir, "staging.sql");
-    const sql = await fs.readFile(dumpPath, "utf8").catch(() => null);
-    const detected = sql ? detectPrefixFromDump(sql) : null;
+    const detected = await detectPrefixFromDumpFile(dumpPath).catch(() => null);
     const remotePrefix = remoteFacts?.tablePrefix || null;
 
     if (remotePrefix && detected && remotePrefix !== detected) {
@@ -49,6 +48,46 @@ export default class DatabaseDumpService {
 function detectPrefixFromDump(sql: string): string | null {
   const candidates = new Map<string, Set<string>>(); // prefix -> Set of matched core suffixes
 
+  collectCandidates(sql, candidates);
+  return selectCandidate(candidates);
+}
+
+async function detectPrefixFromDumpFile(filePath: string): Promise<string | null> {
+  const candidates = new Map<string, Set<string>>();
+  const stream = fs.createReadStream(filePath);
+  const maxHeaderBytes = 4096;
+  let header = Buffer.alloc(0);
+  let skippingRestOfLine = false;
+
+  for await (const rawChunk of stream) {
+    let chunk = Buffer.from(rawChunk);
+    while (chunk.length) {
+      const newline = chunk.indexOf(0x0a);
+      const segment = newline === -1 ? chunk : chunk.subarray(0, newline + 1);
+      if (!skippingRestOfLine) {
+        const remaining = maxHeaderBytes - header.length;
+        header = Buffer.concat([header, segment.subarray(0, Math.max(0, remaining))]);
+        if (header.length >= maxHeaderBytes && newline === -1) {
+          collectCandidates(header.toString("latin1"), candidates);
+          header = Buffer.alloc(0);
+          skippingRestOfLine = true;
+        }
+      }
+      if (newline !== -1) {
+        if (!skippingRestOfLine) collectCandidates(header.toString("latin1"), candidates);
+        header = Buffer.alloc(0);
+        skippingRestOfLine = false;
+        chunk = chunk.subarray(newline + 1);
+      } else {
+        chunk = Buffer.alloc(0);
+      }
+    }
+  }
+  if (header.length && !skippingRestOfLine) collectCandidates(header.toString("latin1"), candidates);
+  return selectCandidate(candidates);
+}
+
+function collectCandidates(sql: string, candidates: Map<string, Set<string>>): void {
   for (const match of sql.matchAll(TABLE_STATEMENT_PATTERN)) {
     const tableName = match[1]!;
     const lowerName = tableName.toLowerCase();
@@ -63,7 +102,9 @@ function detectPrefixFromDump(sql: string): string | null {
       }
     }
   }
+}
 
+function selectCandidate(candidates: Map<string, Set<string>>): string | null {
   if (candidates.size === 0) return null;
 
   const strong = [...candidates.entries()].filter(([, suffixes]) => suffixes.size >= STRONG_COVERAGE_THRESHOLD);

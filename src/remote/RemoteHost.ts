@@ -65,11 +65,23 @@ export class RemoteHost {
   async exportDatabase(targetDir: string, spinner: Spinner | null): Promise<void> {
     spinner?.message(`Exporting database with ${this.profile.database.driver} driver...`);
     const { command, stdin } = databaseCommand(this.profile);
-    const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null, ...(stdin !== undefined ? { stdin } : {}) });
-    if (!dump || dump.length < 100) throw new Error(`Remote database dump is empty or invalid (${dump?.length || 0} bytes).`);
-    // A full database dump — likely including real user password hashes —
-    // should not be left world/group-readable at the default umask.
-    await fs.writeFile(path.join(targetDir, "staging.sql"), dump, { mode: 0o600 });
+    const dumpPath = path.join(targetDir, "staging.sql");
+    try {
+      const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), {
+        encoding: null,
+        stdoutFile: dumpPath,
+        ...(stdin !== undefined ? { stdin } : {}),
+      });
+      // Compatibility for injected test/custom runners that return output
+      // instead of implementing the stdoutFile streaming option.
+      if (!(await fs.pathExists(dumpPath)) && dump && dump.length > 0) await fs.writeFile(dumpPath, dump, { mode: 0o600 });
+      const size = (await fs.stat(dumpPath).catch(() => null))?.size || 0;
+      if (size < 100) throw new Error(`Remote database dump is empty or invalid (${size} bytes).`);
+      await fs.chmod(dumpPath, 0o600);
+    } catch (error) {
+      await fs.remove(dumpPath).catch(() => {});
+      throw error;
+    }
   }
 
   /**

@@ -3,10 +3,12 @@ import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
 import { resolveTemplateName, resolveDbImage } from "./templateMap.ts";
-import { assertSafeTablePrefix } from "../system/safety.ts";
+import { assertSafeTablePrefix, assertSafeWpVersion } from "../system/safety.ts";
 import { runCommand } from "../system/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
 import { applyPlaceholders, readTemplate } from "./renderTemplate.ts";
+import { prepareWpConfigRecovery, restoreWpConfigAfterRecovery } from "../wordpress/migration/wpConfigRecovery.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../config/defaults.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_ROOT = path.join(__dirname, "..", "templates");
@@ -24,10 +26,11 @@ export default class LandoService extends EnvironmentService {
   getLocalUrl(ctx: any): string { return ctx.profile?.local?.url || `https://${ctx.projectName}.lndo.site`; }
 
   async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
-    const { projectName, mysqlVersion, tablePrefix } = options;
+    const { projectName, mysqlVersion, wpVersion, tablePrefix } = options;
     const templateName = resolveTemplateName(type);
     const content = applyPlaceholders(await readTemplate(TEMPLATES_ROOT, "lando", templateName), {
       DB_IMAGE: mysqlVersion ? resolveDbImage(mysqlVersion) : undefined,
+      WP_VERSION: assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION),
       TABLE_PREFIX: assertSafeTablePrefix(tablePrefix || "wp_"),
       PROJECT_NAME: projectName,
     });
@@ -77,21 +80,17 @@ export default class LandoService extends EnvironmentService {
 
   async recoverDb(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Local database credentials are stale; rebuilding the Lando app...");
-    // The recipe's `wp config create` step (see wordpress.yaml.tpl) only
-    // runs `if [ ! -f "wp-config.php" ]` — and webroot is the bind-mounted
-    // project directory, not a volume, so `lando rebuild` alone won't clear
-    // a stale wp-config.php left over from an earlier attempt. Remove it so
-    // the rebuild regenerates one with the current credentials.
-    await fs.remove(path.join(targetDir, "wp-config.php")).catch(() => {});
-    await this.run("lando", ["rebuild", "-y"], { cwd: targetDir });
-    await this.waitForDb(targetDir, {}, spinner);
-    // Without this, recovery re-races the exact same startup window that
-    // caused the failure in the first place.
-    await this.waitForAppDb(targetDir, {}, spinner);
-    // wp-cli ships with the recipe's image, so unlike Docker's curl-installed
-    // binary it should survive a rebuild — this just verifies that promptly
-    // with a clear error, instead of a confusing failure showing up later.
-    await this.ensureWpCli(targetDir, spinner);
+    const configState = await prepareWpConfigRecovery(targetDir);
+    try {
+      await this.run("lando", ["rebuild", "-y"], { cwd: targetDir });
+      await this.waitForDb(targetDir, {}, spinner);
+      await this.waitForAppDb(targetDir, {}, spinner);
+      await restoreWpConfigAfterRecovery(configState);
+      await this.ensureWpCli(targetDir, spinner);
+    } catch (error) {
+      await restoreWpConfigAfterRecovery(configState).catch(() => {});
+      throw error;
+    }
   }
 
   protected async importDbOnce(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {

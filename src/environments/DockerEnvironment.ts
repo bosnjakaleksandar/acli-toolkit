@@ -7,6 +7,9 @@ import { assertSafeTablePrefix, assertSafeWpVersion } from "../system/safety.ts"
 import { runCommand } from "../system/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
 import { applyPlaceholders, readTemplate } from "./renderTemplate.ts";
+import { prepareWpConfigRecovery, restoreWpConfigAfterRecovery } from "../wordpress/migration/wpConfigRecovery.ts";
+import { wpCliInstallShell } from "../wordpress/wpCliInstaller.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../config/defaults.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_ROOT = path.join(__dirname, "..", "templates");
@@ -28,7 +31,7 @@ export default class DockerComposeService extends EnvironmentService {
     const templateName = resolveTemplateName(type);
     const content = applyPlaceholders(await readTemplate(TEMPLATES_ROOT, "docker", templateName), {
       DB_IMAGE: mysqlVersion ? resolveDbImage(mysqlVersion) : undefined,
-      WP_VERSION: wpVersion ? assertSafeWpVersion(wpVersion) : undefined,
+      WP_VERSION: assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION),
       TABLE_PREFIX: assertSafeTablePrefix(tablePrefix || "wp_"),
       PROJECT_NAME: projectName,
     });
@@ -69,7 +72,7 @@ export default class DockerComposeService extends EnvironmentService {
   async ensureWpCli(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Installing WP-CLI...");
     try {
-      await this.run("docker", ["compose", "exec", "-T", "wordpress", "bash", "-c", "curl -fsSL -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x wp-cli.phar && mv wp-cli.phar /usr/local/bin/wp"], { cwd: targetDir });
+      await this.run("docker", ["compose", "exec", "-T", "wordpress", "bash", "-c", wpCliInstallShell()], { cwd: targetDir });
     } catch (error) {
       throw new CliError(`Failed to install WP-CLI inside the Docker container: ${describeError(error)}`, {
         code: "WP_CLI_INSTALL_FAILED",
@@ -80,33 +83,29 @@ export default class DockerComposeService extends EnvironmentService {
 
   async recoverDb(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Local database credentials are stale; rebuilding the generated DB volume...");
-    // `down --volumes` only removes the *named* db_data volume — it has no
-    // effect on wp-config.php, which lives on the bind-mounted project
-    // directory (`.:/var/www/html`), not in a volume. The official image's
-    // entrypoint only ever generates wp-config.php if one doesn't already
-    // exist, so a copy left over from an earlier attempt (e.g. one that ran
-    // before credentials were unified, or a resumed --keep-dump run) would
-    // silently keep its stale values forever, no matter how many times the
-    // database volume itself gets wiped. Removing it here forces a fresh,
-    // correct one to be generated on the next start.
-    await fs.remove(path.join(targetDir, "wp-config.php")).catch(() => {});
-    await this.run("docker", ["compose", "down", "--volumes", "--remove-orphans"], { cwd: targetDir });
-    await this.start(targetDir, spinner);
-    await this.waitForDb(targetDir, {}, spinner);
-    // Without this, recovery re-races the exact same startup window that
-    // caused the failure in the first place — the retry that follows would
-    // fail identically instead of actually recovering.
-    await this.waitForAppDb(targetDir, {}, spinner);
-    await this.ensureWpCli(targetDir, spinner);
+    const configState = await prepareWpConfigRecovery(targetDir);
+    try {
+      await this.run("docker", ["compose", "down", "--volumes", "--remove-orphans"], { cwd: targetDir });
+      await this.start(targetDir, spinner);
+      await this.waitForDb(targetDir, {}, spinner);
+      await this.waitForAppDb(targetDir, {}, spinner);
+      await restoreWpConfigAfterRecovery(configState);
+      await this.ensureWpCli(targetDir, spinner);
+    } catch (error) {
+      await restoreWpConfigAfterRecovery(configState).catch(() => {});
+      throw error;
+    }
   }
 
   protected async importDbOnce(targetDir: string, sqlFile: string, spinner: Spinner | null = null): Promise<void> {
     const onProgress = spinner ? (line: string) => spinner.message(`Importing DB: ${line}`) : null;
 
     spinner?.message("Copying DB to container...");
-    await this.run("docker", ["compose", "cp", sqlFile, `db:/tmp/${sqlFile}`], { cwd: targetDir });
+    const containerSqlFile = path.posix.basename(sqlFile);
+    if (!/^[a-zA-Z0-9._-]+$/.test(containerSqlFile)) throw new Error(`Unsafe SQL filename: ${sqlFile}`);
+    await this.run("docker", ["compose", "cp", sqlFile, `db:/tmp/${containerSqlFile}`], { cwd: targetDir });
 
-    await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", `{ echo "[client]"; echo "user=root"; echo "password=$MYSQL_ROOT_PASSWORD"; } > /tmp/my.cnf && (mariadb --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${sqlFile} 2>/dev/null || mysql --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${sqlFile}); status=$?; rm -f /tmp/my.cnf; exit $status`], { cwd: targetDir }, onProgress);
+    await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", `trap 'rm -f /tmp/my.cnf /tmp/${containerSqlFile}' EXIT; { echo "[client]"; echo "user=root"; echo "password=$MYSQL_ROOT_PASSWORD"; } > /tmp/my.cnf && (mariadb --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${containerSqlFile} 2>/dev/null || mysql --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${containerSqlFile})`], { cwd: targetDir }, onProgress);
   }
 
   // --skip-plugins/--skip-themes: every call site here (siteurl reads,

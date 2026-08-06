@@ -20,10 +20,10 @@ services:
     build_as_root:
       # Installs Node from the official nodejs.org release tarball, checksum-verified
       # against the matching SHASUMS256.txt before extraction — rather than piping a
-      # third-party installer script (NodeSource's setup_20.x) into a root shell, which
+      # third-party NodeSource installer script into a root shell, which
       # runs a script we never verify and which NodeSource can change at any time.
       - >-
-        NODE_VERSION=20.18.1 &&
+        NODE_VERSION=22.18.0 &&
         case "$(dpkg --print-architecture)" in amd64) NODE_ARCH=x64 ;; arm64) NODE_ARCH=arm64 ;; *) echo "Unsupported architecture" >&2; exit 1 ;; esac &&
         curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" &&
         curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" &&
@@ -31,7 +31,7 @@ services:
         tar -xJf "node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" -C /usr/local --strip-components=1 &&
         rm -f "node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" SHASUMS256.txt
     run:
-      - if [ ! -d "wp-content" ] || [ ! -d "wp-includes" ] || [ ! -d "wp-admin" ]; then wp core download; fi
+      - if [ ! -d "wp-content" ] || [ ! -d "wp-includes" ] || [ ! -d "wp-admin" ]; then if [ "{{WP_VERSION}}" = "latest" ]; then wp core download; else wp core download --version="{{WP_VERSION}}"; fi; fi
       - if [ ! -f "wp-config.php" ]; then wp config create --dbname="wordpress" --dbuser="wordpress" --dbpass="wordpress" --dbhost="database" --dbprefix="{{TABLE_PREFIX}}"; fi
   database:
     creds:

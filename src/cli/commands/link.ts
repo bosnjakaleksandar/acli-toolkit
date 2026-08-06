@@ -12,6 +12,7 @@ import { CliError } from "../../core/errors.ts";
 import { validateProjectName } from "../../projects/plan/projectName.ts";
 import { runCommand } from "../CommandShell.ts";
 import type { LinkCommandOptions } from "../options.ts";
+import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
 
 const ENV_FILE_NAMES: Record<string, string> = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 
@@ -43,7 +44,9 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
       const shouldScaffold = nonInteractive || await ask(confirm, { message: `No ${ENV_FILE_NAMES[environment]} found here. Generate one now?`, initialValue: true });
       if (shouldScaffold) {
         const mysqlVersion = nonInteractive ? "8.0" : await askMysqlVersion();
-        const wpVersion = environment === "docker" ? (nonInteractive ? "latest" : await askWpVersion()) : "latest";
+        const wpVersion = nonInteractive
+          ? config.defaults?.wpVersion || DEFAULT_WORDPRESS_VERSION
+          : await askWpVersion();
         const envService = resolveEnvironmentService(environment);
         await envService.scaffold(cwd, "wordpress", { projectName, mysqlVersion, wpVersion, tablePrefix: "wp_" });
       }
