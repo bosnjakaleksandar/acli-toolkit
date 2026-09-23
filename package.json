@@ -1,6 +1,6 @@
 {
   "name": "acli-toolkit",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "A-CLI Developer Toolkit for project scaffolding and local development workflows.",
   "main": "dist/cli/run.js",
   "exports": "./dist/cli/run.js",

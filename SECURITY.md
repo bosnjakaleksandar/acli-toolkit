@@ -17,7 +17,7 @@ This is a solo-maintained project. Please allow a few days for an initial respon
 
 ## What A-CLI reads from a repository
 
-A-CLI auto-discovers `.acli/config.yaml` in the current project, the way `make` reads a `Makefile`. Since 2.1 that file can hold only the project link and `acli create` defaults:
+A-CLI auto-discovers `.acli/config.yaml` in the current project, the way `make` reads a `Makefile`. Since 3.0 that file can hold only the project link and `acli create` defaults:
 
 - A-CLI never executes commands from configuration; `{command: ...}` and `${ENV_VAR}` references are rejected rather than resolved.
 - Staging profiles (hosts, users, keys) and the default profile are read only from your user config. A project config that declares them is refused, so a cloned repository can't make `acli pull` connect to a different server.

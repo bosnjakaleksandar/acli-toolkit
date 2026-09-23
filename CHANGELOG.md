@@ -4,9 +4,9 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-## [2.1.0] - 2026-09-23
+## [3.0.0] - 2026-09-24
 
-This release narrows `acli import` / `acli pull` to two well-defined ways of reaching a staging server and removes the configuration machinery that existed for one-off setups. `acli create` (React, Next.js, Laravel, WordPress) and the Docker/Lando environments are unchanged.
+This release narrows `acli import` / `acli pull` to two well-defined ways of reaching a staging server and removes the configuration machinery that existed for one-off setups. It is a major version because commands, options and configuration fields were removed (see **Removed**); configurations that use them fail validation with a message saying what to change. `acli create` (React, Next.js, Laravel, WordPress) and the Docker/Lando environments are unchanged.
 
 ### Added
 

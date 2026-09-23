@@ -50,9 +50,9 @@ Add `database.tablePrefix: wp_` (your site's prefix) to the profile and resume.
 
 The server asked which database to use. Run the same command without `--yes` and pick the one WordPress uses (check `DB_HOST` in `wp-config.php` or the project in Coolify). The answer is remembered for the project.
 
-### My configuration is rejected after updating to 2.1
+### My configuration is rejected after updating to 3.0
 
-2.1 removed a few older features. The message names the field and what to do:
+3.0 removed a few older features. The message names the field and what to do:
 
 | Message mentions | Do this |
 | --- | --- |

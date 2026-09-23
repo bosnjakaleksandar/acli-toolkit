@@ -57,7 +57,7 @@ function assertNoProjectProfiles(config: AcliConfig, filePath: string): void {
   const hasDefault = config.defaults?.profile !== undefined;
   if (!hasProfiles && !hasDefault) return;
   throw new Error(
-    `${filePath} declares ${hasProfiles ? "profiles" : "a default profile"}, which since A-CLI 2.1 live only in the user config (${getUserConfigPath()}).\n` +
+    `${filePath} declares ${hasProfiles ? "profiles" : "a default profile"}, which since A-CLI 3.0 live only in the user config (${getUserConfigPath()}).\n` +
       "Recreate them with `acli profile create`, set the default with `acli profile use <name>`, then remove `profiles:` and `defaults.profile` from this file.",
   );
 }

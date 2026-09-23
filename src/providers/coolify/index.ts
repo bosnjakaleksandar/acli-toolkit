@@ -5,7 +5,7 @@ import type { ProviderDefinition } from "../contract.ts";
 
 const HOSTNAME_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 const COOLIFY_KEYS = new Set(["gitHost"]);
-// Fields that moved out of the profile in 2.1: which project is chosen at
+// Fields that moved out of the profile in 3.0: which project is chosen at
 // import, and prompt answers are remembered per project in its link.
 const MOVED_KEYS = new Set(["project", "database", "databaseName", "wordpressContainer"]);
 

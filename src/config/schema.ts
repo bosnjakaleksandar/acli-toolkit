@@ -20,11 +20,11 @@ const SHARED_PROFILE_KEYS = ["type", "provider", "ssh", "database", "git", "urls
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
   const errors: string[] = [];
   if (config.version !== CONFIG_VERSION) errors.push(`${source}: top-level version must be ${CONFIG_VERSION}.`);
-  // Presets were removed in 2.1; an empty leftover `presets: {}` is harmless.
+  // Presets were removed in 3.0; an empty leftover `presets: {}` is harmless.
   const presets = (config as unknown as Record<string, unknown>).presets;
   if (presets !== undefined) {
     if (isObject(presets) && !Object.keys(presets).length) delete (config as unknown as Record<string, unknown>).presets;
-    else errors.push(`${source}: presets were removed in A-CLI 2.1. Put shared values in \`defaults\` and pass the rest as \`acli create\` options, then remove \`presets\`.`);
+    else errors.push(`${source}: presets were removed in A-CLI 3.0. Put shared values in \`defaults\` and pass the rest as \`acli create\` options, then remove \`presets\`.`);
   }
   const allowedRootKeys = allowProjectKey ? PROJECT_ROOT_KEYS : ROOT_KEYS;
   for (const key of Object.keys(config)) if (key !== "presets" && !allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
@@ -37,7 +37,7 @@ export function validateConfig(config: AcliConfig, source = "configuration", { a
   if (isObject(config.defaults)) validatePlanFields(config.defaults, `${source}: defaults`, errors);
   for (const [name, profile] of Object.entries(config.profiles || {})) validateProfile(profile, `${source} profile "${name}"`, errors);
   const reference = findRemovedReference(config);
-  if (reference) errors.push(`${source}: "${reference}" uses a \${ENV_VAR} or {command: ...} reference, which A-CLI 2.1 no longer resolves. Write the value itself (profiles live in your own user config, which isn't shared).`);
+  if (reference) errors.push(`${source}: "${reference}" uses a \${ENV_VAR} or {command: ...} reference, which A-CLI 3.0 no longer resolves. Write the value itself (profiles live in your own user config, which isn't shared).`);
   if (config.project !== undefined) validateProjectLink(config.project, `${source} project`, errors);
   if (errors.length) throw new Error(errors.join("\n"));
   return config;

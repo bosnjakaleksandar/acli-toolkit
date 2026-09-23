@@ -49,7 +49,7 @@ test("configuration validation rejects nested objects under defaults", () => {
 
 test("configuration validation ignores an empty leftover presets block and explains a non-empty one", () => {
   assert.doesNotThrow(() => validateConfig({ version: 1, presets: {} }));
-  assert.throws(() => validateConfig({ version: 1, presets: { p: { plugins: ["a"] } } }), /presets were removed in A-CLI 2\.1/);
+  assert.throws(() => validateConfig({ version: 1, presets: { p: { plugins: ["a"] } } }), /presets were removed in A-CLI 3\.0/);
 });
 
 test("configuration validation explains that ${ENV_VAR} and {command} references are no longer resolved", () => {

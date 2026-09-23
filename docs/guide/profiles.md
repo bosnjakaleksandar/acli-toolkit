@@ -284,7 +284,7 @@ Which profile a command uses: `--profile <name>` if given, otherwise the default
 | `Missing or outdated tools: rsync.` | Install what's listed — the message says how. |
 | `Project "x" is not assigned to …` (Coolify) | Use a name from the list it prints, or ask the administrator to grant you the project. |
 | `Permission denied (publickey)` | Check that `ssh -i <key> <user>@<host>` works by hand. |
-| `… declares profiles, which since A-CLI 2.1 live only in the user config` | A project's `.acli/config.yaml` has a `profiles:` block. Recreate the profile with `acli profile create` and remove the block. |
+| `… declares profiles, which since A-CLI 3.0 live only in the user config` | A project's `.acli/config.yaml` has a `profiles:` block. Recreate the profile with `acli profile create` and remove the block. |
 | `coolify.project is no longer part of a profile` | Remove `coolify.project` / `coolify.database` from the profile — the project is chosen at import now. |
-| `database.driver "docker" is no longer supported` | A-CLI 2.1 exports SSH databases only with wp-cli. Remove the field; the server needs `wp`. |
+| `database.driver "docker" is no longer supported` | A-CLI 3.0 exports SSH databases only with wp-cli. Remove the field; the server needs `wp`. |
 | `uses a ${ENV_VAR} or {command: ...} reference` | Write the actual value; references aren't resolved anymore. |
