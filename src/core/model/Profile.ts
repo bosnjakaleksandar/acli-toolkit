@@ -47,42 +47,22 @@ export interface Profile {
     projectRoot: string;
     wordpressRoot: string;
   };
+  /** ssh provider only: which wp-content directories to rsync. */
   files?: {
-    transport?: "rsync" | "sftp";
     directories?: string[];
     excludes?: string[];
     includes?: string[];
     targets?: Record<string, { path: string; excludes?: string[]; includes?: string[] }>;
   };
   /**
-   * Which fields matter depends on `driver`: wp-cli needs nothing further;
-   * docker needs either `discovery: "container-name"` (+ containerPattern/
-   * executable/envFile/userEnv/passwordEnv/nameEnv) or service/composeFile/
-   * executable; direct needs host/port/user/password/name. Kept as one
-   * loosely-typed object (rather than a driver-keyed union) because it's
-   * authored as free-form YAML and the databaseCommand module is
-   * the single place that actually interprets it per driver.
-   * Required for the "ssh" provider; "coolify-cli" reads only `tablePrefix`
-   * and `normalizeCollations` from it.
+   * Optional overrides for the imported database. The ssh provider always
+   * exports with wp-cli; `driver: wp-cli` is still accepted from older
+   * profiles but has no effect.
    */
-  database: {
-    driver: "wp-cli" | "docker" | "direct";
+  database?: {
+    driver?: "wp-cli";
     normalizeCollations?: boolean;
     tablePrefix?: string;
-    executable?: string;
-    discovery?: "container-name";
-    containerPattern?: string;
-    envFile?: string;
-    userEnv?: string;
-    passwordEnv?: string;
-    nameEnv?: string;
-    service?: string;
-    composeFile?: string;
-    host?: string;
-    port?: number | string;
-    user?: string;
-    password?: string;
-    name?: string;
   };
   git?: {
     enabled?: boolean;
@@ -126,7 +106,7 @@ export interface ResolvedProfile {
     wordpressRoot: string;
   };
   files?: Profile["files"];
-  database: Profile["database"];
+  database: NonNullable<Profile["database"]>;
   git?: Profile["git"];
   urls?: Profile["urls"];
   local?: Record<string, unknown>;

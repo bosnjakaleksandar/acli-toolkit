@@ -2,8 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { runCommand } from "../../system/commandRunner.ts";
 import { toolExists } from "../../system/toolCheck.ts";
-import { buildSshArgs, scpConnectionArgs, shellQuote, sshTransport } from "../sshArgs.ts";
-import { databaseCommand } from "./databaseCommand.ts";
+import { buildSshArgs, shellQuote, sshTransport } from "../sshArgs.ts";
 import { renderTemplate } from "../resolveProfile.ts";
 import type { ResolvedProfile } from "../../core/model/Profile.ts";
 import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
@@ -14,7 +13,7 @@ type Runner = typeof runCommand;
 
 /**
  * Every operation A-CLI performs against a remote WordPress host over SSH:
- * capability preflight, file sync (rsync/scp), database export, and
+ * capability preflight, file sync (rsync), database export (wp-cli), and
  * git-origin discovery. Construct it with an *already resolved* profile —
  * see `resolveRemoteProfile`, which is not idempotent.
  */
@@ -26,7 +25,7 @@ export class SshHost implements RemoteBackend {
 
   requiredTools(ctx: { environment?: string; skipFiles?: boolean }): string[] {
     const tools = ["ssh", ctx.environment === "lando" ? "lando" : "docker"];
-    if (!ctx.skipFiles) tools.push(this.profile.files?.transport === "sftp" ? "scp" : "rsync");
+    if (!ctx.skipFiles) tools.push("rsync");
     return [...new Set(tools)];
   }
 
@@ -55,28 +54,20 @@ export class SshHost implements RemoteBackend {
       await fs.ensureDir(destination);
       spinner?.message(`Syncing ${relativePath}...`);
       const remoteSource = path.posix.join(this.profile.remote.wordpressRoot, relativePath);
-      if ((config.transport || "rsync") === "sftp") {
-        await this.run("scp", [...scpConnectionArgs(this.profile.ssh), "-r", `${this.profile.ssh.username}@${this.profile.ssh.host}:${remoteSource}/.`, destination]);
-      } else {
-        const args = ["-az"];
-        for (const item of target.excludes || []) args.push("--exclude", item);
-        for (const item of target.includes || []) args.push("--include", item);
-        args.push("-e", sshTransport(this.profile.ssh), `${this.profile.ssh.username}@${this.profile.ssh.host}:${remoteSource}/`, `${destination}/`);
-        await this.run("rsync", args);
-      }
+      const args = ["-az"];
+      for (const item of target.excludes || []) args.push("--exclude", item);
+      for (const item of target.includes || []) args.push("--include", item);
+      args.push("-e", sshTransport(this.profile.ssh), `${this.profile.ssh.username}@${this.profile.ssh.host}:${remoteSource}/`, `${destination}/`);
+      await this.run("rsync", args);
     }
   }
 
   async exportDatabase(targetDir: string, spinner: Spinner | null): Promise<void> {
-    spinner?.message(`Exporting database with ${this.profile.database.driver} driver...`);
-    const { command, stdin } = databaseCommand(this.profile);
+    spinner?.message("Exporting database with wp-cli...");
+    const command = `cd ${shellQuote(this.profile.remote.wordpressRoot)} && wp db export - --quiet`;
     const dumpPath = path.join(targetDir, "staging.sql");
     try {
-      const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), {
-        encoding: null,
-        stdoutFile: dumpPath,
-        ...(stdin !== undefined ? { stdin } : {}),
-      });
+      const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null, stdoutFile: dumpPath });
       // Compatibility for injected test/custom runners that return output
       // instead of implementing the stdoutFile streaming option.
       if (!(await fs.pathExists(dumpPath)) && dump && dump.length > 0) await fs.writeFile(dumpPath, dump, { mode: 0o600 });
@@ -92,15 +83,12 @@ export class SshHost implements RemoteBackend {
   /**
    * Fetches authoritative table prefix / site URL directly from the remote
    * WordPress install via wp-cli, instead of guessing them from the dump.
-   * Only the wp-cli database driver guarantees `wp` is available remotely;
-   * other drivers get nulls here and fall back to dump-based detection.
+   * A failed lookup yields null and falls back to dump-based detection.
    */
   async getRemoteFacts(): Promise<RemoteFacts> {
     // An explicit database.tablePrefix override always wins and skips the
-    // remote fetch for it entirely — it's available regardless of driver,
-    // not just wp-cli.
+    // remote fetch for it entirely.
     const explicitPrefix = this.profile.database?.tablePrefix || null;
-    if (this.profile.database?.driver !== "wp-cli") return { tablePrefix: explicitPrefix, siteUrl: null };
     const root = shellQuote(this.profile.remote.wordpressRoot);
     const fetch = (command: string) => this.run("ssh", buildSshArgs(this.profile.ssh, `cd ${root} && ${command}`)).then((value) => (value as string)?.trim() || null).catch(() => null);
     const [fetchedPrefix, siteUrl] = await Promise.all([

@@ -1,11 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SshHost } from "../src/providers/ssh/SshHost.ts";
-import { databaseCommand } from "../src/providers/ssh/databaseCommand.ts";
 import { renderTemplate, resolveRemoteProfile } from "../src/providers/resolveProfile.ts";
 import { buildSshArgs } from "../src/providers/sshArgs.ts";
 
-const profile = { ssh: { host: "example.com", username: "{projectName}", identityFile: "~/.ssh/staging", hostKeyPolicy: "accept-new" }, remote: { projectRoot: "/srv/{projectName}", wordpressRoot: "wordpress" }, files: { transport: "rsync" }, database: { driver: "wp-cli" }, urls: { staging: "https://{projectName}.example.com" } };
+const profile = { ssh: { host: "example.com", username: "{projectName}", identityFile: "~/.ssh/staging", hostKeyPolicy: "accept-new" }, remote: { projectRoot: "/srv/{projectName}", wordpressRoot: "wordpress" }, database: { driver: "wp-cli" }, urls: { staging: "https://{projectName}.example.com" } };
 
 test("remote profiles independently resolve connection, paths and URLs", () => {
   const resolved = resolveRemoteProfile(profile, { projectName: "demo" });
@@ -49,7 +48,7 @@ test("resolveRemoteProfile rejects an identityFile containing spaces/shell metac
 test("rsync's -e transport honors hostKeyPolicy the same way buildSshArgs does for direct ssh calls", async () => {
   const calls = [];
   const runner = async (command, args) => { calls.push({ command, args }); return ""; };
-  const insecureProfile = resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, hostKeyPolicy: "insecure" }, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads" } } } }, { projectName: "demo" });
+  const insecureProfile = resolveRemoteProfile({ ...profile, ssh: { ...profile.ssh, hostKeyPolicy: "insecure" }, files: { targets: { uploads: { path: "wp-content/uploads" } } } }, { projectName: "demo" });
   const service = new SshHost(insecureProfile, runner);
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-hostkey-");
   await service.syncFiles(directory, null);
@@ -59,21 +58,12 @@ test("rsync's -e transport honors hostKeyPolicy the same way buildSshArgs does f
   assert.match(transport, /UserKnownHostsFile=\/dev\/null/);
 });
 
-test("databaseCommand for the direct driver delivers the password via stdin, never embedded in the command string (argv)", () => {
-  const resolved = resolveRemoteProfile({ ...profile, database: { driver: "direct", host: "db.example.com", port: 3306, user: "dbuser", password: "s3cr3t", name: "wp" } }, { projectName: "demo" });
-  const { command, stdin } = databaseCommand(resolved);
-  assert.doesNotMatch(command, /s3cr3t/, "the password must never appear in the command string, which becomes local ssh argv and the remote sh -c argument");
-  assert.match(command, /MYSQL_PWD="\$ACLI_DB_PASS"/);
-  assert.match(command, /IFS= read -r ACLI_DB_PASS/);
-  assert.equal(stdin, "s3cr3t\n");
-});
-
-test("Docker container discovery uses the declared remote env mapping", () => {
-  const resolved = resolveRemoteProfile({ ...profile, database: { driver: "docker", discovery: "container-name", containerPattern: "{projectName}", envFile: ".env", userEnv: "DB_USER", passwordEnv: "DB_PASSWORD", nameEnv: "DB_NAME" } }, { projectName: "demo" });
-  const { command } = databaseCommand(resolved);
-  assert.match(command, /docker ps/);
-  assert.match(command, /DB_USER/);
-  assert.match(command, /docker exec/);
+test("exportDatabase runs wp db export in the remote WordPress root", async () => {
+  let remoteCommand;
+  const service = new SshHost(resolveRemoteProfile(profile, { projectName: "demo" }), async (_command, args) => { remoteCommand = args.at(-1); return Buffer.alloc(128, 1); });
+  const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-wpcli-");
+  await service.exportDatabase(directory);
+  assert.equal(remoteCommand, "cd '/srv/demo/wordpress' && wp db export - --quiet");
 });
 
 test("database exports request binary-safe command output", async () => {
@@ -117,16 +107,6 @@ test("getRemoteFacts fetches table prefix and siteurl via wp-cli over SSH", asyn
   assert.ok(calls.every((call) => call.args.at(-1).includes("cd '/srv/demo/wordpress'")));
 });
 
-test("getRemoteFacts returns nulls for non-wp-cli drivers without making any SSH call", async () => {
-  let calls = 0;
-  const runner = async () => { calls += 1; return ""; };
-  const dockerProfile = resolveRemoteProfile({ ...profile, database: { driver: "docker", service: "db" } }, { projectName: "demo" });
-  const service = new SshHost(dockerProfile, runner);
-  const facts = await service.getRemoteFacts();
-  assert.deepEqual(facts, { tablePrefix: null, siteUrl: null });
-  assert.equal(calls, 0);
-});
-
 test("getRemoteFacts tolerates a failing individual command by returning null for that field", async () => {
   const runner = async (_command, args) => {
     const remoteCommand = args.at(-1);
@@ -150,19 +130,10 @@ test("getRemoteFacts uses an explicit database.tablePrefix override and skips fe
   assert.ok(!calls.some((command) => command.includes("table_prefix")), "should not fetch table_prefix remotely when an override is set");
 });
 
-test("getRemoteFacts honors an explicit database.tablePrefix override even for non-wp-cli drivers", async () => {
-  const service = new SshHost(
-    resolveRemoteProfile({ ...profile, database: { driver: "docker", service: "db", tablePrefix: "wp_custom_" } }, { projectName: "demo" }),
-    async () => { throw new Error("no ssh calls expected"); },
-  );
-  const facts = await service.getRemoteFacts();
-  assert.deepEqual(facts, { tablePrefix: "wp_custom_", siteUrl: null });
-});
-
 test("syncFiles resolves target names to their configured remote/local paths", async () => {
   const calls = [];
   const runner = async (command, args) => { calls.push({ command, args }); return ""; };
-  const withTargets = resolveRemoteProfile({ ...profile, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads", excludes: ["*.log"] }, mu: { path: "wp-content/mu-plugins" } } } }, { projectName: "demo" });
+  const withTargets = resolveRemoteProfile({ ...profile, files: { targets: { uploads: { path: "wp-content/uploads", excludes: ["*.log"] }, mu: { path: "wp-content/mu-plugins" } } } }, { projectName: "demo" });
   const service = new SshHost(withTargets, runner);
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-");
   await service.syncFiles(directory, null);
@@ -178,7 +149,7 @@ test("syncFiles resolves target names to their configured remote/local paths", a
 test("syncFiles honors a target-name subset override without needing path overrides", async () => {
   const calls = [];
   const runner = async (command, args) => { calls.push(args); return ""; };
-  const withTargets = resolveRemoteProfile({ ...profile, files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads" }, plugins: { path: "wp-content/plugins" } } } }, { projectName: "demo" });
+  const withTargets = resolveRemoteProfile({ ...profile, files: { targets: { uploads: { path: "wp-content/uploads" }, plugins: { path: "wp-content/plugins" } } } }, { projectName: "demo" });
   const service = new SshHost(withTargets, runner);
   const directory = await (await import("fs-extra")).default.mkdtemp("/tmp/acli-sync-subset-");
   await service.syncFiles(directory, null, { directories: ["uploads"] });

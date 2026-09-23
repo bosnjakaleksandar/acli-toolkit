@@ -24,7 +24,7 @@ const rawProfile: Profile = {
   type: "wordpress",
   ssh: { host: "demo.example.com", username: "deploy" },
   remote: { projectRoot: "/srv/demo", wordpressRoot: "wordpress" },
-  files: { transport: "rsync", targets: { uploads: { path: "wp-content/uploads" } } },
+  files: { targets: { uploads: { path: "wp-content/uploads" } } },
   database: { driver: "wp-cli" },
   urls: { staging: "https://demo.staging.example.com" },
 };

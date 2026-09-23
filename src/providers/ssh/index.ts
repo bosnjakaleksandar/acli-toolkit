@@ -1,12 +1,9 @@
 import path from "node:path";
-import { isObject, isValidPort } from "../../core/objects.ts";
+import { isObject } from "../../core/objects.ts";
 import { SshHost } from "./SshHost.ts";
 import type { ProviderDefinition } from "../contract.ts";
 
-const DB_DRIVERS = new Set(["wp-cli", "docker", "direct"]);
-const FILE_TRANSPORTS = new Set(["rsync", "sftp"]);
-
-/** Direct SSH access to the WordPress files and database. */
+/** Direct SSH access: files with rsync, the database with wp-cli on the server. */
 export const sshProvider: ProviderDefinition = {
   name: "ssh",
   profileKeys: ["remote", "files"],
@@ -14,11 +11,11 @@ export const sshProvider: ProviderDefinition = {
   validate(profile, label, errors) {
     if (!profile.remote?.projectRoot) errors.push(`${label}: remote.projectRoot is required.`);
     if (!profile.remote?.wordpressRoot) errors.push(`${label}: remote.wordpressRoot is required.`);
-    const transport = profile.files?.transport || "rsync";
-    if (!FILE_TRANSPORTS.has(transport)) errors.push(`${label}: files.transport must be rsync or sftp.`);
+    const files = profile.files as Record<string, unknown> | undefined;
+    if (files?.transport !== undefined && files.transport !== "rsync") errors.push(`${label}: files.transport "${files.transport}" is no longer supported; the ssh provider syncs files with rsync (remove the field).`);
     if (profile.files?.targets !== undefined) validateFileTargets(profile.files.targets, `${label}.files.targets`, errors);
-    if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
-    if (profile.database?.port !== undefined && !isValidPort(profile.database.port)) errors.push(`${label}: database.port must be an integer from 1 to 65535.`);
+    const database = profile.database as Record<string, unknown> | undefined;
+    if (database?.driver !== undefined && database.driver !== "wp-cli") errors.push(`${label}: database.driver "${database.driver}" is no longer supported; the ssh provider exports the database with wp-cli on the server (remove the field).`);
   },
 
   resolve(profile, render) {
@@ -27,24 +24,17 @@ export const sshProvider: ProviderDefinition = {
     return { remote: { ...profile.remote, projectRoot, wordpressRoot: path.posix.join(projectRoot, render(profile.remote.wordpressRoot)) } };
   },
 
-  tools(profile) {
-    return ["ssh", profile.files?.transport === "sftp" ? "scp" : "rsync"];
-  },
+  tools: () => ["ssh", "rsync"],
 
-  describe(profile) {
-    return `${profile.database?.executable === "auto" ? "MariaDB/MySQL" : profile.database?.driver || "unknown DB"} · ${profile.files?.transport || "rsync"}`;
-  },
+  describe: () => "SSH · wp-cli · rsync",
 
-  summary(profile) {
-    const dump = profile.database?.executable === "auto" ? "MariaDB/MySQL auto-detect" : profile.database?.driver;
-    return [`WordPress: ${profile.remote?.projectRoot}/${profile.remote?.wordpressRoot}`, `Database: ${dump}`, `Files: ${profile.files?.transport || "rsync"}`];
-  },
+  summary: (profile) => [`WordPress: ${profile.remote?.projectRoot}/${profile.remote?.wordpressRoot}`, "Database: wp-cli export over SSH", "Files: rsync"],
 
   plan(profile, ctx) {
     return {
       remoteWordPressRoot: profile.remote.wordpressRoot,
-      databaseDriver: ctx.skipDatabase ? "skipped" : profile.database.driver,
-      fileTransfer: ctx.skipFiles ? "skipped" : profile.files?.transport || "rsync",
+      databaseDriver: ctx.skipDatabase ? "skipped" : "wp-cli",
+      fileTransfer: ctx.skipFiles ? "skipped" : "rsync",
     };
   },
 

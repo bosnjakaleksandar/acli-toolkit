@@ -50,7 +50,7 @@ export function resolveRemoteProfile(rawProfile: Profile, ctx: { projectName: st
     coolify,
     ssh,
     remote,
-    database: mapStrings(profile.database || {}, resolve) as Profile["database"],
+    database: mapStrings(profile.database || {}, resolve) as ResolvedProfile["database"],
     urls: mapStrings(profile.urls || {}, resolve) as Profile["urls"],
     local: mapStrings(profile.local || {}, resolve),
   };
