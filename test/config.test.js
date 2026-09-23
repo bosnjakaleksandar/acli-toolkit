@@ -43,9 +43,13 @@ test("configuration validation rejects missing versions and unknown fields", () 
   assert.throws(() => validateConfig({ presets: {}, legacyHost: "x" }), /version must be 1.*unknown top-level field/s);
 });
 
-test("configuration validation rejects nested objects under defaults/presets", () => {
+test("configuration validation rejects nested objects under defaults", () => {
   assert.throws(() => validateConfig({ version: 1, defaults: { evil: { command: "id" } } }), /nested objects are not allowed/);
-  assert.throws(() => validateConfig({ version: 1, presets: { p: { evil: { command: "id" } } } }), /nested objects are not allowed/);
+});
+
+test("configuration validation ignores an empty leftover presets block and explains a non-empty one", () => {
+  assert.doesNotThrow(() => validateConfig({ version: 1, presets: {} }));
+  assert.throws(() => validateConfig({ version: 1, presets: { p: { plugins: ["a"] } } }), /presets were removed in A-CLI 2\.1/);
 });
 
 test("configuration validation explains that ${ENV_VAR} and {command} references are no longer resolved", () => {
@@ -63,8 +67,8 @@ test("loadConfig refuses profiles and a default profile declared in the project 
   await fs.remove(home);
 });
 
-test("configuration validation accepts plain scalars and arrays of scalars in defaults/presets", () => {
-  const config = { version: 1, defaults: { mysqlVersion: "8.0", flag: true, count: 3 }, presets: { p: { plugins: ["a", "b"], useLaravel: false } } };
+test("configuration validation accepts plain scalars and arrays of scalars in defaults", () => {
+  const config = { version: 1, defaults: { mysqlVersion: "8.0", flag: true, count: 3, plugins: ["a", "b"] } };
   assert.deepEqual(validateConfig(config), config);
 });
 

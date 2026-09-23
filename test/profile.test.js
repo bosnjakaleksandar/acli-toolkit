@@ -52,7 +52,6 @@ test("delete rejects dangling references unless --force clears them", async () =
   await saveProfile("agency", profile, { configPath });
   const config = await readConfigFile(configPath);
   config.defaults = { profile: "agency" };
-  config.presets = { import: { profile: "agency" } };
   config.project = { name: "demo", environment: "docker", profile: "agency" };
   const YAML = (await import("yaml")).default;
   await fs.writeFile(configPath, YAML.stringify(config));
@@ -61,7 +60,6 @@ test("delete rejects dangling references unless --force clears them", async () =
   await deleteProfile("agency", { configPath, force: true });
   const deleted = await readConfigFile(configPath);
   assert.equal(deleted.defaults.profile, undefined);
-  assert.equal(deleted.presets.import.profile, undefined);
   assert.equal(deleted.project.profile, undefined);
   await fs.remove(directory);
 });

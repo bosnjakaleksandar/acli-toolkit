@@ -25,11 +25,8 @@ export interface CreateCommandOptions {
   name?: string;
   environment?: string;
   env?: string;
-  preset?: string;
   config?: string;
-  set?: string[];
   dryRun?: boolean;
-  fromLast?: boolean;
   resume?: boolean;
   existing?: boolean;
   type?: string;
@@ -60,14 +57,6 @@ export interface ConfigCommandOptions {
   force?: boolean;
 }
 
-export interface DoctorCommandOptions {
-  preset?: string;
-  profile?: string;
-  config?: string;
-  environment?: string;
-  json?: boolean;
-}
-
 export interface LinkCommandOptions {
   name?: string;
   remoteProject?: string;
@@ -87,8 +76,3 @@ export interface PullCommandOptions {
   nonInteractive?: boolean;
 }
 
-/** Union of flags across `acli preset list` / `acli preset inspect <name>`. */
-export interface PresetCommandOptions {
-  config?: string;
-  json?: boolean;
-}

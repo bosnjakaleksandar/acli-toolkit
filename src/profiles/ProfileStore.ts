@@ -94,15 +94,11 @@ export function validateProfileName(name: string): void {
 function findProfileReferences(config: Awaited<ReturnType<typeof readConfigFile>>, name: string): string[] {
   const references: string[] = [];
   if (config.defaults?.profile === name) references.push("defaults.profile");
-  for (const [presetName, preset] of Object.entries(config.presets || {})) {
-    if (preset?.profile === name) references.push(`presets.${presetName}.profile`);
-  }
   if (config.project?.profile === name) references.push("project.profile");
   return references;
 }
 
 function clearProfileReferences(config: Awaited<ReturnType<typeof readConfigFile>>, name: string): void {
   if (config.defaults?.profile === name) delete config.defaults.profile;
-  for (const preset of Object.values(config.presets || {})) if (preset?.profile === name) delete preset.profile;
   if (config.project?.profile === name) delete config.project.profile;
 }

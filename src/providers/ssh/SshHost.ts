@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { runCommand } from "../../system/commandRunner.ts";
-import { toolExists } from "../../system/toolCheck.ts";
+import { assertToolsAvailable } from "../../system/toolCheck.ts";
 import { buildSshArgs, shellQuote, sshTransport } from "../sshArgs.ts";
 import { renderTemplate } from "../resolveProfile.ts";
 import type { ResolvedProfile } from "../../core/model/Profile.ts";
@@ -30,8 +30,7 @@ export class SshHost implements RemoteBackend {
   }
 
   async preflight(ctx: { environment?: string; skipFiles?: boolean }): Promise<void> {
-    const missing = this.requiredTools(ctx).filter((tool) => !toolExists(tool));
-    if (missing.length) throw new Error(`Missing required tools: ${missing.join(", ")}. Run acli doctor with the same preset/profile.`);
+    assertToolsAvailable(this.requiredTools(ctx));
     await this.run("ssh", buildSshArgs(this.profile.ssh, `test -d ${shellQuote(this.profile.remote.wordpressRoot)}`));
   }
 

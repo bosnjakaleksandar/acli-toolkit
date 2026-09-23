@@ -1,33 +1,33 @@
 import { confirm, multiselect, select, text } from "@clack/prompts";
 import { ask, askMysqlVersion, askSshKeyPath, askWpVersion } from "../../ui/prompts.ts";
-import { hasPresetValue } from "../plan/presets.ts";
+import { hasValue } from "../../core/objects.ts";
 import { isSafePluginSlug } from "../../system/safety.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
 
 /**
  * Collects every WordPress-specific project setting via interactive prompts
- * (or preset/non-interactive defaults) — theme source, versions, plugins,
+ * (or config/non-interactive defaults) — theme source, versions, plugins,
  * WP-CLI install. Kept as standalone functions rather than strategy methods:
  * none of this needs the strategy's own `this` (envService, scaffoldEnvironment),
  * only the values already on `ctx`.
  */
 export async function askWordPressQuestions(ctx: ProjectPlan, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<ProjectPlan> {
-  const mysqlVersion = hasPresetValue(ctx, "mysqlVersion")
+  const mysqlVersion = hasValue(ctx, "mysqlVersion")
     ? ctx.mysqlVersion
     : nonInteractive
       ? "8.0"
       : await askMysqlVersion();
-  const wpVersion = hasPresetValue(ctx, "wpVersion")
+  const wpVersion = hasValue(ctx, "wpVersion")
     ? ctx.wpVersion
     : nonInteractive
       ? DEFAULT_WORDPRESS_VERSION
       : await askWpVersion();
 
   let themeRepo = ctx.themeRepo;
-  if (!hasPresetValue(ctx, "themeRepo") && nonInteractive) {
+  if (!hasValue(ctx, "themeRepo") && nonInteractive) {
     themeRepo = process.env.WP_THEME_REPO || "";
-  } else if (!hasPresetValue(ctx, "themeRepo")) {
+  } else if (!hasValue(ctx, "themeRepo")) {
     const defaultRepo = process.env.WP_THEME_REPO;
     const themeChoice = await ask(select, {
       message: "How do you want to create the theme?",
@@ -50,7 +50,7 @@ export async function askWordPressQuestions(ctx: ProjectPlan, { nonInteractive =
     }
   }
 
-  const themeBranch = hasPresetValue(ctx, "themeBranch")
+  const themeBranch = hasValue(ctx, "themeBranch")
     ? ctx.themeBranch
     : nonInteractive
       ? defaultThemeBranch(ctx, themeRepo)
@@ -60,7 +60,7 @@ export async function askWordPressQuestions(ctx: ProjectPlan, { nonInteractive =
   if (
     themeRepo &&
     themeRepo.startsWith("git@") &&
-    !hasPresetValue(ctx, "sshKeyPath") &&
+    !hasValue(ctx, "sshKeyPath") &&
     !nonInteractive
   ) {
     sshKeyPath = await askSshKeyPath();
@@ -68,14 +68,14 @@ export async function askWordPressQuestions(ctx: ProjectPlan, { nonInteractive =
     sshKeyPath = ctx.sshKeyPath || "";
   }
 
-  let plugins = hasPresetValue(ctx, "plugins")
+  let plugins = hasValue(ctx, "plugins")
     ? normalizePlugins(ctx.plugins)
     : nonInteractive || !ctx.customizeAdvanced
       ? []
       : await askPlugins();
   if (ctx.projectType === "wp-woo" && !plugins.includes("woocommerce")) plugins = ["woocommerce", ...plugins];
 
-  const installWpCli = hasPresetValue(ctx, "installWpCli")
+  const installWpCli = hasValue(ctx, "installWpCli")
     ? Boolean(ctx.installWpCli)
     : nonInteractive || !ctx.customizeAdvanced
       ? false
@@ -138,7 +138,7 @@ export function normalizePlugins(plugins: unknown): string[] {
   // Plugin slugs are written verbatim into a generated, executable shell
   // script (setupScript.ts's writeWordPressSetupScript) — validating against
   // WordPress.org's slug grammar here, before that script is ever created,
-  // keeps a maliciously-crafted preset/--set value from injecting shell
+  // keeps a maliciously-crafted option or config value from injecting shell
   // commands.
   const invalid = list.filter((plugin) => !isSafePluginSlug(plugin));
   if (invalid.length) throw new Error(`Invalid plugin slug(s): ${invalid.join(", ")}. Plugin slugs may only contain lowercase letters, digits, and hyphens.`);

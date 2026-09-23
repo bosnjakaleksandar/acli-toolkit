@@ -1,6 +1,5 @@
 import net from "node:net";
-import { toolExists } from "./toolCheck.ts";
-import { CliError } from "../core/errors.ts";
+import { assertToolsAvailable } from "./toolCheck.ts";
 import type { ProjectPlan } from "../core/model/ProjectPlan.ts";
 
 export interface PreflightResult {
@@ -15,8 +14,7 @@ export async function runLocalPreflight(ctx: ProjectPlan & { port?: number }): P
   const required = ctx.appType === "application" ? ["npm"] : [ctx.environment!];
   if (!ctx.skipGitInit) required.push("git");
   if (ctx.useLaravel) required.push("composer", "php");
-  const missing = required.filter((command) => !toolExists(command));
-  if (missing.length) throw new CliError(`Missing required tools: ${missing.join(", ")}.`, { code: "PREFLIGHT_FAILED", hint: `Run \`acli doctor --environment ${ctx.environment}\` for installation guidance.` });
+  assertToolsAvailable(required);
   const port = Number(ctx.port || (ctx.projectType === "react" || ctx.projectType === "nextjs" ? 3000 : 0));
   if (port && !(await isPortAvailable(port))) return { warnings: [`Port ${port} is already in use. The generated environment may require a different port.`] };
   return { warnings: [] };

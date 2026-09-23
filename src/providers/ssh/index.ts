@@ -24,8 +24,6 @@ export const sshProvider: ProviderDefinition = {
     return { remote: { ...profile.remote, projectRoot, wordpressRoot: path.posix.join(projectRoot, render(profile.remote.wordpressRoot)) } };
   },
 
-  tools: () => ["ssh", "rsync"],
-
   describe: () => "SSH · wp-cli · rsync",
 
   summary: (profile) => [`WordPress: ${profile.remote?.projectRoot}/${profile.remote?.wordpressRoot}`, "Database: wp-cli export over SSH", "Files: rsync"],

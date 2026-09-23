@@ -40,8 +40,6 @@ export const coolifyProvider: ProviderDefinition = {
     };
   },
 
-  tools: () => ["ssh", "scp", "tar"],
-
   describe: () => "Coolify project CLI",
 
   summary: () => ["Database and files: exported with the server's project CLI (pull-only)"],

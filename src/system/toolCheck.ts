@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { CliError } from "../core/errors.ts";
 
 export interface ToolCheck {
   label: string;
@@ -16,8 +17,8 @@ export interface ToolCheckResult extends ToolCheck {
   version: string;
 }
 
-// Shared catalog of external tool checks used by `doctor`, pre-create
-// preflight, and remote-profile preflight. Centralized so all three agree on
+// Shared catalog of external tool checks used by the create/import
+// preflight and each remote provider's preflight. Centralized so all three agree on
 // how to detect a tool (e.g. "docker" means Docker Compose v2, not just the
 // docker binary) instead of drifting into inconsistent bare-command checks.
 export const TOOL_CATALOG: Record<string, ToolCheck> = {
@@ -55,6 +56,22 @@ export function meetsMinimumVersion(output: string, minimum: string): boolean {
     if (actual[index]! < required[index]!) return false;
   }
   return true;
+}
+
+/**
+ * Fails with the missing or too-old tools and how to fix each, so a
+ * workflow's own preflight is enough — no separate diagnostic command.
+ */
+export function assertToolsAvailable(keys: string[]): void {
+  // A key missing from the catalog can't be checked, so it counts as missing.
+  const unknown = (key: string): ToolCheckResult => ({ key, label: key, command: key, args: [], fix: `Install ${key} and add it to PATH.`, ok: false, version: "" });
+  const failed = [...new Set(keys)].map((key) => checkTool(key) ?? unknown(key)).filter((result) => !result.ok);
+  if (!failed.length) return;
+  const describe = (result: ToolCheckResult) => result.version && result.minimumVersion ? `${result.label} (found ${result.version}, need ${result.minimumVersion}+)` : result.label;
+  throw new CliError(`Missing or outdated tools: ${failed.map(describe).join(", ")}.`, {
+    code: "PREFLIGHT_FAILED",
+    hint: failed.map((result) => `${result.label}: ${result.fix}`).join("\n"),
+  });
 }
 
 export function toolExists(key: string): boolean {

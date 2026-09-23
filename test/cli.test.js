@@ -26,8 +26,9 @@ test("root help presents A-CLI as a command platform", () => {
   assert.match(result.stdout, /A-CLI Developer Toolkit/);
   assert.match(result.stdout, /Usage: acli \[options\] \[command\]/);
   assert.match(result.stdout, /create \[options\]/);
-  assert.match(result.stdout, /doctor/);
+  assert.match(result.stdout, /import \[options\] \[project\]/);
   assert.match(result.stdout, /update/);
+  assert.doesNotMatch(result.stdout, /\bdoctor\b|\bpreset\b/);
 });
 
 test("legacy executable warns and preserves root commands", () => {
@@ -42,11 +43,6 @@ test("update check is bypassed by non-interactive flags and CI", () => {
   assert.equal(shouldCheckForUpdates(["create", "--non-interactive"], {}), false);
   assert.equal(shouldCheckForUpdates(["create", "--quiet"], {}), false);
   assert.equal(shouldCheckForUpdates(["create"], { CI: "true" }), false);
-});
-
-test("update check is bypassed for doctor — a fast diagnostic command run repeatedly while troubleshooting", () => {
-  assert.equal(shouldCheckForUpdates(["doctor"], {}), false);
-  assert.equal(shouldCheckForUpdates(["doctor", "--environment", "docker"], {}), false);
 });
 
 test("update check still runs for a plain interactive invocation", () => {

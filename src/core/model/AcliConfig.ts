@@ -18,11 +18,10 @@ export interface ProjectLink {
   linkedAt?: string;
 }
 
-/** The shape of a parsed `.acli/config.yaml` or the platform user config file. Presets are intentionally untyped (`Record<string, unknown>`) — they're a free-form bag of ProjectPlan-shaped fields written back by `preset save`, and validating that shape lives with ProjectPlan/PlanBuilder, not the config document itself. */
+/** The shape of a parsed `.acli/config.yaml` or the platform user config file. `defaults` is a free-form bag of ProjectPlan-shaped fields for `acli create`; validating that shape lives with ProjectPlan/PlanBuilder, not the config document itself. */
 export interface AcliConfig {
   version: number;
   defaults?: Record<string, unknown>;
-  presets?: Record<string, Record<string, unknown>>;
   profiles?: Record<string, Profile>;
   project?: ProjectLink;
 }

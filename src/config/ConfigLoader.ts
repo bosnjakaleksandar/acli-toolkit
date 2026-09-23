@@ -25,7 +25,7 @@ export interface LoadConfigResult {
  * describe how *this machine* reaches a server, and a project config found
  * in the working directory (possibly from `git clone`) must not be able to
  * redirect a pull to another server. The project config holds the project
- * link plus create defaults and presets.
+ * link plus create defaults.
  */
 export async function loadConfig({ cwd = process.cwd(), configPath }: LoadConfigOptions = {}): Promise<LoadConfigResult> {
   const sources: Array<{ name: string; value: AcliConfig }> = [{ name: "built-in defaults", value: structuredClone(BUILT_IN_CONFIG) as AcliConfig }];

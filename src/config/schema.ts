@@ -7,7 +7,7 @@ import { getProvider, PROVIDER_NAMES } from "../providers/registry.ts";
 
 export { isObject } from "../core/objects.ts";
 
-const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
+const ROOT_KEYS = new Set(["version", "defaults", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);
 const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "remoteProject", "selections", "linkedAt"]);
 const SELECTION_KEYS = new Set(["database", "databaseName", "wordpressContainer"]);
@@ -20,21 +20,21 @@ const SHARED_PROFILE_KEYS = ["type", "provider", "ssh", "database", "git", "urls
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
   const errors: string[] = [];
   if (config.version !== CONFIG_VERSION) errors.push(`${source}: top-level version must be ${CONFIG_VERSION}.`);
+  // Presets were removed in 2.1; an empty leftover `presets: {}` is harmless.
+  const presets = (config as unknown as Record<string, unknown>).presets;
+  if (presets !== undefined) {
+    if (isObject(presets) && !Object.keys(presets).length) delete (config as unknown as Record<string, unknown>).presets;
+    else errors.push(`${source}: presets were removed in A-CLI 2.1. Put shared values in \`defaults\` and pass the rest as \`acli create\` options, then remove \`presets\`.`);
+  }
   const allowedRootKeys = allowProjectKey ? PROJECT_ROOT_KEYS : ROOT_KEYS;
-  for (const key of Object.keys(config)) if (!allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
-  for (const group of ["defaults", "presets", "profiles"] as const) {
+  for (const key of Object.keys(config)) if (key !== "presets" && !allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
+  for (const group of ["defaults", "profiles"] as const) {
     if (config[group] !== undefined && (!config[group] || typeof config[group] !== "object" || Array.isArray(config[group]))) errors.push(`${source}: ${group} must be a mapping.`);
   }
-  // `defaults`/`presets` are a free-form bag of flat ProjectPlan scaffolding
+  // `defaults` is a free-form bag of flat ProjectPlan scaffolding
   // fields (mysqlVersion, plugins, setupType, ...), so nested objects are
   // rejected rather than silently ignored.
   if (isObject(config.defaults)) validatePlanFields(config.defaults, `${source}: defaults`, errors);
-  if (isObject(config.presets)) {
-    for (const [name, preset] of Object.entries(config.presets)) {
-      if (!isObject(preset)) { errors.push(`${source}: presets.${name} must be a mapping.`); continue; }
-      validatePlanFields(preset, `${source}: presets.${name}`, errors);
-    }
-  }
   for (const [name, profile] of Object.entries(config.profiles || {})) validateProfile(profile, `${source} profile "${name}"`, errors);
   const reference = findRemovedReference(config);
   if (reference) errors.push(`${source}: "${reference}" uses a \${ENV_VAR} or {command: ...} reference, which A-CLI 2.1 no longer resolves. Write the value itself (profiles live in your own user config, which isn't shared).`);

@@ -5,7 +5,6 @@ import { showBanner } from "../ui/banner.ts";
 import { getUserConfigPath } from "../config/paths.ts";
 import { createProjectCommand } from "./commands/create.ts";
 import { importCommand } from "./commands/import.ts";
-import { doctorCommand } from "./commands/doctor.ts";
 import { linkCommand } from "./commands/link.ts";
 import { pullCommand } from "./commands/pull.ts";
 import { runProfilesMenu } from "./commands/profile.ts";
@@ -17,7 +16,6 @@ export const MAIN_MENU: Array<{ label: string; value: string; run: (options: any
   { label: "Profiles", value: "profiles", run: (options) => runProfilesMenu(options), returnToMenu: true },
   { label: "Link an existing project to a staging profile", value: "link", run: (options) => linkCommand(options) },
   { label: "Pull files/database from a linked profile", value: "pull", run: (options) => pullCommand([], options) },
-  { label: "Check system requirements", value: "doctor", run: (options) => doctorCommand(options) },
 ];
 
 /**

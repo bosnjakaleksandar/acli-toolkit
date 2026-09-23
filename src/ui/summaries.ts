@@ -71,7 +71,7 @@ export function formatCreateError(error: any, { targetDir = "", ownsTargetDir = 
     if (resumeCommand) lines.push("", `${chalk.bold("Resume:")} ${resumeCommand}`);
   }
 
-  if (!error?.hint) lines.push("", chalk.bold("Try:"), "  acli doctor", "  Re-run with the same options after resolving the cause.");
+  if (!error?.hint) lines.push("", chalk.bold("Try:"), "  Re-run with --verbose to see the commands A-CLI ran.", "  Re-run with the same options after resolving the cause.");
   return lines.join("\n");
 }
 

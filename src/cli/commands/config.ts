@@ -11,7 +11,6 @@ import type { ConfigCommandOptions } from "../options.ts";
 const STARTER_CONFIG_HEADER = `# A-CLI configuration
 #
 #   defaults:  shared field defaults for \`acli create\` (e.g. mysqlVersion, environment)
-#   presets:   named, reusable create plans — see \`acli preset list\` / \`acli preset inspect <name>\`
 #   profiles:  staging servers for \`acli import\` / \`acli pull\` (user config only) — see \`acli profile create\`
 #
 # Docs: \`acli config path\`, \`acli config show\`, \`acli config validate\`
@@ -38,7 +37,7 @@ export function registerConfigCommand(program: Command): void {
         process.exitCode = 1;
         return;
       }
-      const starter = { version: CONFIG_VERSION, defaults: {}, presets: {}, profiles: {} };
+      const starter = { version: CONFIG_VERSION, defaults: {}, profiles: {} };
       const content = STARTER_CONFIG_HEADER + YAML.stringify(starter);
       await fs.ensureDir(path.dirname(filePath));
       await fs.writeFile(filePath, content, { mode: 0o600 });

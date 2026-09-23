@@ -18,7 +18,6 @@ export interface ProfileImportContext extends ImportSourceContext {
   remoteProject?: string;
   /** Server prompt answers given during this run, remembered in the project link. */
   selections?: CoolifySelection;
-  presetName?: string;
   stagingUrl?: string;
   gitStatus?: string;
 }
@@ -124,7 +123,6 @@ export function createProfileImportSource(
       const c = ctx as ProfileImportContext;
       const service = remote(ctx);
       return {
-        preset: c.presetName || null,
         profile: c.profile.profileName || null,
         project: c.projectName,
         localEnvironment: c.environment,

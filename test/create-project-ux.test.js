@@ -65,7 +65,7 @@ test("error summary reports no cleanup needed when failure happened before any f
   assert.match(result, /Project creation failed/);
   assert.match(result, /Cause: Missing required tools: docker\./);
   assert.match(result, /No project files were created; nothing to clean up\./);
-  assert.match(result, /acli doctor/);
+  assert.match(result, /--verbose/);
 });
 
 test("error summary preserves the project directory (never deletes it) once files may already exist, and offers a resume command", () => {

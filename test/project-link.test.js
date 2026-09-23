@@ -13,14 +13,14 @@ test("writeLink then readLink round-trips the project link", async () => {
   await fs.remove(root);
 });
 
-test("writeLink preserves other config already in the project file (e.g. a saved preset)", async () => {
+test("writeLink preserves other config already in the project file (e.g. create defaults)", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-"));
   const YAML = (await import("yaml")).default;
   await fs.ensureDir(path.join(root, ".acli"));
-  await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({ version: 1, presets: { recipe: { setupType: "new" } } }));
+  await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({ version: 1, defaults: { mysqlVersion: "8.0" } }));
   await writeLink(root, { name: "client-site", environment: "docker" });
   const raw = YAML.parse(await fs.readFile(path.join(root, ".acli", "config.yaml"), "utf8"));
-  assert.deepEqual(raw.presets, { recipe: { setupType: "new" } });
+  assert.deepEqual(raw.defaults, { mysqlVersion: "8.0" });
   assert.deepEqual(raw.project, { name: "client-site", environment: "docker" });
   await fs.remove(root);
 });
@@ -85,11 +85,11 @@ test("findProjectRoot returns null when no linked project exists above cwd", asy
   await fs.remove(unrelated);
 });
 
-test("findProjectRoot ignores a .acli/config.yaml that has no project link (e.g. just a saved preset)", async () => {
+test("findProjectRoot ignores a .acli/config.yaml that has no project link (e.g. just create defaults)", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-noproject-"));
   const YAML = (await import("yaml")).default;
   await fs.ensureDir(path.join(root, ".acli"));
-  await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({ version: 1, presets: { recipe: { setupType: "new" } } }));
+  await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({ version: 1, defaults: { mysqlVersion: "8.0" } }));
   assert.equal(await findProjectRoot(root), null);
   await fs.remove(root);
 });

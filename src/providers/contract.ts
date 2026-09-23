@@ -76,8 +76,6 @@ export interface ProviderDefinition {
   validate(profile: Profile, label: string, errors: string[]): void;
   /** Resolves the provider's fields for one project; `render` substitutes `{projectName}`. */
   resolve(profile: Profile, render: (value: unknown) => string, target: ProjectTarget): Pick<ResolvedProfile, "remote" | "coolify">;
-  /** Local tools `acli doctor` should check for this profile. */
-  tools(profile: Profile): string[];
   /** One-line description for profile lists (after the host). */
   describe(profile: Profile): string;
   /** Lines for the "Selected profile" note (after the Remote line). */

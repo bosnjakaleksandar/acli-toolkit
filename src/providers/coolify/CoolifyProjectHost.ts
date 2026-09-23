@@ -4,7 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import fs from "fs-extra";
 import { runCommand } from "../../system/commandRunner.ts";
-import { toolExists } from "../../system/toolCheck.ts";
+import { assertToolsAvailable } from "../../system/toolCheck.ts";
 import { CliError } from "../../core/errors.ts";
 import { buildSshArgs, scpConnectionArgs, shellQuote } from "../sshArgs.ts";
 import type { ResolvedProfile } from "../../core/model/Profile.ts";
@@ -164,8 +164,7 @@ export class CoolifyProjectHost implements RemoteBackend {
   }
 
   async preflight(ctx: { environment?: string; skipFiles?: boolean }): Promise<void> {
-    const missing = this.requiredTools(ctx).filter((tool) => !toolExists(tool));
-    if (missing.length) throw new Error(`Missing required tools: ${missing.join(", ")}. Run acli doctor with the same preset/profile.`);
+    assertToolsAvailable(this.requiredTools(ctx));
     const project = await this.project();
     const { status } = await this.status();
     if (!status?.startsWith("running")) {
