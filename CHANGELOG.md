@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file. The format is b
 ### Changed
 
 - The local-environment question is asked for every project type; the advanced-settings question is asked only for WordPress.
+- A-CLI's `.gitignore` now takes precedence over the one in an imported repository or written by `create-vite`/`create-next-app`. Their extra rules are kept in a section at the end. `acli pull` applies it too, so projects imported earlier get the new file.
 
 ## [3.0.0] - 2026-09-24
 

@@ -30,7 +30,7 @@ Every type can get a local environment. Applications can also run natively — t
 
 Dependencies are installed inside the containers, and ports are bound to `127.0.0.1` only. Start it with `docker compose up` or `lando start`.
 
-Every project gets a `.gitignore` with its framework's rules (build output, `vendor/`, WordPress core and uploads, …) plus the ones all projects share: dependencies, `.env` files (keeping `.env.example`), logs, editor and OS files, and `.acli/`. For React and Next.js, these are added to the generator's own `.gitignore` without removing anything from it.
+Every project gets a `.gitignore` with its framework's rules (build output, `vendor/`, WordPress core and uploads, …) plus the ones all projects share: dependencies, `.env` files (keeping `.env.example`), logs, editor and OS files, and `.acli/`. A-CLI's `.gitignore` always takes precedence: for React and Next.js it replaces the generator's file, and any rules only the generator had are kept at the end.
 
 ## Step by step
 

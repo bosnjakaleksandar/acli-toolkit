@@ -10,6 +10,7 @@ import { findProjectRoot, readLink, rememberSelections } from "../../profiles/Pr
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { PullService, resolvePullTargets } from "../../wordpress/pull/PullService.ts";
 import { mascot } from "../../ui/mascot.ts";
+import { mergeGitignoreForImport } from "../../system/gitignore.ts";
 import { CliError } from "../../core/errors.ts";
 import { runCommand } from "../CommandShell.ts";
 import type { PullCommandOptions } from "../options.ts";
@@ -72,6 +73,10 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
       const proceed = await ask(confirm, { message: "This replaces your local database with a copy from the remote site. Continue?", initialValue: false });
       if (!proceed) { outro(chalk.yellow("Pull cancelled. No changes were made.")); return; }
     }
+
+    // Projects imported by an older A-CLI still have the repository's
+    // .gitignore; A-CLI's rules take over on every pull (idempotent).
+    await mergeGitignoreForImport(projectRoot, "wordpress");
 
     // Answers to the server's "which container/database?" prompts are saved
     // to the project link, so the next pull doesn't ask again.
