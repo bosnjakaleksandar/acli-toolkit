@@ -23,7 +23,7 @@ export default class DatabaseDumpService {
   /**
    * @param targetDir Directory containing staging.sql.
    * @param spinner Optional progress spinner.
-   * @param remoteFacts Authoritative facts fetched via RemoteHost.getRemoteFacts(), when available. Accepted as a partial view because only `tablePrefix` is read here.
+   * @param remoteFacts Authoritative facts fetched via RemoteBackend.getRemoteFacts(), when available. Accepted as a partial view because only `tablePrefix` is read here.
    */
   async detectTablePrefix(targetDir: string, spinner: Spinner | null = null, remoteFacts: Partial<RemoteFacts> | null = null): Promise<string> {
     spinner?.message("Detecting WordPress table prefix...");
@@ -40,16 +40,9 @@ export default class DatabaseDumpService {
 
     throw new CliError("Could not detect the WordPress table prefix from the database dump.", {
       code: "TABLE_PREFIX_NOT_DETECTED",
-      hint: "Set database.tablePrefix in the profile, or use the wp-cli database driver so the prefix can be read directly from the remote site.",
+      hint: "Set database.tablePrefix in the profile to the site's table prefix (e.g. wp_), then resume.",
     });
   }
-}
-
-function detectPrefixFromDump(sql: string): string | null {
-  const candidates = new Map<string, Set<string>>(); // prefix -> Set of matched core suffixes
-
-  collectCandidates(sql, candidates);
-  return selectCandidate(candidates);
 }
 
 async function detectPrefixFromDumpFile(filePath: string): Promise<string | null> {

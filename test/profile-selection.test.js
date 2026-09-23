@@ -47,12 +47,12 @@ test("a profile-only workflow asks which configured profile to use when several 
   assert.equal(result.profileName, "other");
 });
 
-test("profile-only import rejects portable paths until they are saved in configuration", async () => {
+test("import rejects a profile name that isn't configured, pointing at profile list/create", async () => {
   await assert.rejects(
     () => resolveProfileSelection({ config: { profiles }, options: { profile: "./portable.yaml" }, required: true, configuredOnly: true, nonInteractive: true }),
     (error) => {
       assert.match(error.message, /not configured/);
-      assert.match(error.hint, /profile import/);
+      assert.match(error.hint, /acli profile list.*acli profile create/);
       return true;
     },
   );
@@ -75,4 +75,19 @@ test("profileSummary lists connection, database, and local environment details",
   const summary = profileSummary(profiles["shared-host"], "docker");
   assert.match(summary, /deploy@example\.com/);
   assert.match(summary, /Local: docker/);
+});
+
+test("the default profile from `acli profile use` is selected when several profiles exist", async () => {
+  const config = { version: 1, defaults: { profile: "second" }, profiles: { first: { ssh: { host: "a.example.com", username: "u" }, remote: { projectRoot: "/a", wordpressRoot: "wp" }, database: { driver: "wp-cli" } }, second: { ssh: { host: "b.example.com", username: "u" }, remote: { projectRoot: "/b", wordpressRoot: "wp" }, database: { driver: "wp-cli" } } } };
+  const { profileName } = await resolveProfileSelection({ config, required: true, nonInteractive: true, configuredOnly: true, offerCreateWhenMissing: false });
+  assert.equal(profileName, "second");
+  const explicit = await resolveProfileSelection({ config, options: { profile: "first" }, required: true, nonInteractive: true, configuredOnly: true, offerCreateWhenMissing: false });
+  assert.equal(explicit.profileName, "first");
+});
+
+test("profileSummary fills in {projectName} once the project name is known", () => {
+  const profile = { ssh: { host: "staging.example.com", username: "{projectName}" }, remote: { projectRoot: "/srv/{projectName}", wordpressRoot: "wordpress" } };
+  assert.match(profileSummary(profile, "docker", "client-site"), /Remote: client-site@staging\.example\.com/);
+  assert.match(profileSummary(profile, "docker", "client-site"), /WordPress: \/srv\/client-site\/wordpress/);
+  assert.match(profileSummary(profile, "docker"), /Remote: \{projectName\}@/);
 });

@@ -34,3 +34,13 @@ test("preflight warns instead of failing when the dev-server port is busy", asyn
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("preflight names each missing tool with how to install it", async () => {
+  await assert.rejects(
+    () => runLocalPreflight({ environment: "definitely-not-a-real-tool", skipGitInit: true }),
+    (error) => {
+      assert.match(error.hint, /definitely-not-a-real-tool: Install definitely-not-a-real-tool/);
+      return true;
+    },
+  );
+});

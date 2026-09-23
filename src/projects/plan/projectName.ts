@@ -1,3 +1,8 @@
+/** Turns a server project name into a local project name: "Acme Client Site" -> "acme-client-site". */
+export function toProjectName(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "-").replace(/^[-_]+|-+$/g, "");
+}
+
 /**
  * Validates a project name for filesystem and package compatibility.
  */

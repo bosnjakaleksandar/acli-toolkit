@@ -6,6 +6,8 @@ import { createProfileCommand } from "./ProfileBuilder.ts";
 import { CliError, MissingOptionError } from "../core/errors.ts";
 import type { AcliConfig } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/Profile.ts";
+import { getProvider } from "../providers/registry.ts";
+import { describeProfile } from "./ProfileQuery.ts";
 
 export interface ResolveProfileSelectionParams {
   config: AcliConfig;
@@ -16,7 +18,6 @@ export interface ResolveProfileSelectionParams {
   offerCreateWhenMissing?: boolean;
   configuredOnly?: boolean;
   chooseProfile?: (names: string[], config: AcliConfig) => Promise<string>;
-  commandRunner?: (command: string) => string;
 }
 
 export interface ResolveProfileSelectionResult {
@@ -27,13 +28,14 @@ export interface ResolveProfileSelectionResult {
 
 /**
  * Resolves which profile a flow should use: an explicit --profile flag, one
- * already attached to the context, the sole available profile, an
+ * already attached to the context, the default set with `acli profile use`,
+ * the sole available profile, an
  * interactive pick among several, or (interactively, with none yet defined)
  * optionally offering to create one on the spot. `acli link` keeps that
  * convenience; `acli import` disables it and requires an already-configured
  * named profile.
  */
-export async function resolveProfileSelection({ config, options = {}, attachedProfileName, required, nonInteractive, offerCreateWhenMissing = true, configuredOnly = false, chooseProfile, commandRunner }: ResolveProfileSelectionParams): Promise<ResolveProfileSelectionResult> {
+export async function resolveProfileSelection({ config, options = {}, attachedProfileName, required, nonInteractive, offerCreateWhenMissing = true, configuredOnly = false, chooseProfile }: ResolveProfileSelectionParams): Promise<ResolveProfileSelectionResult> {
   let availableProfiles = Object.keys(config.profiles || {});
   if (required && configuredOnly && availableProfiles.length === 0) {
     throw new CliError("No staging profiles are configured.", {
@@ -44,7 +46,7 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
   if (configuredOnly && options.profile && !config.profiles?.[options.profile]) {
     throw new CliError(`Profile "${options.profile}" is not configured.`, {
       code: "PROFILE_NOT_FOUND",
-      hint: "Choose a configured profile, or save a portable YAML first with `acli profile import <path>`.",
+      hint: "Run `acli profile list` to see the configured profiles, or `acli profile create` to add one.",
     });
   }
   if (required && offerCreateWhenMissing && !options.profile && !attachedProfileName && !availableProfiles.length && !nonInteractive) {
@@ -56,7 +58,10 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
     availableProfiles = Object.keys(config.profiles || {});
   }
 
-  let profileName = options.profile || attachedProfileName || (required && availableProfiles.length === 1 ? availableProfiles[0] : undefined);
+  // `acli profile use` stores defaults.profile; honor it (when it still names
+  // a configured profile) before falling back to a sole profile or a picker.
+  const defaultProfile = typeof config.defaults?.profile === "string" && config.profiles?.[config.defaults.profile] ? config.defaults.profile : undefined;
+  let profileName = options.profile || attachedProfileName || (required ? defaultProfile : undefined) || (required && availableProfiles.length === 1 ? availableProfiles[0] : undefined);
   if (required && !profileName && availableProfiles.length > 1 && !nonInteractive) {
     profileName = chooseProfile
       ? await chooseProfile(availableProfiles, config)
@@ -66,18 +71,21 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
   if (required && !profileName && availableProfiles.length > 1 && nonInteractive) {
     throw new MissingOptionError(["--profile <name>"], { hint: `Choose one of: ${availableProfiles.join(", ")}.` });
   }
-  const profile = await loadProfile(profileName, config, process.cwd(), commandRunner ? { commandRunner } : {});
+  const profile = loadProfile(profileName, config);
   if (required && !profile) throw new Error("This workflow requires a profile. Run `acli profile create` or pass --profile.");
   return { config, profileName, profile };
 }
 
 export function profileOption(name: string, profile: Profile): { label: string; value: string } {
-  const host = profile.ssh?.host || "unknown host";
-  const database = profile.database?.driver || "unknown DB";
-  return { label: `${name} — ${host} · ${database} · ${profile.files?.transport || "rsync"}`, value: name };
+  return { label: `${name} — ${describeProfile(profile)}`, value: name };
 }
 
-export function profileSummary(profile: Profile, environment: string | undefined): string {
-  const dump = profile.database?.executable === "auto" ? "MariaDB/MySQL auto-detect" : profile.database?.driver;
-  return [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, `WordPress: ${profile.remote.projectRoot}/${profile.remote.wordpressRoot}`, `Database: ${dump}`, `Files: ${profile.files?.transport || "rsync"}`, `Local: ${environment}`].join("\n");
+/**
+ * The "Selected profile" note. Once the project name is known, `{projectName}`
+ * placeholders are shown filled in, so the summary reads as the actual
+ * server user, project and paths this run will use.
+ */
+export function profileSummary(profile: Profile, environment: string | undefined, projectName?: string): string {
+  const summary = [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, ...(getProvider(profile)?.summary(profile) || []), `Local: ${environment}`].join("\n");
+  return projectName ? summary.replaceAll("{projectName}", projectName) : summary;
 }

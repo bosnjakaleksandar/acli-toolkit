@@ -1,25 +1,17 @@
-import { confirm, note, outro, select, spinner, text } from "@clack/prompts";
+import { note, outro, select, spinner } from "@clack/prompts";
 import chalk from "chalk";
 import path from "path";
 import type { Command } from "commander";
 import { collectProjectContext, editProjectContext } from "../../projects/prompts/projectPrompts.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
-import { loadPreset } from "../../projects/plan/presets.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
-import { deepMerge } from "../../config/merge.ts";
 import { redactSecrets } from "../../config/redaction.ts";
-import {
-  mergeProjectContext,
-  normalizeCliOptions,
-  parseSetOverrides,
-} from "../../projects/plan/PlanBuilder.ts";
+import { mergeProjectContext, normalizeCliOptions } from "../../projects/plan/PlanBuilder.ts";
 import { resolveStrategy } from "../../projects/strategies/registry.ts";
 import { mascot } from "../../ui/mascot.ts";
 import { ask } from "../../ui/prompts.ts";
 import { CliError, UsageError } from "../../core/errors.ts";
 import { runCommand } from "../CommandShell.ts";
-import { loadLastPlan, saveSuccessfulPlan } from "../../projects/plan/history.ts";
-import { savePlanAsPreset } from "../../projects/plan/history.ts";
 import { StepRunner, readStepState } from "../../core/StepRunner.ts";
 import {
   buildProjectSummary,
@@ -58,20 +50,12 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
       return formatCreateError(error, { targetDir, ownsTargetDir, resumeCommand });
     });
 
+    // Two sources only: `defaults` from configuration (e.g. a team's starter
+    // theme and plugins), then this command's own options, which win.
     const { config } = await loadConfig({ configPath: options.config });
-    const preset = await loadPreset(options.preset, config);
-    const cliContext = normalizeCliOptions(options);
-    const setContext = parseSetOverrides(options.set);
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
-    const previousPlan = options.fromLast ? await loadLastPlan() : {};
-    if (options.fromLast && !previousPlan) throw new Error("No successful create history was found in this directory.");
-    const mergedContext = mergeProjectContext(deepMerge(deepMerge(deepMerge(config.defaults || {}, previousPlan || {}), preset), setContext) as ProjectPlan, cliContext);
-    if (mergedContext.setupType === "existing-wp") {
-      throw new UsageError("This preset or saved plan describes an existing WordPress project.", {
-        hint: "Use `acli import`; create only scaffolds new projects.",
-      });
-    }
-    ctx = await collectProjectContext(withoutImportContext(mergedContext), { nonInteractive });
+    const mergedContext = mergeProjectContext((config.defaults || {}) as ProjectPlan, normalizeCliOptions(options));
+    ctx = await collectProjectContext({ ...mergedContext, setupType: "new" }, { nonInteractive });
     const envService = resolveEnvironmentService(ctx.environment!);
     const strategy = resolveStrategy(ctx, envService);
 
@@ -80,7 +64,6 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
 
     if (options.dryRun) {
       const plan = strategy.buildPlan ? strategy.buildPlan(ctx) : {
-        preset: ctx!.presetName || options.preset || null,
         project: ctx!.projectName,
         projectType: ctx!.projectType,
         ...(ctx!.appType === "wordpress" ? { localEnvironment: ctx!.environment } : {}),
@@ -135,13 +118,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
 
     await mascot.show("success", "Project created successfully.");
     mascot.stop();
-    await saveSuccessfulPlan(finalCtx);
     outro(buildSuccessSummary(targetDir, finalCtx as any, nextSteps));
-    if (!nonInteractive && await ask(confirm, { message: "Save this plan as a reusable preset?", initialValue: false })) {
-      const presetName = await ask(text, { message: "Preset name:", validate: (value: string | undefined) => value && /^[a-z0-9][a-z0-9-]*$/.test(value) ? undefined : "Use lowercase letters, numbers, and hyphens." });
-      const presetFile = await savePlanAsPreset(presetName, finalCtx, { configPath: options.config });
-      console.log(chalk.gray(`Preset "${presetName}" saved to ${presetFile}.`));
-    }
   });
 }
 
@@ -152,11 +129,8 @@ export function registerCreateCommand(program: Command): void {
     .option("--name <name>", "Project directory/name")
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")
-    .option("--preset <preset>", "Use a named preset or portable YAML preset file")
     .option("--config <path>", "Use an explicit A-CLI configuration file")
-    .option("--set <key=value>", "Override a non-secret configuration value", collect, [] as string[])
     .option("--dry-run", "Validate and print the execution plan without mutation")
-    .option("--from-last", "Reuse the last successful create plan from this directory")
     .option("--resume", "Continue an interrupted create run instead of starting over")
     .option("--existing", "Unsupported compatibility flag; use `acli import`")
     .option("--type <type>", "Project type: application or wordpress")
@@ -172,13 +146,4 @@ export function registerCreateCommand(program: Command): void {
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
     .action((options: CreateCommandOptions) => createProjectCommand(options));
-}
-
-function collect(value: string, previous: string[]): string[] { return [...previous, value]; }
-
-/** Import-only defaults must never affect a fresh scaffold. */
-function withoutImportContext(ctx: ProjectPlan): ProjectPlan {
-  const clean: ProjectPlan = { ...ctx, setupType: "new" };
-  for (const key of ["profile", "stagingUrl", "skipFiles", "skipDatabase", "skipGitLink", "keepDump"]) delete clean[key];
-  return clean;
 }

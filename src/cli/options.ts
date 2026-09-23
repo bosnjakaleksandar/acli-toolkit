@@ -25,11 +25,8 @@ export interface CreateCommandOptions {
   name?: string;
   environment?: string;
   env?: string;
-  preset?: string;
   config?: string;
-  set?: string[];
   dryRun?: boolean;
-  fromLast?: boolean;
   resume?: boolean;
   existing?: boolean;
   type?: string;
@@ -46,31 +43,40 @@ export interface CreateCommandOptions {
   nonInteractive?: boolean;
 }
 
-/**
- * `acli import` is intentionally profile-only. The import-domain shape is
- * re-exported here so command registration and the remote import source
- * agree on the same public option surface.
- */
-export type { ImportOptions as ImportCommandOptions } from "../wordpress/import/ImportSource.ts";
+/** Public flags accepted by `acli import`. */
+export interface ImportCommandOptions {
+  /** The project's name on the server (`acli import [project]`); picked from the server's list when omitted. */
+  project?: string;
+  name?: string;
+  environment?: string;
+  env?: string;
+  mysql?: string;
+  wpVersion?: string;
+  dryRun?: boolean;
+  resume?: boolean;
+  profile?: string;
+  remoteUrl?: string;
+  config?: string;
+  skipFiles?: boolean;
+  skipDatabase?: boolean;
+  skipGitLink?: boolean;
+  skipGit?: boolean;
+  keepDump?: boolean;
+  yes?: boolean;
+  nonInteractive?: boolean;
+}
+
 
 /** Union of flags across every `acli config <subcommand>`. */
 export interface ConfigCommandOptions {
   scope?: "project" | "user";
   config?: string;
   force?: boolean;
-  resolved?: boolean;
-}
-
-export interface DoctorCommandOptions {
-  preset?: string;
-  profile?: string;
-  config?: string;
-  environment?: string;
-  json?: boolean;
 }
 
 export interface LinkCommandOptions {
   name?: string;
+  remoteProject?: string;
   environment?: string;
   profile?: string;
   config?: string;
@@ -87,8 +93,3 @@ export interface PullCommandOptions {
   nonInteractive?: boolean;
 }
 
-/** Union of flags across `acli preset list` / `acli preset inspect <name>`. */
-export interface PresetCommandOptions {
-  config?: string;
-  json?: boolean;
-}

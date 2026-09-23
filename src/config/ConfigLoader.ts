@@ -3,8 +3,6 @@ import fs from "fs-extra";
 import YAML from "yaml";
 import { BUILT_IN_CONFIG } from "./defaults.ts";
 import { getProjectConfigPath, getUserConfigPath } from "./paths.ts";
-import { isConfigTrusted } from "./TrustStore.ts";
-import { findSecretReferencePath, resolveReferences } from "./references.ts";
 import { validateConfig } from "./schema.ts";
 import { deepMerge } from "./merge.ts";
 import type { AcliConfig } from "../core/model/AcliConfig.ts";
@@ -12,35 +10,30 @@ import type { AcliConfig } from "../core/model/AcliConfig.ts";
 export interface LoadConfigOptions {
   cwd?: string;
   configPath?: string;
-  env?: Record<string, string | undefined>;
-  resolveSecrets?: boolean;
-  /** Resolve every configured profile too. Normal workflows leave profiles
-   * unresolved and let loadProfile resolve only the selected one. */
-  resolveProfiles?: boolean;
 }
 
 export interface LoadConfigResult {
   config: AcliConfig;
-  rawConfig: AcliConfig;
   sources: Array<{ name: string; value: AcliConfig }>;
 }
 
-export async function loadConfig({ cwd = process.cwd(), configPath, env = process.env, resolveSecrets = true, resolveProfiles = false }: LoadConfigOptions = {}): Promise<LoadConfigResult> {
+/**
+ * Loads built-in defaults, then the user config, then the project's
+ * `.acli/config.yaml` (or a single explicit --config file instead of both).
+ *
+ * Profiles and the default profile live only in the user config: they
+ * describe how *this machine* reaches a server, and a project config found
+ * in the working directory (possibly from `git clone`) must not be able to
+ * redirect a pull to another server. The project config holds the project
+ * link plus create defaults.
+ */
+export async function loadConfig({ cwd = process.cwd(), configPath }: LoadConfigOptions = {}): Promise<LoadConfigResult> {
   const sources: Array<{ name: string; value: AcliConfig }> = [{ name: "built-in defaults", value: structuredClone(BUILT_IN_CONFIG) as AcliConfig }];
-  // Only the project-scoped file (or an explicit --config, which behaves like
-  // one) may declare a `project:` link — the user-level config is shared
-  // across every project on the machine, so a link there could never be
-  // meaningful. `autoDiscovered` marks the one candidate that A-CLI reads
-  // without being asked to: the project config found by walking up from cwd.
-  // Unlike an explicit --config (the user pointed at it on purpose) or the
-  // user-level config (lives on this machine, not in a repo someone else
-  // wrote), an auto-discovered project config may have arrived via `git
-  // clone` — see the trust check below.
   const candidates = configPath
-    ? [{ name: `explicit config (${path.resolve(cwd, configPath)})`, path: path.resolve(cwd, configPath), required: true, allowProjectKey: true, autoDiscovered: false }]
+    ? [{ name: `explicit config (${path.resolve(cwd, configPath)})`, path: path.resolve(cwd, configPath), required: true, allowProjectKey: true, isProject: false }]
     : [
-        { name: `user config (${getUserConfigPath()})`, path: getUserConfigPath(), required: false, allowProjectKey: false, autoDiscovered: false },
-        { name: `project config (${getProjectConfigPath(cwd)})`, path: getProjectConfigPath(cwd), required: false, allowProjectKey: true, autoDiscovered: true },
+        { name: `user config (${getUserConfigPath()})`, path: getUserConfigPath(), required: false, allowProjectKey: false, isProject: false },
+        { name: `project config (${getProjectConfigPath(cwd)})`, path: getProjectConfigPath(cwd), required: false, allowProjectKey: true, isProject: true },
       ];
 
   for (const candidate of candidates) {
@@ -48,51 +41,25 @@ export async function loadConfig({ cwd = process.cwd(), configPath, env = proces
       if (candidate.required) throw new Error(`Configuration file not found: ${candidate.path}`);
       continue;
     }
-    const rawText = await fs.readFile(candidate.path, "utf8");
-    const value = parseConfigText(rawText, candidate.path);
+    const value = await readConfigFile(candidate.path);
     validateConfig(value, candidate.name, { allowProjectKey: candidate.allowProjectKey });
-
-    if (resolveSecrets && candidate.autoDiscovered) {
-      const secretPath = findSecretReferencePath(value);
-      if (secretPath) {
-        const trusted = env.ACLI_TRUST_PROJECT_CONFIG === "1" || (await isConfigTrusted(candidate.path, rawText, env));
-        if (!trusted) {
-          throw new Error(
-            `Refusing to resolve secrets from ${candidate.path}: it declares a secret command or environment-variable reference at "${secretPath}".\n` +
-              `This file lives in the current project directory, which may have come from somewhere else (e.g. git clone) rather than from you — A-CLI will not execute commands from it automatically.\n` +
-              `If you trust this file, run "acli config trust" to approve it, or set ACLI_TRUST_PROJECT_CONFIG=1 to bypass this check for a single command.`,
-          );
-        }
-      }
-    }
-
+    if (candidate.isProject) assertNoProjectProfiles(value, candidate.path);
     sources.push({ name: candidate.name, value });
   }
 
   const config = sources.reduce((result, source) => deepMerge(result, source.value), {} as AcliConfig);
   validateConfig(config, "resolved configuration", { allowProjectKey: true });
-  const resolved = resolveSecrets ? resolveConfigReferences(config, env, resolveProfiles) : config;
-  return { config: resolved, rawConfig: config, sources };
+  return { config, sources };
 }
 
-/**
- * Profiles may contain secret-provider commands. Resolving the whole config
- * here used to execute every profile even when the command did not use one.
- * Keep named and inline profiles raw until loadProfile/the consuming command
- * has selected the one it actually needs. `config show --resolved` opts into
- * resolving all profiles explicitly.
- */
-function resolveConfigReferences(config: AcliConfig, env: Record<string, string | undefined>, resolveProfiles: boolean): AcliConfig {
-  if (resolveProfiles) return resolveReferences(config, { env }) as AcliConfig;
-
-  const { profiles, project, ...rest } = config;
-  const inlineProfile = project && typeof project.profile === "object" ? project.profile : undefined;
-  const resolvableProject = project && inlineProfile ? { ...project, profile: undefined } : project;
-  const resolved = resolveReferences({ ...rest, ...(resolvableProject ? { project: resolvableProject } : {}) }, { env }) as AcliConfig;
-
-  if (profiles) resolved.profiles = profiles;
-  if (inlineProfile && resolved.project) resolved.project.profile = inlineProfile;
-  return resolved;
+function assertNoProjectProfiles(config: AcliConfig, filePath: string): void {
+  const hasProfiles = Object.keys(config.profiles || {}).length > 0;
+  const hasDefault = config.defaults?.profile !== undefined;
+  if (!hasProfiles && !hasDefault) return;
+  throw new Error(
+    `${filePath} declares ${hasProfiles ? "profiles" : "a default profile"}, which since A-CLI 3.0 live only in the user config (${getUserConfigPath()}).\n` +
+      "Recreate them with `acli profile create`, set the default with `acli profile use <name>`, then remove `profiles:` and `defaults.profile` from this file.",
+  );
 }
 
 export async function readConfigFile(filePath: string): Promise<AcliConfig> {

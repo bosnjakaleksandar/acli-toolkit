@@ -1,39 +1,43 @@
-import path from "node:path";
 import { CONFIG_VERSION } from "./defaults.ts";
 import type { AcliConfig, ProjectLink } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/Profile.ts";
 import { isSafeSshHostAlias } from "../system/safety.ts";
+import { isObject, isValidPort, REMOTE_PROJECT_PATTERN } from "../core/objects.ts";
+import { getProvider, PROVIDER_NAMES } from "../providers/registry.ts";
 
-const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
+export { isObject } from "../core/objects.ts";
+
+const ROOT_KEYS = new Set(["version", "defaults", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);
-const PROFILE_KEYS = new Set(["type", "ssh", "remote", "files", "database", "git", "urls", "local"]);
-const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "linkedAt"]);
-const DB_DRIVERS = new Set(["wp-cli", "docker", "direct"]);
-const FILE_TRANSPORTS = new Set(["rsync", "sftp"]);
+const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "remoteProject", "selections", "linkedAt"]);
+const SELECTION_KEYS = new Set(["database", "databaseName", "wordpressContainer"]);
+
 const HOST_KEY_POLICIES = new Set(["strict", "accept-new", "insecure"]);
+// Profile fields every provider shares; each provider adds its own
+// (ProviderDefinition.profileKeys) and validates them itself.
+const SHARED_PROFILE_KEYS = ["type", "provider", "ssh", "database", "git", "urls", "local"];
 
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
   const errors: string[] = [];
   if (config.version !== CONFIG_VERSION) errors.push(`${source}: top-level version must be ${CONFIG_VERSION}.`);
+  // Presets were removed in 3.0; an empty leftover `presets: {}` is harmless.
+  const presets = (config as unknown as Record<string, unknown>).presets;
+  if (presets !== undefined) {
+    if (isObject(presets) && !Object.keys(presets).length) delete (config as unknown as Record<string, unknown>).presets;
+    else errors.push(`${source}: presets were removed in A-CLI 3.0. Put shared values in \`defaults\` and pass the rest as \`acli create\` options, then remove \`presets\`.`);
+  }
   const allowedRootKeys = allowProjectKey ? PROJECT_ROOT_KEYS : ROOT_KEYS;
-  for (const key of Object.keys(config)) if (!allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
-  for (const group of ["defaults", "presets", "profiles"] as const) {
+  for (const key of Object.keys(config)) if (key !== "presets" && !allowedRootKeys.has(key)) errors.push(`${source}: unknown top-level field "${key}".`);
+  for (const group of ["defaults", "profiles"] as const) {
     if (config[group] !== undefined && (!config[group] || typeof config[group] !== "object" || Array.isArray(config[group]))) errors.push(`${source}: ${group} must be a mapping.`);
   }
-  // `defaults`/`presets` are a free-form bag of ProjectPlan scaffolding
-  // fields (mysqlVersion, plugins, setupType, ...) — never a place secrets
-  // belong. Restricting them to plain scalars (rather than accepting any
-  // nested object) closes off hiding a `{command: "..."}` secret reference
-  // under an arbitrary preset/default key, where resolveReferences would
-  // otherwise execute it unconditionally.
+  // `defaults` is a free-form bag of flat ProjectPlan scaffolding
+  // fields (mysqlVersion, plugins, setupType, ...), so nested objects are
+  // rejected rather than silently ignored.
   if (isObject(config.defaults)) validatePlanFields(config.defaults, `${source}: defaults`, errors);
-  if (isObject(config.presets)) {
-    for (const [name, preset] of Object.entries(config.presets)) {
-      if (!isObject(preset)) { errors.push(`${source}: presets.${name} must be a mapping.`); continue; }
-      validatePlanFields(preset, `${source}: presets.${name}`, errors);
-    }
-  }
   for (const [name, profile] of Object.entries(config.profiles || {})) validateProfile(profile, `${source} profile "${name}"`, errors);
+  const reference = findRemovedReference(config);
+  if (reference) errors.push(`${source}: "${reference}" uses a \${ENV_VAR} or {command: ...} reference, which A-CLI 3.0 no longer resolves. Write the value itself (profiles live in your own user config, which isn't shared).`);
   if (config.project !== undefined) validateProjectLink(config.project, `${source} project`, errors);
   if (errors.length) throw new Error(errors.join("\n"));
   return config;
@@ -55,27 +59,38 @@ export function validateProjectLinkConfig(link: ProjectLink, source = "project l
 
 function validateProfile(profile: Profile, label: string, errors: string[]): void {
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) { errors.push(`${label} must be a mapping.`); return; }
-  for (const key of Object.keys(profile)) if (!PROFILE_KEYS.has(key)) errors.push(`${label}: unknown field "${key}".`);
+  const provider = getProvider(profile);
+  if (!provider) errors.push(`${label}: provider must be one of ${PROVIDER_NAMES.join(", ")}.`);
+  const knownKeys = new Set([...SHARED_PROFILE_KEYS, ...(provider?.profileKeys || [])]);
+  for (const key of Object.keys(profile)) if (!knownKeys.has(key)) errors.push(`${label}: unknown field "${key}".`);
   if (((profile as unknown as Record<string, unknown>).type || "wordpress") !== "wordpress") errors.push(`${label}: type must be "wordpress".`);
   if (!profile.ssh?.host) errors.push(`${label}: ssh.host is required.`);
   if (!profile.ssh?.username) errors.push(`${label}: ssh.username is required.`);
   if (profile.ssh?.port !== undefined && !isValidPort(profile.ssh.port)) errors.push(`${label}: ssh.port must be an integer from 1 to 65535.`);
   if (profile.ssh?.hostKeyPolicy !== undefined && !HOST_KEY_POLICIES.has(profile.ssh.hostKeyPolicy)) errors.push(`${label}: ssh.hostKeyPolicy must be strict, accept-new, or insecure.`);
-  if (!profile.remote?.projectRoot) errors.push(`${label}: remote.projectRoot is required.`);
-  if (!profile.remote?.wordpressRoot) errors.push(`${label}: remote.wordpressRoot is required.`);
-  const transport = profile.files?.transport || "rsync";
-  if (!FILE_TRANSPORTS.has(transport)) errors.push(`${label}: files.transport must be rsync or sftp.`);
-  if (profile.files?.targets !== undefined) validateFileTargets(profile.files.targets, `${label}.files.targets`, errors);
-  if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
   if (profile.database?.tablePrefix !== undefined && typeof profile.database.tablePrefix !== "string") errors.push(`${label}: database.tablePrefix must be a string.`);
   if (profile.database?.normalizeCollations !== undefined && typeof profile.database.normalizeCollations !== "boolean") errors.push(`${label}: database.normalizeCollations must be a boolean.`);
-  if (profile.database?.port !== undefined && !isValidPort(profile.database.port)) errors.push(`${label}: database.port must be an integer from 1 to 65535.`);
   if (profile.git?.sshHostAlias !== undefined && !isSafeSshHostAlias(profile.git.sshHostAlias)) errors.push(`${label}: git.sshHostAlias must be a valid SSH config Host alias (letters, numbers, dots, dashes, and underscores).`);
+  provider?.validate(profile, label, errors);
+}
+
+/** Finds a `${ENV_VAR}` string or `{command: "..."}` object anywhere in the document, returning its dotted path. */
+function findRemovedReference(value: unknown, keyPath: string[] = []): string | null {
+  if (typeof value === "string") return /\$\{[A-Za-z_][A-Za-z0-9_]*\}/.test(value) ? keyPath.join(".") : null;
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) { const found = findRemovedReference(item, [...keyPath, String(index)]); if (found) return found; }
+    return null;
+  }
+  if (!isObject(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return keyPath.join(".");
+  for (const [key, item] of entries) { const found = findRemovedReference(item, [...keyPath, key]); if (found) return found; }
+  return null;
 }
 
 function validatePlanFields(fields: Record<string, unknown>, label: string, errors: string[]): void {
   for (const [key, value] of Object.entries(fields)) {
-    if (!isPlainScalar(value)) errors.push(`${label}.${key}: must be a string, number, or boolean (or an array of those) — nested objects, including secret "command" references, are not allowed here.`);
+    if (!isPlainScalar(value)) errors.push(`${label}.${key}: must be a string, number, or boolean (or an array of those) — nested objects are not allowed here.`);
   }
 }
 
@@ -85,34 +100,20 @@ function isPlainScalar(value: unknown): boolean {
   return false;
 }
 
-function validateFileTargets(targets: Record<string, { path: string }>, label: string, errors: string[]): void {
-  if (!isObject(targets)) { errors.push(`${label} must be a mapping.`); return; }
-  for (const [name, target] of Object.entries(targets)) {
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) { errors.push(`${label}: unsafe target name "${name}".`); continue; }
-    if (!isObject(target) || typeof target.path !== "string") { errors.push(`${label}.${name}: path is required.`); continue; }
-    if (!isSafeRelativePath(target.path)) errors.push(`${label}.${name}.path: must be a safe relative path (no absolute paths or "..").`);
-  }
-}
-
-function isSafeRelativePath(value: string): boolean {
-  return /^[a-zA-Z0-9_./-]+$/.test(value) && !value.includes("..") && !path.posix.isAbsolute(value);
-}
-
 function validateProjectLink(link: ProjectLink, label: string, errors: string[]): void {
   if (!link || typeof link !== "object" || Array.isArray(link)) { errors.push(`${label} must be a mapping.`); return; }
   for (const key of Object.keys(link)) if (!PROJECT_LINK_KEYS.has(key)) errors.push(`${label}: unknown field "${key}".`);
   if (!link.name) errors.push(`${label}: name is required.`);
   if (!link.environment) errors.push(`${label}: environment is required.`);
-  if (link.profile !== undefined) {
-    if (typeof link.profile === "string") { /* profile name reference, resolved separately */ }
-    else if (isObject(link.profile)) validateProfile(link.profile, `${label}.profile`, errors);
-    else errors.push(`${label}.profile must be a string (profile name) or a mapping (inline profile).`);
+  if (link.profile !== undefined && typeof link.profile !== "string") errors.push(`${label}.profile must be the name of a profile in your user config (inline profiles are no longer supported).`);
+  if (link.remoteProject !== undefined && (typeof link.remoteProject !== "string" || !REMOTE_PROJECT_PATTERN.test(link.remoteProject))) errors.push(`${label}.remoteProject must be a project name as the server prints it (letters, digits, spaces, . _ -).`);
+  if (link.selections !== undefined) {
+    if (!isObject(link.selections)) errors.push(`${label}.selections must be a mapping.`);
+    else for (const [key, value] of Object.entries(link.selections)) {
+      if (!SELECTION_KEYS.has(key)) errors.push(`${label}.selections: unknown field "${key}".`);
+      else if (typeof value !== "string" || !/^[A-Za-z0-9._-]+$/.test(value)) errors.push(`${label}.selections.${key} must be a name as printed in the server's selection menu.`);
+    }
   }
 }
 
-export function isObject(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
 
-function isValidPort(value: unknown): boolean {
-  const numeric = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
-  return typeof numeric === "number" && Number.isInteger(numeric) && numeric >= 1 && numeric <= 65535;
-}

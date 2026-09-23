@@ -36,7 +36,7 @@ export default abstract class ScaffoldStrategy {
   /** Opt-in: verifies this project type's own requirements before any files are written. */
   preflight?(ctx: ProjectPlan, spinner?: Spinner | null): Promise<void>;
 
-  /** Opt-in: a richer `--dry-run` plan than the generic {preset, project, projectType, localEnvironment} fallback. */
+  /** Opt-in: a richer `--dry-run` plan than the generic {project, projectType, localEnvironment} fallback. */
   buildPlan?(ctx: ProjectPlan): unknown;
 }
 

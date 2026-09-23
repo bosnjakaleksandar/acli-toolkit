@@ -1,4 +1,19 @@
 /**
+ * Answers to the server `project` CLI's "which one?" menus, by name as the
+ * menu prints it — needed when a project has more than one WordPress or
+ * database container, or more than one database in its container. Stored
+ * per project, in its link (see ProjectLink.selections).
+ */
+export interface CoolifySelection {
+  /** Database container: the name shown in the menu, or the container name under it. */
+  database?: string;
+  /** Database inside that container, when it holds more than one. */
+  databaseName?: string;
+  /** WordPress container: the service name shown in the menu, or the container name. */
+  wordpressContainer?: string;
+}
+
+/**
  * A profile as authored in config: names, template placeholders (`{projectName}`),
  * and possibly-unresolved secret references (`${ENV_VAR}` / `{command: "..."}`).
  * Not safe to use for connections directly — pass it through
@@ -8,6 +23,18 @@ export interface Profile {
   /** Defaults to "wordpress" when absent — see config/schema.ts's validateProfileConfig. The only value it may currently hold. */
   type?: "wordpress";
   profileName?: string;
+  /**
+   * How A-CLI reaches the remote site. "ssh" (the default) means direct SSH
+   * access to the WordPress files and database. "coolify-cli" means the
+   * server only exposes the `project` CLI (Coolify staging) — `remote` and
+   * `database` are then not used, and `coolify` is required instead.
+   */
+  provider?: "ssh" | "coolify-cli";
+  /** coolify-cli provider only. Which project on the server is chosen per import, not here. */
+  coolify?: {
+    /** Host used to turn `project status`'s `owner/repo` into an SSH Git URL. Defaults to github.com. */
+    gitHost?: string;
+  };
   ssh: {
     host: string;
     port?: number | string;
@@ -15,44 +42,27 @@ export interface Profile {
     identityFile?: string;
     hostKeyPolicy?: "strict" | "accept-new" | "insecure";
   };
-  remote: {
+  /** Required for the "ssh" provider; unused by "coolify-cli". */
+  remote?: {
     projectRoot: string;
     wordpressRoot: string;
   };
+  /** ssh provider only: which wp-content directories to rsync. */
   files?: {
-    transport?: "rsync" | "sftp";
     directories?: string[];
     excludes?: string[];
     includes?: string[];
     targets?: Record<string, { path: string; excludes?: string[]; includes?: string[] }>;
   };
   /**
-   * Which fields matter depends on `driver`: wp-cli needs nothing further;
-   * docker needs either `discovery: "container-name"` (+ containerPattern/
-   * executable/envFile/userEnv/passwordEnv/nameEnv) or service/composeFile/
-   * executable; direct needs host/port/user/password/name. Kept as one
-   * loosely-typed object (rather than a driver-keyed union) because it's
-   * authored as free-form YAML and the databaseCommand module is
-   * the single place that actually interprets it per driver.
+   * Optional overrides for the imported database. The ssh provider always
+   * exports with wp-cli; `driver: wp-cli` is still accepted from older
+   * profiles but has no effect.
    */
-  database: {
-    driver: "wp-cli" | "docker" | "direct";
+  database?: {
+    driver?: "wp-cli";
     normalizeCollations?: boolean;
     tablePrefix?: string;
-    executable?: string;
-    discovery?: "container-name";
-    containerPattern?: string;
-    envFile?: string;
-    userEnv?: string;
-    passwordEnv?: string;
-    nameEnv?: string;
-    service?: string;
-    composeFile?: string;
-    host?: string;
-    port?: number | string;
-    user?: string;
-    password?: string;
-    name?: string;
   };
   git?: {
     enabled?: boolean;
@@ -81,6 +91,9 @@ export interface ResolvedProfile {
   readonly __resolved: true;
   profileName?: string;
   projectName: string;
+  provider: "ssh" | "coolify-cli";
+  /** Present only for the "coolify-cli" provider: the server project for this run and its remembered selections. */
+  coolify?: { project: string; gitHost: string } & CoolifySelection;
   ssh: {
     host: string;
     port: number;
@@ -88,12 +101,14 @@ export interface ResolvedProfile {
     identityFile: string;
     hostKeyPolicy: "strict" | "accept-new" | "insecure";
   };
-  remote: {
+  /** ssh provider only: absolute remote paths, already joined. */
+  remote?: {
     projectRoot: string;
     wordpressRoot: string;
   };
+  /** ssh provider only: normalized into `targets`. */
   files?: Profile["files"];
-  database: Profile["database"];
+  database: NonNullable<Profile["database"]>;
   git?: Profile["git"];
   urls?: Profile["urls"];
   local?: Record<string, unknown>;

@@ -1,0 +1,124 @@
+import path from "node:path";
+import fs from "fs-extra";
+import { runCommand } from "../../system/commandRunner.ts";
+import { assertToolsAvailable } from "../../system/toolCheck.ts";
+import { buildSshArgs, shellQuote, sshTransport } from "../sshArgs.ts";
+import { renderTemplate } from "../resolveProfile.ts";
+import type { ResolvedProfile } from "../../core/model/Profile.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
+import type { Spinner } from "../../environments/EnvironmentService.ts";
+import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "../contract.ts";
+
+type Runner = typeof runCommand;
+
+/**
+ * Every operation A-CLI performs against a remote WordPress host over SSH:
+ * capability preflight, file sync (rsync), database export (wp-cli), and
+ * git-origin discovery. Construct it with an *already resolved* profile —
+ * see `resolveRemoteProfile`, which is not idempotent.
+ */
+export class SshHost implements RemoteBackend {
+  profile: ResolvedProfile;
+  run: Runner;
+  remote: NonNullable<ResolvedProfile["remote"]>;
+
+  constructor(profile: ResolvedProfile, runner: Runner = runCommand) {
+    if (!profile.remote) throw new Error("SshHost requires a profile with remote paths (the ssh provider).");
+    this.profile = profile;
+    this.run = runner;
+    this.remote = profile.remote;
+  }
+
+  requiredTools(ctx: { environment?: string; skipFiles?: boolean }): string[] {
+    const tools = ["ssh", ctx.environment === "lando" ? "lando" : "docker"];
+    if (!ctx.skipFiles) tools.push("rsync");
+    return [...new Set(tools)];
+  }
+
+  async preflight(ctx: { environment?: string; skipFiles?: boolean }): Promise<void> {
+    assertToolsAvailable(this.requiredTools(ctx));
+    await this.run("ssh", buildSshArgs(this.profile.ssh, `test -d ${shellQuote(this.remote.wordpressRoot)}`));
+  }
+
+  fileTargets(): string[] {
+    return Object.keys(this.profile.files?.targets || {});
+  }
+
+  async syncFiles(targetDir: string, spinner: Spinner | null, { directories: namesOverride }: SyncFilesOptions = {}): Promise<void> {
+    const config = this.profile.files || {};
+    // Profiles are normalized (see normalizeProfile) before reaching
+    // SshHost, so `targets` is always present here — legacy
+    // `directories`/`excludes`-shaped profiles were already converted.
+    const targets = config.targets || {};
+    const names = namesOverride || Object.keys(targets);
+    for (const name of names) {
+      const target = targets[name];
+      if (!target) throw new Error(`Unknown file sync target: ${name}`);
+      const relativePath = target.path;
+      const destination = path.join(targetDir, ...relativePath.split("/"));
+      await fs.ensureDir(destination);
+      spinner?.message(`Syncing ${relativePath}...`);
+      const remoteSource = path.posix.join(this.remote.wordpressRoot, relativePath);
+      const args = ["-az"];
+      for (const item of target.excludes || []) args.push("--exclude", item);
+      for (const item of target.includes || []) args.push("--include", item);
+      args.push("-e", sshTransport(this.profile.ssh), `${this.profile.ssh.username}@${this.profile.ssh.host}:${remoteSource}/`, `${destination}/`);
+      await this.run("rsync", args);
+    }
+  }
+
+  async exportDatabase(targetDir: string, spinner: Spinner | null): Promise<void> {
+    spinner?.message("Exporting database with wp-cli...");
+    const command = `cd ${shellQuote(this.remote.wordpressRoot)} && wp db export - --quiet`;
+    const dumpPath = path.join(targetDir, "staging.sql");
+    try {
+      const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null, stdoutFile: dumpPath });
+      // Compatibility for injected test/custom runners that return output
+      // instead of implementing the stdoutFile streaming option.
+      if (!(await fs.pathExists(dumpPath)) && dump && dump.length > 0) await fs.writeFile(dumpPath, dump, { mode: 0o600 });
+      const size = (await fs.stat(dumpPath).catch(() => null))?.size || 0;
+      if (size < 100) throw new Error(`Remote database dump is empty or invalid (${size} bytes).`);
+      await fs.chmod(dumpPath, 0o600);
+    } catch (error) {
+      await fs.remove(dumpPath).catch(() => {});
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches authoritative table prefix / site URL directly from the remote
+   * WordPress install via wp-cli, instead of guessing them from the dump.
+   * A failed lookup yields null and falls back to dump-based detection.
+   */
+  async getRemoteFacts(): Promise<RemoteFacts> {
+    // An explicit database.tablePrefix override always wins and skips the
+    // remote fetch for it entirely.
+    const explicitPrefix = this.profile.database?.tablePrefix || null;
+    const root = shellQuote(this.remote.wordpressRoot);
+    const fetch = (command: string) => this.run("ssh", buildSshArgs(this.profile.ssh, `cd ${root} && ${command}`)).then((value) => (value as string)?.trim() || null).catch(() => null);
+    const [fetchedPrefix, siteUrl] = await Promise.all([
+      explicitPrefix ? Promise.resolve(null) : fetch("wp config get table_prefix --quiet"),
+      fetch("wp option get siteurl --quiet"),
+    ]);
+    return { tablePrefix: explicitPrefix || fetchedPrefix, siteUrl };
+  }
+
+  async discoverGit(): Promise<RemoteGitOrigin | null> {
+    if (this.profile.git?.enabled === false) return null;
+    const paths = this.profile.git?.discoveryPaths || [".", "wp-content/themes/{projectName}"];
+    if (this.profile.git?.includeProjectRoot) {
+      try {
+        const url = await this.run("ssh", buildSshArgs(this.profile.ssh, `git -C ${shellQuote(this.remote.projectRoot)} config --get remote.origin.url`)) as string;
+        if (url) return { directory: ".", url: url.trim() };
+      } catch { /* Continue with WordPress-relative discovery paths. */ }
+    }
+    for (const candidate of paths) {
+      const directory = path.posix.join(this.remote.wordpressRoot, renderTemplate(candidate, { projectName: this.profile.projectName }));
+      try {
+        const url = await this.run("ssh", buildSshArgs(this.profile.ssh, `git -C ${shellQuote(directory)} config --get remote.origin.url`)) as string;
+        if (url) return { directory: candidate, url: url.trim() };
+      } catch { /* Try the next allow-listed discovery path. */ }
+    }
+    return null;
+  }
+}

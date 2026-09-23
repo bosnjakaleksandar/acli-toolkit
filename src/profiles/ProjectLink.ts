@@ -31,6 +31,12 @@ export async function readLink(root: string): Promise<ProjectLink | null> {
   return config.project || null;
 }
 
+/** Saves answers to the server's prompts into the project link, keeping earlier ones, so later pulls don't ask again. */
+export async function rememberSelections(root: string, link: ProjectLink, selections: Record<string, string>): Promise<void> {
+  if (!Object.keys(selections).length) return;
+  await writeLink(root, { ...link, selections: { ...link.selections, ...selections } });
+}
+
 export async function writeLink(root: string, link: ProjectLink): Promise<string> {
   const nameError = validateProjectName(link?.name);
   if (nameError) throw new Error(nameError);

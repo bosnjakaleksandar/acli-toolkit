@@ -1,0 +1,28 @@
+version: 1
+defaults:
+  environment: docker
+profiles:
+  agency-staging:
+    type: wordpress
+    # The default provider: SSH access to the WordPress files, with wp-cli
+    # on the server. Files are synced with rsync and the database is
+    # exported with `wp db export`.
+    ssh:
+      host: staging.example.com
+      port: 22
+      username: "{projectName}"
+      identityFile: ~/.ssh/staging
+      hostKeyPolicy: accept-new
+    remote:
+      projectRoot: "/srv/projects/{projectName}"
+      wordpressRoot: wordpress
+    files:
+      directories: [uploads, plugins, themes]
+      excludes: ["*.log", node_modules]
+    git:
+      enabled: true
+      # Optional local ~/.ssh/config Host alias, e.g. github-work.
+      # sshHostAlias: github-work
+      discoveryPaths: [".", "wp-content/themes/{projectName}"]
+    urls:
+      staging: "https://{projectName}.staging.example.com"

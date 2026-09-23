@@ -35,9 +35,9 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
     if (!["docker", "lando"].includes(environment)) throw new CliError(`Unknown local environment "${environment}".`, { code: "INVALID_ENVIRONMENT", hint: "Use docker or lando." });
 
     let { config } = await loadConfig({ configPath: options.config });
-    const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive, commandRunner: () => "redacted" });
+    const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive });
     config = selection.config;
-    if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile!, environment)));
+    if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile!, environment, projectName)));
 
     const envFilePath = path.join(cwd, ENV_FILE_NAMES[environment]!);
     if (!(await fs.pathExists(envFilePath))) {
@@ -57,6 +57,7 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
       type: "wordpress",
       environment,
       profile: selection.profileName,
+      ...(options.remoteProject && options.remoteProject !== projectName ? { remoteProject: options.remoteProject } : {}),
       linkedAt: new Date().toISOString(),
     });
 
@@ -69,8 +70,9 @@ export function registerLinkCommand(program: Command): void {
     .command("link")
     .description("Connect an existing local directory to a staging profile")
     .option("--name <name>", "Project name (defaults to the current directory name)")
+    .option("--remote-project <name>", "The project's name on the server, when it differs from the local name")
     .option("--environment <environment>", "Local environment: docker or lando")
-    .option("--profile <profile>", "Use a named or portable remote environment profile")
+    .option("--profile <profile>", "Use a named staging profile")
     .option("--config <path>", "Use an explicit A-CLI configuration file")
     .option("--force", "Relink a directory that is already linked")
     .option("--yes", "Run without interactive prompts when all required options are supplied")

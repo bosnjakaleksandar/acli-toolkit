@@ -1,4 +1,4 @@
-import { hasPresetValue } from "./presets.ts";
+import { hasValue as hasField } from "../../core/objects.ts";
 import { validateProjectName } from "./projectName.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 
@@ -24,7 +24,7 @@ const WP_TYPE_ALIASES: Record<string, string> = {
 };
 
 /**
- * Converts Commander options into the project context shape used by prompts and presets.
+ * Converts Commander options into the project context shape used by prompts.
  */
 export function normalizeCliOptions(options: any = {}): ProjectPlan {
   const normalized: ProjectPlan = {};
@@ -67,42 +67,10 @@ export function normalizeCliOptions(options: any = {}): ProjectPlan {
 }
 
 /**
- * Merges preset values and CLI values, with CLI values taking priority.
+ * Merges configuration defaults and CLI values, with CLI values taking priority.
  */
-export function mergeProjectContext(preset: ProjectPlan = {}, cliContext: ProjectPlan = {}): ProjectPlan {
-  return validateProjectContext({ ...preset, ...cliContext }, { source: "project context" });
-}
-
-const UNSAFE_SET_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-export function parseSetOverrides(values: string[] = []): Record<string, unknown> {
-  // Object.create(null) (rather than {}) means these objects have no
-  // Object.prototype in their chain at all, so even if a key like
-  // "__proto__"/"constructor" ever reached an assignment here, it would
-  // just become an inert own property — never Object.prototype itself.
-  // Belt-and-suspenders alongside the explicit UNSAFE_SET_KEYS rejection
-  // above, which also gives the caller a clear error instead of silently
-  // doing nothing.
-  const result: Record<string, any> = Object.create(null);
-  for (const entry of values) {
-    const separator = entry.indexOf("=");
-    if (separator < 1) throw new Error(`Invalid --set value "${entry}". Expected key=value.`);
-    const keys = entry.slice(0, separator).split(".");
-    if (keys.some((key) => !/^[a-zA-Z][a-zA-Z0-9]*$/.test(key) || UNSAFE_SET_KEYS.has(key))) {
-      throw new Error(`Invalid --set key in "${entry}".`);
-    }
-    let target = result;
-    for (const key of keys.slice(0, -1)) target = target[key] ||= Object.create(null);
-    target[keys.at(-1)!] = parseScalar(entry.slice(separator + 1));
-  }
-  return result;
-}
-
-function parseScalar(value: string): string | number | boolean {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value);
-  return value;
+export function mergeProjectContext(defaults: ProjectPlan = {}, cliContext: ProjectPlan = {}): ProjectPlan {
+  return validateProjectContext({ ...defaults, ...cliContext }, { source: "project context" });
 }
 
 /**
@@ -111,7 +79,7 @@ function parseScalar(value: string): string | number | boolean {
 export function validateProjectContext(ctx: ProjectPlan = {}, { source = "project context" }: { source?: string } = {}): ProjectPlan {
   const errors: string[] = [];
 
-  if (hasPresetValue(ctx, "projectName")) {
+  if (hasField(ctx, "projectName")) {
     const message = validateProjectName(String(ctx.projectName));
     if (message) errors.push(`${source} project name: ${message}`);
   }
@@ -183,7 +151,7 @@ function hasValue(value: unknown): boolean {
 }
 
 function validateOneOf(errors: string[], ctx: Record<string, unknown>, key: string, validValues: string[], source: string): void {
-  if (!hasPresetValue(ctx, key)) return;
+  if (!hasField(ctx, key)) return;
   if (!validValues.includes(ctx[key] as string)) {
     errors.push(
       `${source} ${key}: "${ctx[key]}" is invalid. Expected one of: ${validValues.join(", ")}.`,
@@ -192,5 +160,5 @@ function validateOneOf(errors: string[], ctx: Record<string, unknown>, key: stri
 }
 
 function addMissing(missing: string[], ctx: Record<string, unknown>, key: string, option: string): void {
-  if (!hasPresetValue(ctx, key)) missing.push(option);
+  if (!hasField(ctx, key)) missing.push(option);
 }

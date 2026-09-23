@@ -16,6 +16,9 @@ jobs:
   test:
     # Full suite (typecheck + node:test, including .test.ts files) requires
     # Node's native TypeScript type-stripping, stable since Node 22.18.
+    # The check name keeps the major version only: branch protection on main
+    # requires "test (ubuntu-latest, 22)" and "test (macos-latest, 22)".
+    name: test (${{ matrix.os }}, 22)
     strategy:
       fail-fast: false
       matrix:
@@ -55,7 +58,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: node bin/acli --help
-      - run: CI=1 node bin/acli doctor
+      - run: node bin/acli --version
+      - run: CI=1 node bin/acli config validate
+      - run: CI=1 node bin/acli profile list
       - run: CI=1 node bin/acli create --dry-run --yes --name smoke-test --type application --framework react --environment docker
 
   docs:

@@ -3,8 +3,7 @@ import { isObject } from "./schema.ts";
 /**
  * Recursively merges `override` onto `base`, cloning every value so neither
  * input is aliased into the result. Used to layer configuration sources
- * (built-in defaults, user config, project config) and, in `acli create`, to
- * stack a plan's sources (defaults, history, preset, --set, CLI flags).
+ * (built-in defaults, user config, project config).
  */
 export function deepMerge<T>(base: T, override: T): T {
   if (!isObject(base) || !isObject(override)) return structuredClone(override);

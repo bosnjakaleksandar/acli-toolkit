@@ -1,6 +1,6 @@
 import { confirm, select, text } from "@clack/prompts";
 import { ask } from "../../ui/prompts.ts";
-import { hasPresetValue } from "../plan/presets.ts";
+import { hasValue } from "../../core/objects.ts";
 import {
   assertRequiredProjectContext,
   validateProjectContext,
@@ -9,32 +9,32 @@ import { validateProjectName } from "../plan/projectName.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 
 /**
- * Collects project context using interactive prompts, skipping values supplied by a preset.
+ * Collects project context using interactive prompts, skipping values already supplied (config defaults or CLI options).
  */
-export async function collectProjectContext(preset: ProjectPlan = {}, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<ProjectPlan> {
-  validateProjectContext(preset);
+export async function collectProjectContext(known: ProjectPlan = {}, { nonInteractive = false }: { nonInteractive?: boolean } = {}): Promise<ProjectPlan> {
+  validateProjectContext(known);
   if (nonInteractive) {
-    assertRequiredProjectContext(preset);
+    assertRequiredProjectContext(known);
   }
 
   const setupType = "new";
 
-  const projectName = hasPresetValue(preset, "projectName")
-    ? preset.projectName
+  const projectName = hasValue(known, "projectName")
+    ? known.projectName
     : await ask(text, {
         message: "What is the name of your project?",
         initialValue: "project-name",
         validate: validateProjectName,
       });
 
-  let appType: ProjectPlan["appType"] = preset.appType;
-  let framework: ProjectPlan["framework"] = preset.framework;
-  let useLaravel = preset.useLaravel ?? false;
-  let wpType: ProjectPlan["wpType"] = preset.wpType;
-  let projectType: string | undefined = preset.projectType;
+  let appType: ProjectPlan["appType"] = known.appType;
+  let framework: ProjectPlan["framework"] = known.framework;
+  let useLaravel = known.useLaravel ?? false;
+  let wpType: ProjectPlan["wpType"] = known.wpType;
+  let projectType: string | undefined = known.projectType;
 
-  appType = hasPresetValue(preset, "appType")
-    ? preset.appType
+  appType = hasValue(known, "appType")
+    ? known.appType
     : ((await ask(select, {
         message: "Are you building an Application or a WordPress project?",
         options: [
@@ -44,8 +44,8 @@ export async function collectProjectContext(preset: ProjectPlan = {}, { nonInter
       })) as ProjectPlan["appType"]);
 
   if (appType === "application") {
-    framework = hasPresetValue(preset, "framework")
-      ? preset.framework
+    framework = hasValue(known, "framework")
+      ? known.framework
       : ((await ask(select, {
           message: "Which frontend framework do you want to use?",
           options: [
@@ -54,8 +54,8 @@ export async function collectProjectContext(preset: ProjectPlan = {}, { nonInter
           ],
         })) as ProjectPlan["framework"]);
 
-    useLaravel = hasPresetValue(preset, "useLaravel")
-      ? Boolean(preset.useLaravel)
+    useLaravel = hasValue(known, "useLaravel")
+      ? Boolean(known.useLaravel)
       : nonInteractive
         ? false
         : await ask(confirm, {
@@ -65,8 +65,8 @@ export async function collectProjectContext(preset: ProjectPlan = {}, { nonInter
 
     projectType = framework as string;
   } else {
-    wpType = hasPresetValue(preset, "wpType")
-      ? preset.wpType
+    wpType = hasValue(known, "wpType")
+      ? known.wpType
       : ((await ask(select, {
           message: "Which WordPress project setup do you need?",
           options: [
@@ -84,9 +84,9 @@ export async function collectProjectContext(preset: ProjectPlan = {}, { nonInter
   // no longer applies, so skip asking. The value is never read by those
   // strategies; it only still matters for WordPress projects.
   const environment = appType === "application"
-    ? (preset.environment ?? "docker")
-    : hasPresetValue(preset, "environment")
-      ? preset.environment
+    ? (known.environment ?? "docker")
+    : hasValue(known, "environment")
+      ? known.environment
       : await ask(select, {
           message: "Which local environment do you prefer?",
           options: [
@@ -95,12 +95,12 @@ export async function collectProjectContext(preset: ProjectPlan = {}, { nonInter
           ],
         });
 
-  const customizeAdvanced = nonInteractive || hasPresetValue(preset, "customizeAdvanced")
-    ? Boolean(preset.customizeAdvanced)
+  const customizeAdvanced = nonInteractive || hasValue(known, "customizeAdvanced")
+    ? Boolean(known.customizeAdvanced)
     : await ask(confirm, { message: "Customize advanced settings (MySQL/WordPress versions)?", initialValue: false });
 
   const ctx: ProjectPlan = {
-    ...preset,
+    ...known,
     setupType: setupType as ProjectPlan["setupType"],
     projectName,
     projectType,

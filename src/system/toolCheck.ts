@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { CliError } from "../core/errors.ts";
 
 export interface ToolCheck {
   label: string;
@@ -6,6 +7,8 @@ export interface ToolCheck {
   args: string[];
   fix: string;
   minimumVersion?: string;
+  /** The tool has no version flag (OpenSSH scp): it only has to be startable, whatever its exit status. */
+  presenceOnly?: boolean;
 }
 
 export interface ToolCheckResult extends ToolCheck {
@@ -14,8 +17,8 @@ export interface ToolCheckResult extends ToolCheck {
   version: string;
 }
 
-// Shared catalog of external tool checks used by `doctor`, pre-create
-// preflight, and remote-profile preflight. Centralized so all three agree on
+// Shared catalog of external tool checks used by the create/import
+// preflight and each remote provider's preflight. Centralized so all three agree on
 // how to detect a tool (e.g. "docker" means Docker Compose v2, not just the
 // docker binary) instead of drifting into inconsistent bare-command checks.
 export const TOOL_CATALOG: Record<string, ToolCheck> = {
@@ -28,7 +31,8 @@ export const TOOL_CATALOG: Record<string, ToolCheck> = {
   php: { label: "PHP", command: "php", args: ["--version"], fix: "Install PHP 8.2 or newer.", minimumVersion: "8.2.0" },
   ssh: { label: "SSH", command: "ssh", args: ["-V"], fix: "Install OpenSSH." },
   rsync: { label: "rsync", command: "rsync", args: ["--version"], fix: "Install rsync for the selected profile." },
-  scp: { label: "SCP", command: "scp", args: ["-V"], fix: "Install an SCP client for the selected profile." },
+  scp: { label: "SCP", command: "scp", args: [], presenceOnly: true, fix: "Install an SCP client for the selected profile." },
+  tar: { label: "tar", command: "tar", args: ["--version"], fix: "Install tar (bundled with macOS, Linux and Windows 10+)." },
 };
 
 export function checkTool(key: string): ToolCheckResult | null {
@@ -36,6 +40,7 @@ export function checkTool(key: string): ToolCheckResult | null {
   if (!check) return null;
   const result = spawnSync(check.command, check.args, { encoding: "utf8", shell: false });
   const output = result.stdout?.trim() || result.stderr?.trim() || "";
+  if (check.presenceOnly) return { key, ...check, ok: !result.error, version: result.error ? "" : "installed" };
   const version = output.split("\n")[0]!;
   const ok = !result.error && result.status === 0 && (!check.minimumVersion || meetsMinimumVersion(version, check.minimumVersion));
   return { key, ...check, ok, version };
@@ -53,6 +58,18 @@ export function meetsMinimumVersion(output: string, minimum: string): boolean {
   return true;
 }
 
-export function toolExists(key: string): boolean {
-  return Boolean(checkTool(key)?.ok);
+/**
+ * Fails with the missing or too-old tools and how to fix each, so a
+ * workflow's own preflight is enough — no separate diagnostic command.
+ */
+export function assertToolsAvailable(keys: string[]): void {
+  // A key missing from the catalog can't be checked, so it counts as missing.
+  const unknown = (key: string): ToolCheckResult => ({ key, label: key, command: key, args: [], fix: `Install ${key} and add it to PATH.`, ok: false, version: "" });
+  const failed = [...new Set(keys)].map((key) => checkTool(key) ?? unknown(key)).filter((result) => !result.ok);
+  if (!failed.length) return;
+  const describe = (result: ToolCheckResult) => result.version && result.minimumVersion ? `${result.label} (found ${result.version}, need ${result.minimumVersion}+)` : result.label;
+  throw new CliError(`Missing or outdated tools: ${failed.map(describe).join(", ")}.`, {
+    code: "PREFLIGHT_FAILED",
+    hint: failed.map((result) => `${result.label}: ${result.fix}`).join("\n"),
+  });
 }
