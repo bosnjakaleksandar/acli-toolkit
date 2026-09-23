@@ -17,6 +17,7 @@ This release narrows `acli import` / `acli pull` to two well-defined ways of rea
 
 ### Changed
 
+- The documentation site is rewritten and reorganized into Getting started, Create a project, Profiles (with a step-by-step walkthrough for both providers), Import & pull, Commands, Configuration and FAQ, and restyled with the CLI's banner and animated A-CLI Bot. The README is now a short introduction that links to it.
 - Remote access is organized as self-contained providers (`src/providers/ssh`, `src/providers/coolify`) behind one contract; the import/pull core no longer branches on the kind of server.
 - A Coolify profile describes only the server: `coolify.project` and the `coolify.database*` selections moved to the project link, and profiles that still set them fail validation with instructions.
 - Profiles and the default profile live only in the user config. A project `.acli/config.yaml` that declares them is rejected with instructions; it keeps the project link and create defaults/presets.

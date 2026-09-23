@@ -1,30 +1,54 @@
 export default {
   title: "A-CLI",
-  description: "A-CLI Developer Toolkit documentation",
-
+  description: "Scaffold new projects and pull existing WordPress sites from staging into Docker or Lando — safely, pull-only.",
   base: "/acli-toolkit/",
+  lastUpdated: true,
+
+  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/acli-toolkit/logo.svg" }]],
 
   themeConfig: {
+    logo: "/logo.svg",
+    siteTitle: "A-CLI",
+
     nav: [
-      { text: "Guide", link: "/quick-start" },
-      { text: "Profiles", link: "/profiles" },
+      { text: "Guide", link: "/guide/getting-started" },
+      { text: "Profiles", link: "/guide/profiles" },
+      { text: "Reference", link: "/reference/commands" },
     ],
 
     sidebar: [
-      { text: "Home", link: "/" },
-      { text: "Installation", link: "/installation" },
-      { text: "Quick Start", link: "/quick-start" },
-      { text: "CLI Options", link: "/cli-options" },
-      { text: "Supported Matrix", link: "/supported-matrix" },
-      { text: "WordPress", link: "/wordpress" },
-      { text: "React", link: "/react" },
-      { text: "Next.js", link: "/nextjs" },
-      { text: "Laravel", link: "/laravel" },
-      { text: "Import Existing WordPress", link: "/existing-wp" },
-      { text: "Profiles", link: "/profiles" },
-      { text: "Configuration", link: "/environment-variables" },
-      { text: "Migrating from create-project", link: "/migrating-from-create-project" },
-      { text: "FAQ", link: "/faq" },
+      {
+        text: "Guide",
+        items: [
+          { text: "Getting started", link: "/guide/getting-started" },
+          { text: "Create a project", link: "/guide/create" },
+          { text: "Profiles", link: "/guide/profiles" },
+          { text: "Import & pull WordPress", link: "/guide/import-and-pull" },
+        ],
+      },
+      {
+        text: "Reference",
+        items: [
+          { text: "Commands", link: "/reference/commands" },
+          { text: "Configuration", link: "/reference/configuration" },
+        ],
+      },
+      {
+        text: "Help",
+        items: [{ text: "FAQ & troubleshooting", link: "/faq" }],
+      },
     ],
+
+    outline: [2, 3],
+    search: { provider: "local" },
+    socialLinks: [{ icon: "github", link: "https://github.com/bosnjakaleksandar/acli-toolkit" }],
+    editLink: {
+      pattern: "https://github.com/bosnjakaleksandar/acli-toolkit/edit/main/docs/:path",
+      text: "Edit this page on GitHub",
+    },
+    footer: {
+      message: "Released under the MIT License.",
+      copyright: "A-CLI Developer Toolkit",
+    },
   },
 };

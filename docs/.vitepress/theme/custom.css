@@ -1,0 +1,149 @@
+/* A-CLI brand: the banner's gradient (#ffb800 → #ff6a00) and a terminal feel. */
+:root {
+  --acli-orange-1: #ffb800;
+  --acli-orange-2: #ff6a00;
+  --acli-gradient: linear-gradient(120deg, var(--acli-orange-1) 10%, var(--acli-orange-2) 90%);
+  --acli-terminal-bg: #0f1117;
+  --acli-terminal-fg: #e6e6e6;
+  --acli-terminal-dim: #8b92a1;
+
+  --vp-c-brand-1: #e8590c;
+  --vp-c-brand-2: #f76707;
+  --vp-c-brand-3: #fd7e14;
+  --vp-c-brand-soft: rgba(253, 126, 20, 0.14);
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: var(--acli-gradient);
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, rgba(255, 184, 0, 0.45) 50%, rgba(255, 106, 0, 0.45) 50%);
+  --vp-home-hero-image-filter: blur(56px);
+
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-3);
+}
+
+.dark {
+  --vp-c-brand-1: #ffa94d;
+  --vp-c-brand-2: #ff922b;
+  --vp-c-brand-3: #fd7e14;
+  --vp-c-brand-soft: rgba(255, 169, 77, 0.16);
+  --vp-button-brand-text: #1b1b1f;
+  --vp-button-brand-hover-text: #1b1b1f;
+  --vp-button-brand-active-text: #1b1b1f;
+}
+
+/* ---------- Terminal window ---------- */
+.acli-terminal {
+  margin: 20px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--acli-terminal-bg);
+  color: var(--acli-terminal-fg);
+  box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  font-family: var(--vp-font-family-mono);
+  text-align: left;
+}
+.acli-terminal__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  background: #1a1d26;
+}
+.acli-terminal__dot { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; }
+.acli-terminal__dot:nth-child(2) { background: #febc2e; }
+.acli-terminal__dot:nth-child(3) { background: #28c840; }
+.acli-terminal__title { margin-left: 8px; font-size: 12px; color: var(--acli-terminal-dim); }
+.acli-terminal__body { padding: 16px 18px 18px; font-size: 13px; line-height: 1.45; overflow-x: auto; }
+.acli-terminal__body pre { margin: 0; font-family: inherit; }
+.acli-terminal__body pre:not(.acli-banner__logo) { background: transparent; }
+
+/* ---------- Banner ---------- */
+.acli-banner__logo {
+  display: inline-block;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+  background: var(--acli-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: pre;
+}
+.acli-banner__meta { display: flex; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--acli-terminal-dim); }
+.acli-banner--compact .acli-banner__logo { font-size: 9px; }
+.acli-banner--compact { margin: 8px 0 10px; }
+
+/* ---------- Mascot ---------- */
+.acli-mascot { display: flex; align-items: flex-start; gap: 14px; margin: 16px 0; }
+.acli-mascot__art {
+  margin: 0;
+  flex: none;
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--mascot-color);
+  white-space: pre;
+  transition: color 0.3s ease;
+}
+.acli-mascot__speech {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 1.9em;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.acli-mascot__speech strong { color: var(--mascot-color); font-family: var(--vp-font-family-mono); font-size: 12px; }
+.acli-terminal .acli-mascot__art { font-size: 10px; }
+.acli-terminal .acli-mascot__speech { background: transparent; border: none; padding: 0; margin-top: 2.1em; font-size: 12px; color: var(--acli-terminal-fg); }
+
+/* ---------- `acli` main menu inside the hero terminal ---------- */
+.acli-prompt { font-size: 12px; color: var(--acli-terminal-dim); }
+.acli-prompt__sign { color: #28c840; }
+.acli-menu { margin-top: 4px; font-size: 11px; line-height: 1.6; }
+.acli-menu__question { color: var(--acli-terminal-fg); }
+.acli-menu__diamond { color: #28c840; }
+.acli-menu__item { color: var(--acli-terminal-dim); white-space: nowrap; }
+.acli-menu__item.is-active { color: #4ade80; }
+.acli-menu__rail { color: #3b4252; }
+
+/* ---------- Home hero: make room for the terminal ---------- */
+/* The default hero expects a square image and pulls it up with negative
+   margins; the terminal is taller, so it gets normal flow at every width. */
+.VPHero .image { margin: 0 0 32px; }
+.VPHero .image-container { width: 100%; height: auto; transform: none !important; }
+.VPHero .image-bg { width: 280px; height: 280px; }
+.acli-hero { width: min(470px, calc(100vw - 48px)); margin: 0 auto; position: relative; }
+@media (min-width: 960px) {
+  .VPHero .image { margin: 0; }
+  .VPHero .image-container { width: 470px; }
+}
+@media (max-width: 640px) {
+  .acli-hero .acli-banner__logo { font-size: 7px; }
+  .acli-menu__item { font-size: 10px; }
+}
+
+/* ---------- Content helpers ---------- */
+.vp-doc .step-list { counter-reset: step; list-style: none; padding-left: 0; }
+.vp-doc .step-list > li { counter-increment: step; position: relative; padding-left: 44px; margin: 18px 0; }
+.vp-doc .step-list > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--acli-gradient);
+  color: #1b1b1f;
+  font-weight: 700;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+}
+.vp-doc table { display: table; width: 100%; }

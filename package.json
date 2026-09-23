@@ -32,11 +32,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bosnjakaleksandar/project-setup.git"
+    "url": "git+https://github.com/bosnjakaleksandar/acli-toolkit.git"
   },
-  "homepage": "https://bosnjakaleksandar.github.io/project-setup/",
+  "homepage": "https://bosnjakaleksandar.github.io/acli-toolkit/",
   "bugs": {
-    "url": "https://github.com/bosnjakaleksandar/project-setup/issues"
+    "url": "https://github.com/bosnjakaleksandar/acli-toolkit/issues"
   },
   "publishConfig": {
     "access": "public"
