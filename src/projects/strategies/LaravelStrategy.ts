@@ -56,6 +56,9 @@ export default class LaravelStrategy extends ScaffoldStrategy {
             `# ${ctx.projectName}\n\nThis is a full-stack Laravel + ${ctx.framework} project.\n\n## Backend\n\`cd backend && php artisan serve\`\n\n## Frontend\n\`cd frontend\`, install dependencies, then run its dev script. Point it at the backend's API URL (\`http://localhost:8000\` by default).\n`,
           );
           await scaffoldGitignore(targetDir, "laravel");
+          // One Docker/Lando environment at the root runs the database,
+          // the Laravel backend and the frontend dev server together.
+          await this.envService?.scaffold(targetDir, "laravel", ctx);
         },
       },
     ];

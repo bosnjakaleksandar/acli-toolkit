@@ -19,7 +19,7 @@ hero:
 features:
   - icon: 🚀
     title: Create projects
-    details: React (Vite), Next.js, Laravel with React or Next.js, and WordPress themes — with Docker or Lando for WordPress, a Git repo and next steps ready.
+    details: React (Vite), Next.js, Laravel with React or Next.js, and WordPress themes — with an optional Docker or Lando environment, a Git repo and next steps ready.
     link: /guide/create
     linkText: Create a project
   - icon: 🔑

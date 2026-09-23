@@ -15,7 +15,7 @@ Scaffold a new project. [Guide →](../guide/create)
 | `--framework <react\|nextjs>` | → Application framework (`next` also works). |
 | `--laravel` | → Add a Laravel backend. |
 | `--wp-type <theme\|woo\|react>` | → WordPress setup (`wp-theme`, `wp-woo`, `wp-react` also work). |
-| `--environment <docker\|lando>` | → Local environment for WordPress (alias `--env`). |
+| `--environment <docker\|lando\|none>` | → Local environment (alias `--env`). `none` runs an application natively (the default for applications); WordPress needs `docker` or `lando`. |
 | `--mysql <version>` | → MySQL or MariaDB version, e.g. `8.0`, `mariadb:11.4`. |
 | `--wp-version <version>` | → WordPress version, or `latest`. |
 | `--theme-repo <url>` | → Theme repository (HTTPS or SSH). |

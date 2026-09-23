@@ -20,7 +20,8 @@ export interface ProjectPlan {
   framework?: "react" | "nextjs" | null;
   useLaravel?: boolean;
   wpType?: "wp-theme" | "wp-woo" | "wp-react" | null;
-  environment?: "docker" | "lando";
+  /** Local environment. "none" (application projects only) runs the project natively. */
+  environment?: "docker" | "lando" | "none";
   customizeAdvanced?: boolean;
 
   mysqlVersion?: string;

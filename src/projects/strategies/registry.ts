@@ -12,7 +12,7 @@ export interface ProjectTypeDefinition {
   label: string;
   /** Does this definition apply to the given (already-normalized) plan? First registered match wins. */
   matches(plan: ProjectPlan): boolean;
-  /** Builds the strategy instance for this run. `envService` is the resolved Docker/Lando adapter (or null for env-less application projects). */
+  /** Builds the strategy instance for this run. `envService` is the resolved Docker/Lando adapter, or null when the project runs natively. */
   create(envService: EnvironmentService | null, plan: ProjectPlan): ScaffoldStrategy;
 }
 
@@ -23,7 +23,10 @@ projectTypeRegistry.register({
   label: "Application (React, Next.js, optionally Laravel)",
   matches: (plan) => plan.appType === "application",
   create: (envService, plan) => {
-    const frontend = plan.framework === "nextjs" ? new NextjsStrategy(envService) : new ReactStrategy(envService);
+    // With Laravel, one environment at the project root runs backend and
+    // frontend together, so the frontend doesn't get its own.
+    const frontendEnv = plan.useLaravel ? null : envService;
+    const frontend = plan.framework === "nextjs" ? new NextjsStrategy(frontendEnv) : new ReactStrategy(frontendEnv);
     return plan.useLaravel ? new LaravelStrategy(envService, frontend) : frontend;
   },
 });

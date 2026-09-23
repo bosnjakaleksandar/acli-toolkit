@@ -11,7 +11,7 @@
 
 A-CLI does two jobs:
 
-- **Create projects** — React (Vite), Next.js, Laravel with React or Next.js, and WordPress themes (standard, WooCommerce, React) with a Docker or Lando environment.
+- **Create projects** — React (Vite), Next.js, Laravel with React or Next.js, and WordPress themes (standard, WooCommerce, React), each with an optional Docker or Lando environment (WordPress always uses one).
 - **Bring WordPress sites home** — import a site from a staging server (over SSH with wp-cli, or through a Coolify server's `project` CLI) into a working local Docker or Lando project, then keep it fresh with `acli pull`. Pull-only: A-CLI never changes the server.
 
 📖 **Documentation: https://bosnjakaleksandar.github.io/acli-toolkit/**

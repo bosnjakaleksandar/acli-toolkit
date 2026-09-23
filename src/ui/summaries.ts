@@ -17,7 +17,7 @@ export function buildProjectSummary(ctx: ProjectPlan, targetDir: string): string
   const rows: Array<[string, unknown]> = [
     ["Name", ctx.projectName],
     ["Type", type],
-    ...(ctx.appType === "application" ? [] : ([["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]] as Array<[string, unknown]>)),
+    ["Environment", environmentLabel(ctx.environment)],
     ["Directory", targetDir],
   ];
 
@@ -28,7 +28,7 @@ export function buildProjectSummary(ctx: ProjectPlan, targetDir: string): string
 export function buildSuccessSummary(targetDir: string, ctx: ProjectPlan & { dependenciesInstalled?: boolean; warnings?: string[] }, nextSteps: string): string {
   const rows: Array<[string, unknown]> = [
     ["Location", targetDir],
-    ...(ctx.appType === "application" ? [] : ([["Environment", ctx.environment === "docker" ? "Docker Compose" : "Lando"]] as Array<[string, unknown]>)),
+    ["Environment", environmentLabel(ctx.environment)],
     ["Git", typeof ctx.gitStatus === "string" ? ctx.gitStatus : ctx.skipGitInit ? "Not initialized (skipped)" : "Initialized"],
     ["Dependencies", ctx.dependenciesInstalled ? "Installed" : "Manual steps may remain"],
   ];
@@ -69,4 +69,10 @@ export function formatCreateError(error: any, { targetDir = "", ownsTargetDir = 
 function formatRows(rows: Array<[string, unknown]>): string {
   const width = Math.max(...rows.map(([label]) => label.length));
   return rows.map(([label, value]) => `${chalk.dim(label.padEnd(width))}  ${value}`).join("\n");
+}
+
+function environmentLabel(environment: ProjectPlan["environment"]): string {
+  if (environment === "docker") return "Docker Compose";
+  if (environment === "lando") return "Lando";
+  return "None (runs natively)";
 }

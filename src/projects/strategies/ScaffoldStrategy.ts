@@ -41,12 +41,10 @@ export default abstract class ScaffoldStrategy {
 }
 
 /**
- * The base for project types that also scaffold a local Docker/Lando
- * environment from a template. `getTemplateType`/`scaffoldEnvironment` live
- * here rather than on `ScaffoldStrategy` because application projects
- * (React, Next.js, Laravel) are run by their own dev servers and never
- * scaffold an environment — they used to inherit a `getTemplateType()` that
- * existed only to throw if anything ever called it.
+ * The base for WordPress, whose environment is part of the site itself.
+ * Application projects (React, Next.js, Laravel) scaffold their optional
+ * Docker/Lando environment directly through `envService`, which is null
+ * when they run natively.
  */
 export abstract class EnvironmentScaffoldStrategy extends ScaffoldStrategy {
   /** Which template under `src/templates/<adapter>/` this project type generates. */

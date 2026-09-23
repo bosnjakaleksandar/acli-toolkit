@@ -36,7 +36,7 @@ A-CLI checks these itself before it starts, and tells you what is missing and ho
 | For | You need |
 | --- | --- |
 | Everything | Node.js 22.18+, npm, Git |
-| WordPress projects (new or imported) | Docker with Compose v2, **or** Lando |
+| WordPress projects (new or imported), or an application with a local environment | Docker with Compose v2, **or** Lando |
 | Laravel projects | Composer and PHP 8.2+ |
 | Importing from an SSH server | `ssh` and `rsync` locally; `wp` (wp-cli) on the server |
 | Importing from a Coolify server | `ssh`, `scp` and `tar` locally |

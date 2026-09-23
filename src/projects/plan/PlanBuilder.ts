@@ -2,7 +2,7 @@ import { hasValue as hasField } from "../../core/objects.ts";
 import { validateProjectName } from "./projectName.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 
-const VALID_ENVIRONMENTS = ["docker", "lando"];
+const VALID_ENVIRONMENTS = ["docker", "lando", "none"];
 const VALID_SETUP_TYPES = ["new", "existing-wp"];
 const VALID_APP_TYPES = ["application", "wordpress"];
 const VALID_FRAMEWORKS = ["react", "nextjs"];
@@ -85,6 +85,7 @@ export function validateProjectContext(ctx: ProjectPlan = {}, { source = "projec
   }
 
   validateOneOf(errors, ctx, "environment", VALID_ENVIRONMENTS, source);
+  if (ctx.appType === "wordpress" && ctx.environment === "none") errors.push(`${source} environment: WordPress projects need docker or lando (PHP and a database).`);
   validateOneOf(errors, ctx, "setupType", VALID_SETUP_TYPES, source);
   validateOneOf(errors, ctx, "appType", VALID_APP_TYPES, source);
   validateOneOf(errors, ctx, "framework", VALID_FRAMEWORKS, source);
@@ -105,9 +106,8 @@ export function assertRequiredProjectContext(ctx: ProjectPlan = {}): void {
 
   addMissing(missing, ctx, "setupType", "--type <application|wordpress>");
   addMissing(missing, ctx, "projectName", "--name <name>");
-  // Application projects (React/Next.js/Laravel) no longer use Docker/Lando
-  // — they're scaffolded by their official generators and run via their own
-  // dev servers — so --environment isn't required for them.
+  // Application projects default to running natively (environment "none"),
+  // so only WordPress, which always needs PHP and a database, must choose.
   if (ctx.appType !== "application") addMissing(missing, ctx, "environment", "--environment <docker|lando>");
 
   if (ctx.setupType === "new") {

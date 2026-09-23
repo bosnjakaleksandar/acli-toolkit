@@ -40,7 +40,7 @@ Any of these skips the matching question. Values are plain strings, numbers, boo
 
 | Key | Example |
 | --- | --- |
-| `environment` | `docker` or `lando` |
+| `environment` | `docker`, `lando`, or `none` (applications only) |
 | `mysqlVersion` | `"8.0"`, `mariadb:11.4` |
 | `wpVersion` | `"6.8"` or `latest` |
 | `themeRepo` / `themeBranch` | a Git URL / a branch |
