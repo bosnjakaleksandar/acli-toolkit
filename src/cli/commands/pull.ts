@@ -5,7 +5,7 @@ import type { Command } from "commander";
 import { ask } from "../../ui/prompts.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
 import { loadProfile, resolveProfileReferences } from "../../profiles/loadProfile.ts";
-import { resolveRemoteProfile } from "../../remote/resolveProfile.ts";
+import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
 import { findProjectRoot, readLink } from "../../profiles/ProjectLink.ts";
 import { getProjectConfigPath } from "../../config/paths.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";

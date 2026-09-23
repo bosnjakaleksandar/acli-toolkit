@@ -4,8 +4,8 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { createProfileImportSource } from "../src/wordpress/import/sources/RemoteSource.ts";
-import { RemoteHost } from "../src/remote/RemoteHost.ts";
-import { resolveRemoteProfile } from "../src/remote/resolveProfile.ts";
+import { SshHost } from "../src/providers/ssh/SshHost.ts";
+import { resolveRemoteProfile } from "../src/providers/resolveProfile.ts";
 import { runImportWorkflow } from "../src/wordpress/import/ImportWorkflow.ts";
 import { readLink } from "../src/profiles/ProjectLink.ts";
 import { runCommand } from "../src/system/commandRunner.ts";
@@ -48,16 +48,16 @@ const FAKE_DUMP_SQL = "-- fake dump for tests, padded well past the 100-byte min
 // that this host actually has docker, so they use this subclass to make
 // preflight's tool check a no-op while still exercising the real ssh probe
 // (via the already-mocked `runner`).
-class NoToolCheckRemoteHost extends RemoteHost {
+class NoToolCheckSshHost extends SshHost {
   requiredTools(): string[] {
     return [];
   }
 }
 
-test("fetchFiles delegates to RemoteHost.syncFiles and is skipped when skipFiles is set", async () => {
+test("fetchFiles delegates to SshHost.syncFiles and is skipped when skipFiles is set", async () => {
   const calls: string[] = [];
   const runner = async (command: string, args: string[] = []) => { calls.push(command); return ""; };
-  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new SshHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-files-");
 
   await source.fetchFiles({ targetDir, profile: resolvedProfile(), skipFiles: true } as any);
@@ -69,9 +69,9 @@ test("fetchFiles delegates to RemoteHost.syncFiles and is skipped when skipFiles
   await fs.remove(targetDir);
 });
 
-test("fetchDatabase delegates to RemoteHost.exportDatabase, writing staging.sql", async () => {
+test("fetchDatabase delegates to SshHost.exportDatabase, writing staging.sql", async () => {
   const runner = async () => Buffer.alloc(200, 1);
-  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new SshHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-db-");
 
   const result = await source.fetchDatabase({ targetDir, profile: resolvedProfile() } as any);
@@ -81,14 +81,14 @@ test("fetchDatabase delegates to RemoteHost.exportDatabase, writing staging.sql"
   await fs.remove(targetDir);
 });
 
-test("getRemoteFacts delegates to RemoteHost.getRemoteFacts (wp-cli driver)", async () => {
+test("getRemoteFacts delegates to SshHost.getRemoteFacts (wp-cli driver)", async () => {
   const runner = async (_command: string, args: string[] = []) => {
     const remoteCommand = args.at(-1) as string;
     if (remoteCommand.includes("table_prefix")) return "wp_demo_";
     if (remoteCommand.includes("siteurl")) return "https://demo.staging.example.com";
     return "";
   };
-  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new SshHost(profile, runner));
   const facts = await source.getRemoteFacts!({ targetDir: "/tmp/unused", profile: resolvedProfile() } as any);
   assert.deepEqual(facts, { tablePrefix: "wp_demo_", siteUrl: "https://demo.staging.example.com" });
 });
@@ -111,7 +111,7 @@ test("linkProfile writes the .acli project link and returns the profile name", a
 });
 
 test("linkGit fetches a safe origin, tracks its default branch, and preserves imported working files", async () => {
-  // discoverGit() goes through the injected RemoteHost runner
+  // discoverGit() goes through the injected SshHost runner
   // (simulating the remote `git config --get remote.origin.url`), but the
   // local git binary on targetDir. Use an entirely local bare fixture so the
   // test proves fetch/upstream behavior without network access.
@@ -128,7 +128,7 @@ test("linkGit fetches a safe origin, tracks its default branch, and preserves im
   await runCommand("git", ["clone", "--bare", seedDir, remoteDir], { cwd: fixtureDir });
 
   const runner = async (command: string) => (command === "ssh" ? remoteDir : "");
-  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new SshHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-git-");
   await fs.writeFile(path.join(targetDir, "tracked.txt"), "imported staging version\n");
 
@@ -156,7 +156,7 @@ test("linkGit refuses a credential-bearing remote git origin URL and never runs 
     if (command === "ssh") return "https://x-access-token:ghp_SECRET@github.com/example/repo.git";
     return "";
   };
-  const source = createProfileImportSource((profile) => new RemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new SshHost(profile, runner));
   const targetDir = await tempDir("acli-profile-source-git-unsafe-");
 
   const ctx: any = { targetDir, profile: resolvedProfile() };
@@ -181,7 +181,7 @@ test("a profile-local SSH Host alias rewrites only SSH Git remote hosts", async 
   let linkedUrl = "";
   let previousUrl = "";
   const source = createProfileImportSource(
-    (profile) => new RemoteHost(profile, remoteRunner),
+    (profile) => new SshHost(profile, remoteRunner),
     async (_targetDir, remoteUrl, _runner, options) => {
       linkedUrl = remoteUrl;
       previousUrl = options?.previousRemoteUrl || "";
@@ -222,7 +222,7 @@ test("Git public-key failures point to the profile-local SSH alias command and e
   const rawUrl = "git@github.com:agency/site.git";
   const remoteRunner = async (command: string) => command === "ssh" ? rawUrl : "";
   const source = createProfileImportSource(
-    (profile) => new RemoteHost(profile, remoteRunner),
+    (profile) => new SshHost(profile, remoteRunner),
     async () => {
       const error: any = new Error("Command failed");
       error.stderr = "git@github.com: Permission denied (publickey).";
@@ -283,7 +283,7 @@ test("end-to-end via runImportWorkflow: preflight, prefix detection (remote-auth
     if (command === "ssh" && joined.includes("remote.origin.url")) { calls.push("discover-git"); return ""; }
     return "";
   };
-  const source = createProfileImportSource((profile) => new NoToolCheckRemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new NoToolCheckSshHost(profile, runner));
 
   const scaffoldCalls: any[] = [];
   const envService = {
@@ -320,7 +320,7 @@ test("end-to-end resume: an already-fetched remote dump and detected prefix surv
     if (command === "ssh" && joined.includes("remote.origin.url")) return "";
     return "";
   };
-  const source = createProfileImportSource((profile) => new NoToolCheckRemoteHost(profile, runner));
+  const source = createProfileImportSource((profile) => new NoToolCheckSshHost(profile, runner));
 
   const failingEnv = { scaffold: async () => { throw new Error("simulated interruption"); } } as any;
   const ctx1: any = { targetDir, profile: resolvedProfile(), projectName: "demo", environment: "docker" };

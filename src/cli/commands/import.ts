@@ -19,7 +19,7 @@ import { validateProjectName } from "../../projects/plan/projectName.ts";
 import { buildSuccessSummary, formatCreateError } from "../../ui/summaries.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
 import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
-import { resolveRemoteProfile } from "../../remote/resolveProfile.ts";
+import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
 import type { ImportCommandOptions } from "../options.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
 

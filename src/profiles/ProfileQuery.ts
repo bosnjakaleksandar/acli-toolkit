@@ -4,6 +4,7 @@ import YAML from "yaml";
 import { loadConfig } from "../config/ConfigLoader.ts";
 import { findLiteralSecretFields, redactSecrets } from "../config/redaction.ts";
 import { validateProfileConfig } from "../config/schema.ts";
+import { getProvider } from "../providers/registry.ts";
 
 export interface ProfileQueryOptions {
   config?: string;
@@ -101,6 +102,5 @@ export async function readImportableProfile(filePath: string, requestedName?: st
 }
 
 export function describeProfile(profile: any): string {
-  if (profile.provider === "coolify-cli") return `${profile.ssh?.host || "unknown host"} · Coolify project CLI · ${profile.coolify?.project || "unknown project"}`;
-  return `${profile.ssh?.host || "unknown host"} · ${profile.database?.executable === "auto" ? "MariaDB/MySQL" : profile.database?.driver || "unknown DB"} · ${profile.files?.transport || "rsync"}`;
+  return `${profile.ssh?.host || "unknown host"} · ${getProvider(profile)?.describe(profile) || `unknown provider "${profile.provider}"`}`;
 }

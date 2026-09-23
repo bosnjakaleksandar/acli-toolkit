@@ -23,7 +23,7 @@ export default class DatabaseDumpService {
   /**
    * @param targetDir Directory containing staging.sql.
    * @param spinner Optional progress spinner.
-   * @param remoteFacts Authoritative facts fetched via RemoteHost.getRemoteFacts(), when available. Accepted as a partial view because only `tablePrefix` is read here.
+   * @param remoteFacts Authoritative facts fetched via RemoteBackend.getRemoteFacts(), when available. Accepted as a partial view because only `tablePrefix` is read here.
    */
   async detectTablePrefix(targetDir: string, spinner: Spinner | null = null, remoteFacts: Partial<RemoteFacts> | null = null): Promise<string> {
     spinner?.message("Detecting WordPress table prefix...");

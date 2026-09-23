@@ -7,6 +7,7 @@ import { loadConfig } from "../../config/ConfigLoader.ts";
 import { loadPreset } from "../../projects/plan/presets.ts";
 import { loadProfile } from "../../profiles/loadProfile.ts";
 import { checkTool, type ToolCheckResult } from "../../system/toolCheck.ts";
+import { providerFor } from "../../providers/registry.ts";
 import type { DoctorCommandOptions } from "../options.ts";
 
 export async function doctorCommand(options: DoctorCommandOptions = {}): Promise<void> {
@@ -20,8 +21,7 @@ export async function doctorCommand(options: DoctorCommandOptions = {}): Promise
   const environment = options.environment || preset.environment || config.defaults?.environment;
   if (environment) requirements.add(environment as string);
   if (preset.useLaravel) { requirements.add("composer"); requirements.add("php"); }
-  if (profile?.provider === "coolify-cli") { requirements.add("ssh"); requirements.add("scp"); requirements.add("tar"); }
-  else if (profile) { requirements.add("ssh"); requirements.add(profile.files?.transport === "sftp" ? "scp" : "rsync"); }
+  if (profile) for (const tool of providerFor(profile).tools(profile)) requirements.add(tool);
   const results = [...requirements].map((key) => checkTool(key)).filter((result): result is ToolCheckResult => Boolean(result));
   if (options.json) {
     console.log(JSON.stringify({ ok: results.every((result) => result.ok), checks: results.map(({ label, ok, version, fix }) => ({ label, ok, version, ...(!ok ? { fix } : {}) })) }, null, 2));

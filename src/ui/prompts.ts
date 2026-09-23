@@ -1,5 +1,4 @@
-import { text, select, confirm, isCancel, cancel, log } from "@clack/prompts";
-import type { SelectionMenu } from "../remote/CoolifyProjectHost.ts";
+import { text, select, confirm, isCancel, cancel } from "@clack/prompts";
 import fs from "fs-extra";
 import { mascot } from "./mascot.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../config/defaults.ts";
@@ -13,24 +12,6 @@ export async function ask<F extends (options: any) => Promise<any>>(promptFn: F,
     process.exit(0);
   }
   return result;
-}
-
-/**
- * Mirrors a server `project` CLI "which one?" menu as an A-CLI prompt, then
- * shows the profile setting that answers it permanently.
- */
-export async function askSelectionMenu(menu: SelectionMenu, { project, profileName }: { project: string; profileName: string }): Promise<number> {
-  const number = (await ask(select, {
-    message: `${project} has several ${menu.what}. Which one does WordPress use?`,
-    options: menu.options.map((option) => ({
-      value: option.number,
-      label: option.names[0]!,
-      ...(option.names.length > 1 && option.names.at(-1) !== option.names[0] ? { hint: option.names.at(-1) } : {}),
-    })),
-  })) as number;
-  const name = menu.options.find((option) => option.number === number)?.names.at(-1);
-  log.info(`To skip this question next time, set coolify.${menu.key}: ${name} in profile "${profileName}".`);
-  return number;
 }
 
 export async function askMysqlVersion(): Promise<string> {

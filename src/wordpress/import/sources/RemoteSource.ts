@@ -1,4 +1,4 @@
-import { createRemoteBackend, type RemoteBackendFactory } from "../../../remote/RemoteBackend.ts";
+import { createRemoteBackend, providerFor, type RemoteBackendFactory } from "../../../providers/registry.ts";
 import { writeLink } from "../../../profiles/ProjectLink.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../../../system/safety.ts";
 import { applyGitSshHostAlias, linkGitRemote } from "../../../system/git.ts";
@@ -22,8 +22,8 @@ export interface ProfileImportContext extends ImportSourceContext {
 type GitLinker = typeof linkGitRemote;
 
 /**
- * The saved-profile import source. Reuses the profile's RemoteBackend
- * (RemoteHost, or CoolifyProjectHost for a coolify-cli profile) — the same
+ * The saved-profile import source. Reuses the profile provider's
+ * RemoteBackend (see src/providers/registry.ts) — the same
  * collaborator PullService uses — so an initial import and a later
  * `acli pull` share one code path.
  *
@@ -118,11 +118,7 @@ export function createProfileImportSource(
         localEnvironment: c.environment,
         remoteHost: c.profile.ssh.host,
         provider: c.profile.provider,
-        ...(c.profile.coolify
-          ? { coolifyProject: c.profile.coolify.project }
-          : { remoteWordPressRoot: c.profile.remote.wordpressRoot }),
-        databaseDriver: c.skipDatabase ? "skipped" : c.profile.coolify ? "project db-export" : c.profile.database.driver,
-        fileTransfer: c.skipFiles ? "skipped" : c.profile.coolify ? "project wp-export + scp" : c.profile.files?.transport || "rsync",
+        ...providerFor(c.profile).plan(c.profile, { skipFiles: c.skipFiles, skipDatabase: Boolean(c.skipDatabase) }),
         gitLink: !c.skipGitInit && !c.skipGitLink && c.profile.git?.enabled !== false,
         // Shown because it decides which URLs get search-replaced: the
         // imported site's own siteurl always is, and this is the extra

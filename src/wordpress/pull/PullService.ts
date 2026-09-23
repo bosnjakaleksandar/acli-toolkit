@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { CliError } from "../../core/errors.ts";
-import { createRemoteBackend, type RemoteBackendFactory } from "../../remote/RemoteBackend.ts";
+import { createRemoteBackend, type RemoteBackendFactory } from "../../providers/registry.ts";
 import WordPressMigrationService from "../migration/WordPressMigration.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";

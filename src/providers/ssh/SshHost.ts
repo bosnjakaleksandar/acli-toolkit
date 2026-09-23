@@ -1,14 +1,14 @@
 import path from "node:path";
 import fs from "fs-extra";
-import { runCommand } from "../system/commandRunner.ts";
-import { toolExists } from "../system/toolCheck.ts";
-import { buildSshArgs, scpConnectionArgs, shellQuote, sshTransport } from "./sshArgs.ts";
+import { runCommand } from "../../system/commandRunner.ts";
+import { toolExists } from "../../system/toolCheck.ts";
+import { buildSshArgs, scpConnectionArgs, shellQuote, sshTransport } from "../sshArgs.ts";
 import { databaseCommand } from "./databaseCommand.ts";
-import { renderTemplate } from "./resolveProfile.ts";
-import type { ResolvedProfile } from "../core/model/Profile.ts";
-import type { RemoteFacts } from "../core/model/RemoteFacts.ts";
-import type { Spinner } from "../environments/EnvironmentService.ts";
-import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "./RemoteBackend.ts";
+import { renderTemplate } from "../resolveProfile.ts";
+import type { ResolvedProfile } from "../../core/model/Profile.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
+import type { Spinner } from "../../environments/EnvironmentService.ts";
+import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "../contract.ts";
 
 type Runner = typeof runCommand;
 
@@ -18,7 +18,7 @@ type Runner = typeof runCommand;
  * git-origin discovery. Construct it with an *already resolved* profile —
  * see `resolveRemoteProfile`, which is not idempotent.
  */
-export class RemoteHost implements RemoteBackend {
+export class SshHost implements RemoteBackend {
   profile: ResolvedProfile;
   run: Runner;
 
@@ -43,7 +43,7 @@ export class RemoteHost implements RemoteBackend {
   async syncFiles(targetDir: string, spinner: Spinner | null, { directories: namesOverride }: SyncFilesOptions = {}): Promise<void> {
     const config = this.profile.files || {};
     // Profiles are normalized (see normalizeProfile) before reaching
-    // RemoteHost, so `targets` is always present here — legacy
+    // SshHost, so `targets` is always present here — legacy
     // `directories`/`excludes`-shaped profiles were already converted.
     const targets = config.targets || {};
     const names = namesOverride || Object.keys(targets);

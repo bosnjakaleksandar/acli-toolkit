@@ -8,6 +8,7 @@ import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import { mergeGitignoreForImport } from "../../system/gitignore.ts";
 import { redactSecrets } from "../../config/redaction.ts";
+import { getProvider } from "../../providers/registry.ts";
 
 export interface ImportWorkflowOptions {
   source: ImportSource;
@@ -51,16 +52,6 @@ export interface ImportWorkflowOptions {
  * job (src/cli/commands/import.ts), mirroring how createProjectCommand handles
  * those same generic post-scaffold steps.
  */
-// A coolify-cli profile's menu selections only answer the server's "which
-// container/database?" prompt — adding one to get past that prompt must not
-// invalidate a --resume of the files already fetched.
-function fingerprintProfile(profile: any): unknown {
-  const redacted: any = redactSecrets(profile);
-  if (!redacted?.coolify) return redacted;
-  const { database: _database, databaseName: _databaseName, wordpressContainer: _wordpressContainer, ...coolify } = redacted.coolify;
-  return { ...redacted, coolify };
-}
-
 export async function runImportWorkflow({ source, ctx, targetDir, envService, spinner, resume, resumeCommand }: ImportWorkflowOptions): Promise<void> {
   const databaseDumpService = new DatabaseDumpService();
   const migrationService = new WordPressMigrationService(envService);
@@ -176,7 +167,9 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       skipFiles: ctx.skipFiles,
       skipDatabase: ctx.skipDatabase,
       skipGitLink: ctx.skipGitLink,
-      profile: fingerprintProfile(ctx.profile),
+      // Each provider decides which of its profile fields count, e.g.
+      // Coolify menu selections don't invalidate a --resume.
+      profile: ctx.profile ? getProvider(ctx.profile as any)?.fingerprint(redactSecrets(ctx.profile) as any) ?? redactSecrets(ctx.profile) : null,
     },
   });
   await runner.run({ resume: Boolean(resume) });

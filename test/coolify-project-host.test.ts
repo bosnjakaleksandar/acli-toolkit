@@ -4,12 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 import fs from "fs-extra";
-import { CoolifyProjectHost, parseExportPath, parseSelectionMenu } from "../src/remote/CoolifyProjectHost.ts";
-import { createRemoteBackend } from "../src/remote/RemoteBackend.ts";
+import { CoolifyProjectHost, parseExportPath, parseSelectionMenu } from "../src/providers/coolify/CoolifyProjectHost.ts";
+import { createRemoteBackend } from "../src/providers/registry.ts";
 import { createProfileImportSource } from "../src/wordpress/import/sources/RemoteSource.ts";
 import { PullService } from "../src/wordpress/pull/PullService.ts";
-import { RemoteHost } from "../src/remote/RemoteHost.ts";
-import { resolveRemoteProfile } from "../src/remote/resolveProfile.ts";
+import { SshHost } from "../src/providers/ssh/SshHost.ts";
+import { resolveRemoteProfile } from "../src/providers/resolveProfile.ts";
 import { validateProfileConfig } from "../src/config/schema.ts";
 import { runCommand, runCommandSync } from "../src/system/commandRunner.ts";
 import { linkGitRemote } from "../src/system/git.ts";
@@ -304,7 +304,7 @@ test("createRemoteBackend picks the backend from the profile provider", () => {
   assert.ok(createRemoteBackend(resolve()) instanceof CoolifyProjectHost);
   const sshProfile = resolveRemoteProfile({ ssh: { host: "h.example.com", username: "u" }, remote: { projectRoot: "/srv/x", wordpressRoot: "wp" }, database: { driver: "wp-cli" } }, { projectName: "x" });
   assert.equal(sshProfile.provider, "ssh");
-  assert.ok(createRemoteBackend(sshProfile) instanceof RemoteHost);
+  assert.ok(createRemoteBackend(sshProfile) instanceof SshHost);
 });
 
 test("linkGitRemote tracks a known deployed branch without asking the remote for its default", async () => {

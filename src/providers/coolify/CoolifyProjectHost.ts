@@ -3,14 +3,14 @@ import { createReadStream, createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import fs from "fs-extra";
-import { runCommand } from "../system/commandRunner.ts";
-import { toolExists } from "../system/toolCheck.ts";
-import { CliError } from "../core/errors.ts";
-import { buildSshArgs, scpConnectionArgs, shellQuote } from "./sshArgs.ts";
-import type { ResolvedProfile } from "../core/model/Profile.ts";
-import type { RemoteFacts } from "../core/model/RemoteFacts.ts";
-import type { Spinner } from "../environments/EnvironmentService.ts";
-import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "./RemoteBackend.ts";
+import { runCommand } from "../../system/commandRunner.ts";
+import { toolExists } from "../../system/toolCheck.ts";
+import { CliError } from "../../core/errors.ts";
+import { buildSshArgs, scpConnectionArgs, shellQuote } from "../sshArgs.ts";
+import type { ResolvedProfile } from "../../core/model/Profile.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
+import type { Spinner } from "../../environments/EnvironmentService.ts";
+import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "../contract.ts";
 
 type Runner = typeof runCommand;
 

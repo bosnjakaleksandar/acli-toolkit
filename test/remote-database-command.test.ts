@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { databaseCommand } from "../src/remote/databaseCommand.ts";
-import { resolveRemoteProfile } from "../src/remote/resolveProfile.ts";
+import { databaseCommand } from "../src/providers/ssh/databaseCommand.ts";
+import { resolveRemoteProfile } from "../src/providers/resolveProfile.ts";
 import { runCommand } from "../src/system/commandRunner.ts";
 
 /**

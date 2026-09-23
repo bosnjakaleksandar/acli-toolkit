@@ -8,7 +8,7 @@ const DEFAULT_FILE_TARGET_NAMES = ["uploads", "plugins", "themes"];
  * into the newer `files.targets` map (name -> {path, excludes, includes}).
  * Profiles already written in the new shape pass through untouched. This is
  * the single place callers should normalize through — everything downstream
- * (RemoteHost.syncFiles, PullService) consumes only `targets`.
+ * (SshHost.syncFiles, PullService) consumes only `targets`.
  */
 export function normalizeProfile(profile: Profile): Profile {
   if (!isObject(profile)) return profile;

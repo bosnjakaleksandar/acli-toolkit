@@ -1,6 +1,6 @@
 import path from "node:path";
-import { shellQuote } from "./sshArgs.ts";
-import type { ResolvedProfile } from "../core/model/Profile.ts";
+import { shellQuote } from "../sshArgs.ts";
+import type { ResolvedProfile } from "../../core/model/Profile.ts";
 
 export interface RemoteCommand {
   /** The remote command string, passed as ssh's trailing positional argument. Never contains a secret value — see `stdin`. */
