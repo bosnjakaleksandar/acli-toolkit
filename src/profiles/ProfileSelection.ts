@@ -27,7 +27,8 @@ export interface ResolveProfileSelectionResult {
 
 /**
  * Resolves which profile a flow should use: an explicit --profile flag, one
- * already attached to the context, the sole available profile, an
+ * already attached to the context, the default set with `acli profile use`,
+ * the sole available profile, an
  * interactive pick among several, or (interactively, with none yet defined)
  * optionally offering to create one on the spot. `acli link` keeps that
  * convenience; `acli import` disables it and requires an already-configured
@@ -56,7 +57,10 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
     availableProfiles = Object.keys(config.profiles || {});
   }
 
-  let profileName = options.profile || attachedProfileName || (required && availableProfiles.length === 1 ? availableProfiles[0] : undefined);
+  // `acli profile use` stores defaults.profile; honor it (when it still names
+  // a configured profile) before falling back to a sole profile or a picker.
+  const defaultProfile = typeof config.defaults?.profile === "string" && config.profiles?.[config.defaults.profile] ? config.defaults.profile : undefined;
+  let profileName = options.profile || attachedProfileName || (required ? defaultProfile : undefined) || (required && availableProfiles.length === 1 ? availableProfiles[0] : undefined);
   if (required && !profileName && availableProfiles.length > 1 && !nonInteractive) {
     profileName = chooseProfile
       ? await chooseProfile(availableProfiles, config)

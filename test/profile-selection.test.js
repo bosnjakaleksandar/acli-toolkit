@@ -76,3 +76,11 @@ test("profileSummary lists connection, database, and local environment details",
   assert.match(summary, /deploy@example\.com/);
   assert.match(summary, /Local: docker/);
 });
+
+test("the default profile from `acli profile use` is selected when several profiles exist", async () => {
+  const config = { version: 1, defaults: { profile: "second" }, profiles: { first: { ssh: { host: "a.example.com", username: "u" }, remote: { projectRoot: "/a", wordpressRoot: "wp" }, database: { driver: "wp-cli" } }, second: { ssh: { host: "b.example.com", username: "u" }, remote: { projectRoot: "/b", wordpressRoot: "wp" }, database: { driver: "wp-cli" } } } };
+  const { profileName } = await resolveProfileSelection({ config, required: true, nonInteractive: true, configuredOnly: true, offerCreateWhenMissing: false });
+  assert.equal(profileName, "second");
+  const explicit = await resolveProfileSelection({ config, options: { profile: "first" }, required: true, nonInteractive: true, configuredOnly: true, offerCreateWhenMissing: false });
+  assert.equal(explicit.profileName, "first");
+});
