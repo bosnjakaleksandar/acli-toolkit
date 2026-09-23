@@ -52,9 +52,8 @@ export async function scaffoldGitignore(targetDir: string, type: string): Promis
 }
 
 /**
- * Adds A-CLI's rules for a project type to a .gitignore another tool already
- * wrote (create-vite, create-next-app), keeping that file's own rules first
- * and appending only the ones it is missing.
+ * Rewrites a .gitignore another tool already wrote (create-vite,
+ * create-next-app) as A-CLI's template, keeping that file's extra rules.
  */
 export async function applyGitignoreTemplate(targetDir: string, type: string): Promise<void> {
   const gitignorePath = path.join(targetDir, ".gitignore");
@@ -63,11 +62,9 @@ export async function applyGitignoreTemplate(targetDir: string, type: string): P
 }
 
 /**
- * Builds an import-safe .gitignore. A fetched repository's tracked file is
- * authoritative and stays intact; local/import-generated rules and missing
- * template patterns are appended. If there is no remote baseline and the
- * only local rule is the `.acli/` entry created by writeLink(), the complete
- * project template is materialized instead of leaving that one-line file.
+ * Writes A-CLI's template into an imported project. Rules from the
+ * repository's tracked .gitignore (and the local file) that the template
+ * doesn't have are kept below it, so nothing ignored before becomes tracked.
  */
 export async function mergeGitignoreForImport(targetDir: string, type: string): Promise<void> {
   const gitignorePath = path.join(targetDir, ".gitignore");
@@ -85,23 +82,31 @@ export async function mergeGitignoreForImport(targetDir: string, type: string): 
   await fs.writeFile(gitignorePath, merged);
 }
 
+const KEPT_RULES_HEADER = "# Kept from the project's previous .gitignore";
+
+/**
+ * A-CLI's template always comes first and wins. Active rules from the
+ * repository baseline and the current file that the template lacks are
+ * appended in their own section (later rules take precedence in Git, which
+ * keeps project-specific exceptions like `!wp-content/plugins/custom/`
+ * working). Idempotent: merging an already-merged file changes nothing.
+ */
 export function mergeGitignoreContents(current: string, template: string, baseline: string | null = null): string {
-  const currentRules = activeRules(current);
-
-  if (!baseline?.trim() && (currentRules.size === 0 || (currentRules.size === 1 && currentRules.has(".acli/")))) {
-    return ensureFinalNewline(template);
+  const known = new Set([...activeRules(template)].map(normalizeRule));
+  const kept: string[] = [];
+  for (const rule of [...activeRules(baseline ?? ""), ...activeRules(current)]) {
+    const key = normalizeRule(rule);
+    if (known.has(key)) continue;
+    known.add(key);
+    kept.push(rule);
   }
+  if (!kept.length) return ensureFinalNewline(template);
+  return `${template.trimEnd()}\n\n${KEPT_RULES_HEADER}\n${kept.join("\n")}\n`;
+}
 
-  const primary = baseline?.trim() ? baseline : current;
-  const known = activeRules(primary);
-  const additions: string[] = [];
-  for (const rule of [...currentRules, ...activeRules(template)]) {
-    if (known.has(rule)) continue;
-    known.add(rule);
-    additions.push(rule);
-  }
-  if (!additions.length) return ensureFinalNewline(primary);
-  return `${primary.trimEnd()}\n\n# A-CLI additions\n${additions.join("\n")}\n`;
+// `node_modules` and `node_modules/` are the same rule for a project's needs.
+function normalizeRule(rule: string): string {
+  return rule.length > 1 ? rule.replace(/\/$/, "") : rule;
 }
 
 function activeRules(content: string): Set<string> {

@@ -70,7 +70,7 @@ acli import
 | Scaffolding local environment | Writes `docker-compose.yaml` or `.lando.yml` for this site. |
 | Linking project to its profile | Saves the link in `.acli/config.yaml`, so `acli pull` needs no arguments later. |
 | Linking Git repository | Connects the site's Git origin, pull-only ([details](#git)). |
-| Preparing Git ignore rules | Adds WordPress rules to `.gitignore`, keeping the repository's own. |
+| Preparing Git ignore rules | Writes A-CLI's WordPress `.gitignore`. Rules only the repository had are kept at the end, so nothing ignored before becomes tracked. `acli pull` does the same, so older imports get it too. |
 | Importing database and replacing URLs | Starts the environment, imports the dump, and replaces the staging URLs with your local one. |
 
 At the end A-CLI installs dependencies where it can and prints the local URL and next steps. The dump contains real user data, so `staging.sql` is deleted after a successful import (`--keep-dump` keeps it).
