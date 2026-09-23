@@ -176,9 +176,26 @@ export function runCommandSync(
  */
 function assertCommandPolicy(command: string, args: string[]): void {
   const executable = command.replace(/\\/g, "/").split("/").at(-1)?.toLowerCase();
+  if (executable === "ssh" || executable === "ssh.exe") {
+    assertRemoteProjectPolicy(args);
+    return;
+  }
   if (executable !== "git" && executable !== "git.exe") return;
   if (!args.some((arg) => arg === "push" || arg === "send-pack")) return;
   throw new Error("A-CLI policy forbids pushing to Git remotes. Commit and push manually when you are ready.");
+}
+
+// Server-side `project` CLI subcommands (Coolify staging) that change remote
+// state or need an interactive terminal. The same pull-only promise as the
+// Git guard above: CoolifyProjectHost already allow-lists what it sends, and
+// this second layer rejects a forbidden subcommand even if a future call
+// site builds the remote command string some other way.
+const FORBIDDEN_PROJECT_COMMAND = /(?:^|[\s;&|(`])(?:\S*\/)?project\s+['"]?(wp-import|db-import|db-backup|branch|deploy|shell|logs|grant|revoke|user-add)\b/;
+
+function assertRemoteProjectPolicy(args: string[]): void {
+  const match = args.map((arg) => arg.match(FORBIDDEN_PROJECT_COMMAND)).find(Boolean);
+  if (!match) return;
+  throw new Error(`A-CLI policy is pull-only: refusing to run "project ${match[1]}" on the remote server.`);
 }
 
 /**
