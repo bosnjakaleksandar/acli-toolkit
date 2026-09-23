@@ -4,23 +4,9 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-### Fixed
-
-- `acli import` no longer shows the *Finalizing* spinner while it asks whether to install dependencies (or to initialize Git). The spinner made the question look like a step that was still running, so the import seemed to hang.
-
-### Added
-
-- `acli create` offers a Docker or Lando environment for every project type, not only WordPress: React and Next.js get a Node dev container, and Laravel projects get PHP 8.3 + Composer, MySQL and a Node container for the frontend (with `lando artisan`, `lando composer` and `lando npm`). Ports are bound to `127.0.0.1`.
-- `--environment none` (and a *None* choice) runs an application natively; it is the default for applications. WordPress still requires Docker or Lando.
-
-### Changed
-
-- The local-environment question is asked for every project type; the advanced-settings question is asked only for WordPress.
-- A-CLI's `.gitignore` now takes precedence over the one in an imported repository or written by `create-vite`/`create-next-app`. Their extra rules are kept in a section at the end. `acli pull` applies it too, so projects imported earlier get the new file.
-
 ## [3.0.0] - 2026-09-24
 
-This release narrows `acli import` / `acli pull` to two well-defined ways of reaching a staging server and removes the configuration machinery that existed for one-off setups. It is a major version because commands, options and configuration fields were removed (see **Removed**); configurations that use them fail validation with a message saying what to change. `acli create` (React, Next.js, Laravel, WordPress) and the Docker/Lando environments are unchanged.
+This release narrows `acli import` / `acli pull` to two well-defined ways of reaching a staging server and removes the configuration machinery that existed for one-off setups. It is a major version because commands, options and configuration fields were removed (see **Removed**); configurations that use them fail validation with a message saying what to change. `acli create` keeps React, Next.js, Laravel and WordPress, and now offers a Docker or Lando environment for every one of them.
 
 ### Added
 
@@ -28,6 +14,8 @@ This release narrows `acli import` / `acli pull` to two well-defined ways of rea
 - `acli pull languages` target (skipped for profiles that don't define it).
 - `acli profile create` asks which provider to use and then only that provider's questions; `--provider` selects it non-interactively.
 - `acli import [project]`: for a Coolify profile, the project is picked from the server's `project list` (or given as the argument), and the local folder name defaults to it. The project link remembers the server name (`remoteProject`) and prompt answers (`selections`), so `acli pull` doesn't ask again. `acli link --remote-project <name>` does the same for an existing folder.
+- `acli create` offers a Docker or Lando environment for every project type, not only WordPress: React and Next.js get a Node dev container, and Laravel projects get PHP 8.3 + Composer, MySQL and a Node container for the frontend (with `lando artisan`, `lando composer` and `lando npm`). Ports are bound to `127.0.0.1`.
+- `--environment none` (and a *None* choice) runs an application natively; it is the default for applications. WordPress still requires Docker or Lando.
 
 ### Changed
 
@@ -40,7 +28,8 @@ This release narrows `acli import` / `acli pull` to two well-defined ways of rea
 - `acli import` validates profiles before asking project questions and automatically selects a sole profile.
 - Profile-backed imports fetch the discovered Git origin and track its default (or deployed) branch without checking out over imported files; the success summary reports the linked branch.
 - Profiles can define a machine-local `git.sshHostAlias` (or use `acli profile git-alias`) for developers who select different Git identities through `~/.ssh/config`; interrupted imports can safely apply the alias on resume.
-- WordPress imports now materialize the complete `.gitignore` template instead of leaving only `.acli/`; when the fetched repository already tracks a `.gitignore`, its project-specific rules remain the base and only missing A-CLI rules are appended.
+- The local-environment question is asked for every project type; the advanced-settings question is asked only for WordPress.
+- WordPress imports write the complete `.gitignore` template instead of leaving only `.acli/`, and A-CLI's `.gitignore` takes precedence over the one in an imported repository or written by `create-vite`/`create-next-app`. Their extra rules are kept in a section at the end. `acli pull` applies it too, so projects imported earlier get the new file.
 
 ### Removed
 
@@ -54,6 +43,7 @@ This release narrows `acli import` / `acli pull` to two well-defined ways of rea
 ### Fixed
 
 - `acli doctor` and remote preflight no longer report SCP as missing: OpenSSH `scp` has no version flag, so it is now only checked for presence.
+- `acli import` no longer shows the *Finalizing* spinner while it asks whether to install dependencies (or to initialize Git). The spinner made the question look like a step that was still running, so the import seemed to hang.
 
 ### Security
 
