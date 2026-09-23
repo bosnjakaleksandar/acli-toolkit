@@ -1,21 +1,23 @@
 # Import an existing WordPress project
 
-`acli import` brings an existing WordPress site into a new local project through a saved [staging profile](./presets.md). The profile describes SSH, remote paths, content transfer, database source, Git discovery, and URLs. Database drivers are `wp-cli`, `docker`, and `direct`; file transport is `rsync` or `sftp` (through SCP).
+`acli import` brings an existing WordPress site into a new local project through a saved [staging profile](./presets.md). A profile uses one of two providers:
 
-Create a profile first with `acli profile create` or the Profiles entry in the main menu. A portable profile YAML must be saved with `acli profile import <path>` before import can use it.
+- **SSH with wp-cli**: files are synced with rsync and the database is exported with `wp db export` on the server.
+- **Coolify project CLI**: the server's `project` command exports files and database (see [Coolify staging servers](#coolify-staging-servers)).
+
+Create a profile first with `acli profile create` or the Profiles entry in the main menu.
 
 Profile selection happens before project questions:
 
 - No configured profiles: import stops with instructions to create one.
-- One configured profile: it is selected automatically.
-- Several configured profiles: interactive mode asks which one to use; non-interactive mode requires `--profile <name>`.
+- `--profile <name>`, or else the default set with `acli profile use`, is used when given.
+- Otherwise one configured profile is selected automatically.
+- With several and no default, interactive mode asks which one to use; non-interactive mode requires `--profile <name>`.
 
 After profile selection, A-CLI asks for the project name and whether the generated local project should use Docker or Lando, then shows the selected remote host/database/transport summary.
 
 ```bash
-export ACLI_SSH_KEY="$HOME/.ssh/staging"
-acli import --name client-site --profile shared-host \
-  --config ./examples/config/shared-host.yaml --dry-run --yes
+acli import --name client-site --profile agency-staging --dry-run --yes
 ```
 
 Remove `--dry-run` to import. Controls include `--skip-files`, `--skip-database`, `--skip-git-link`, and `--keep-dump`. Preflight checks happen before target creation. A failed import preserves whatever was already fetched and prints an exact `acli import --resume --name <name>` command to continue from the failed step instead of starting over.
@@ -25,7 +27,7 @@ When Git discovery is enabled, import initializes the local repository, adds the
 If your local `~/.ssh/config` uses separate aliases for Git accounts (for example `github-work` and `github-personal`, both pointing to `github.com`), configure the alias on that staging profile:
 
 ```bash
-acli profile git-alias agency-staging github-work --scope user
+acli profile git-alias agency-staging github-work
 acli import --resume --name client-site
 ```
 
@@ -39,7 +41,7 @@ Host-key policy defaults to `strict`; `accept-new` supports automated first conn
 
 See the [Supported Matrix](./supported-matrix.md) for the full reference. Summary: A-CLI prefers facts read directly from the source of truth rather than guessing the table prefix or the live site URL from naming conventions:
 
-- **Table prefix**: with the `wp-cli` database driver, the prefix is read remotely via `wp config get table_prefix` and takes priority over whatever is parsed from the dump. Without `wp-cli` access, it's detected from the dump by checking every table against WordPress's core table names and picking the prefix that covers the *most* of them — not simply the first match, which a plugin table like `wp_gdpr_cc_options` can trigger ahead of the genuine `wp_options`. If no prefix can be determined, the import fails with a clear error instead of silently assuming `wp_`.
+- **Table prefix**: with the ssh provider, the prefix is read remotely via `wp config get table_prefix` and takes priority over whatever is parsed from the dump. Otherwise (Coolify provider, or when that lookup fails), it's detected from the dump by checking every table against WordPress's core table names and picking the prefix that covers the *most* of them — not simply the first match, which a plugin table like `wp_gdpr_cc_options` can trigger ahead of the genuine `wp_options`. If no prefix can be determined, the import fails with a clear error instead of silently assuming `wp_`.
 - **Site URL**: `urls.staging` in the profile is only ever used as an *additional* search-replace source. The URL that's actually replaced is read back from the freshly imported database itself (`wp option get siteurl`), so migrations work correctly even when the staging URL doesn't follow any particular naming convention, or isn't declared in the profile at all. Both the `http://` and `https://` variant of every source URL are replaced.
 - **Collations and cross-database dumps**: the dump is normalized before import — MariaDB's sandbox-mode marker and `CREATE DATABASE`/`USE` statements are stripped (so the dump always lands in the local environment's own database regardless of what the remote database was named), and collations unsupported by the local MySQL/MariaDB image (e.g. newer MariaDB `uca1400` variants) are rewritten to compatible equivalents.
 - **Database readiness**: checked at the same path the application actually uses (TCP, app credentials, from the app container) — a database process reporting "started" isn't the same as WordPress actually being able to reach it, and importing before that gap closes was a real source of "Error establishing a database connection" failures.
@@ -53,7 +55,7 @@ See the [Supported Matrix](./supported-matrix.md) for the full reference. Summar
 
 ```bash
 cd client-site
-acli link --profile shared-host --environment docker
+acli link --profile agency-staging --environment docker
 acli pull db --yes
 ```
 

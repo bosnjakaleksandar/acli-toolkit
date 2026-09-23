@@ -80,9 +80,9 @@ acli create --type application --framework nextjs --laravel --name booking-app
 
 ## `import` options
 
-`acli import` only imports through a named staging profile from the resolved user/project configuration. Create one with `acli profile create`, or save a portable YAML first with `acli profile import <path>`.
+`acli import` only imports through a named staging profile from your user configuration. Create one with `acli profile create`.
 
-With no profiles the command fails before asking project questions. One profile is selected automatically. With several profiles, interactive mode asks which one to use; `--yes`/`--non-interactive` requires `--profile <name>`.
+With no profiles the command fails before asking project questions. `--profile` or the default profile (`acli profile use`) is used when set; otherwise a sole profile is selected automatically. With several and no default, interactive mode asks which one to use; `--yes`/`--non-interactive` requires `--profile <name>`.
 
 - `--name <name>`
 - `--environment <docker|lando>` or `--env <docker|lando>`
@@ -102,4 +102,4 @@ With no profiles the command fails before asking project questions. One profile 
 
 Git linking is read-only toward the remote: A-CLI may discover, fetch, and configure an upstream, but it never runs `git push`. `--skip-git` disables both initialization and remote linking; `--skip-git-link` keeps optional local initialization but disables origin discovery.
 
-If Git authentication is selected through a local SSH config alias, configure it per profile with `acli profile git-alias <profile> <alias> --scope <user|project>`. Profile creation also accepts `--git-ssh-host-alias <alias>`.
+If Git authentication is selected through a local SSH config alias, configure it per profile with `acli profile git-alias <profile> <alias>`. Profile creation also accepts `--git-ssh-host-alias <alias>`.

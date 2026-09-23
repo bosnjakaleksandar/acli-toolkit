@@ -7,26 +7,20 @@ Older versions of this tool (`create-project`, pre-A-CLI) connected to a single 
 - SSH username was always the project name; the remote path was always `~/<project>/wordpress`.
 - The remote database ran in Docker, discovered by a container name containing the project name.
 
-A-CLI's [profiles](./presets.md) generalize this into declarative, portable configuration instead of environment variables and hardcoded conventions — but you don't have to hand-translate your old setup. `acli profile import-legacy` reproduces it exactly, in one command:
+A-CLI's [profiles](./presets.md) replace these environment variables with declarative configuration. The Docker-container database convention itself is no longer supported (A-CLI 2.1 removed `profile import-legacy` and the `docker` database driver): the ssh provider exports the database with `wp db export` on the server.
+
+If your legacy staging server has wp-cli, create an ssh profile that mirrors the old layout:
 
 ```bash
-acli profile import-legacy agency-staging --host "$STAGING_SSH_HOST"
+acli profile create agency-staging --provider ssh \
+  --host "$STAGING_SSH_HOST" --username '{projectName}' \
+  --project-root '{projectName}' --wordpress-root wordpress \
+  --staging-url 'https://{projectName}.staging' --host-key-policy accept-new
 ```
 
-If `STAGING_SSH_HOST` (and optionally `STAGING_SUFFIX`) are already set in your shell environment — as they would have been for the legacy tool — you can omit `--host`/`--suffix` entirely and they'll be read automatically:
+If it doesn't, keep using A-CLI 2.0 for that server, or move the site to a server A-CLI supports.
 
-```bash
-acli profile import-legacy agency-staging
-```
-
-This produces a profile with:
-
-- SSH username templated as `{projectName}` and remote path `{projectName}/wordpress`, matching the legacy convention exactly.
-- The `docker` database driver with container-name discovery, matching the legacy remote dump script.
-- A staging URL of `https://{projectName}<suffix>`.
-- `hostKeyPolicy: insecure`, matching the legacy tool's `StrictHostKeyChecking=no` behavior *exactly* — deliberately, so the migrated profile connects on the first try with zero behavior change. Once you've verified it works, tighten this to `accept-new` or `strict` (edit the saved profile, or rerun `acli profile create --host ... --host-key-policy accept-new` to rebuild it from scratch).
-
-From there, use the imported profile the same as any other:
+From there, use the profile the same as any other:
 
 ```bash
 acli import --name client-site --profile agency-staging

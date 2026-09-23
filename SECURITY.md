@@ -15,23 +15,21 @@ Instead, use one of:
 
 This is a solo-maintained project. Please allow a few days for an initial response. Once a fix is available, it will be released and the advisory (if one was filed) will be published with credit to the reporter, unless you ask to remain anonymous.
 
-## Trust model — please read before running A-CLI in a repository you don't control
+## What A-CLI reads from a repository
 
-A-CLI reads project-scoped configuration (`.acli/config.yaml`) from the current working directory, similar to how tools like `direnv` read `.envrc` or `make` reads a `Makefile`. That file can declare secret references such as:
+A-CLI auto-discovers `.acli/config.yaml` in the current project, the way `make` reads a `Makefile`. Since 2.1 that file can hold only the project link and `acli create` defaults/presets:
 
-```yaml
-password: { command: "op read op://vault/item/password" }
-```
+- A-CLI never executes commands from configuration; `{command: ...}` and `${ENV_VAR}` references are rejected rather than resolved.
+- Staging profiles (hosts, users, keys) and the default profile are read only from your user config. A project config that declares them is refused, so a cloned repository can't make `acli pull` connect to a different server.
+- Presets can still name a starter-theme repository to clone, so review `.acli/config.yaml` in a repository you don't trust before running `acli create` there.
 
-A-CLI **executes** the command in a `{ command: ... }` reference to resolve the secret. This is intentional and documented (see [docs/environment-variables.md](docs/environment-variables.md)) — but it means a `.acli/config.yaml` you didn't write yourself is, functionally, executable code, the same way a `Makefile` or `package.json` `scripts` block is.
+## Pull-only remote access
 
-To reduce the risk of this running unexpectedly (e.g. right after `git clone`-ing an unfamiliar repository), A-CLI content-hash-pins trust for project-scoped configs:
+Import and pull never change the remote site:
 
-- A config file A-CLI itself wrote (via `acli profile create`, `acli link`, `acli config init`, etc.) is trusted automatically.
-- A project config that merely *appears* in the working directory — for example because you just cloned a repository — is **not** trusted automatically. If it declares a secret command or `${ENV_VAR}` reference inside `profiles`/`project.profile`, A-CLI refuses to resolve it and tells you to run `acli config trust` once you've reviewed the file, or to set `ACLI_TRUST_PROJECT_CONFIG=1` for a single run.
-- Editing a trusted file changes its content hash and revokes trust until you re-approve it.
-
-**Practical guidance:** review `.acli/config.yaml` the same way you'd review a `Makefile` or an install script before running A-CLI commands inside a repository you don't already trust.
+- The shared command runner rejects `git push` and `git send-pack`.
+- It also rejects any SSH command that would run a state-changing or interactive subcommand of a Coolify server's `project` CLI (`wp-import`, `db-import`, `db-backup`, `branch`, `deploy`, `shell`, `logs`, admin commands); the Coolify provider additionally sends only an allow-list of read-only subcommands.
+- Downloaded archives are checked before extraction (no absolute paths, `..`, links or unexpected entries).
 
 ## Scope
 

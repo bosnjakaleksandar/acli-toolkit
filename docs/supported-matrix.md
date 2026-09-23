@@ -25,24 +25,20 @@ React/Next.js/Laravel are deliberately **not** scaffolded by A-CLI's own templat
 
 Both adapters implement the same contract (`src/environments/EnvironmentService.ts`) and are held to real behavioral parity by `test/environment-adapter-contract.test.js` — a capability added to one and forgotten in the other fails that test.
 
-## Remote database drivers (existing-WP sync)
+## Remote providers (existing-WP sync)
 
-- **`wp-cli`** (recommended) — the remote host has `wp` available; table prefix and site URL are read directly and authoritatively (`wp config get table_prefix`, `wp option get siteurl`) instead of parsed from the dump.
-- **`docker`** — the remote database runs in a Docker container, discovered by name or by an explicit compose service.
-- **`direct`** — a directly reachable MySQL/MariaDB host (e.g. a managed database service).
+### SSH with wp-cli (`provider: ssh`, default)
 
-## File transports
+The server is reachable over SSH and has `wp` available. Files are synced with rsync; the database is exported with `wp db export`, and the table prefix and site URL are read directly (`wp config get table_prefix`, `wp option get siteurl`) instead of parsed from the dump. The `docker`/`direct` database drivers and the `sftp` transport were removed in 2.1.
 
-`rsync` (default) or `sftp`/`scp`.
+### Coolify staging (`provider: coolify-cli`)
 
-## Coolify staging (`provider: coolify-cli`)
-
-For servers that give developers only the `project` CLI instead of direct access to files and databases. A-CLI sends only the read-only `project list`, `status`, `db-export` and `wp-export` subcommands, downloads each export with `scp` and unpacks it locally; `remote`, `database.driver` and `files` are not used. Pullable targets are `db`, `uploads`, `plugins`, `themes` and `languages`. The table prefix is detected from the dump, and Git linking uses the repository and deployed branch reported by `project status`. See [examples/config/coolify.yaml](https://github.com/bosnjakaleksandar/project-setup/blob/main/examples/config/coolify.yaml).
+For servers that give developers only the `project` CLI instead of direct access to files and databases. A-CLI sends only the read-only `project list`, `status`, `db-export` and `wp-export` subcommands, downloads each export with `scp` and unpacks it locally; `remote` and `files` are not used. Pullable targets are `db`, `uploads`, `plugins`, `themes` and `languages`. The table prefix is detected from the dump, and Git linking uses the repository and deployed branch reported by `project status`. See [examples/config/coolify.yaml](https://github.com/bosnjakaleksandar/project-setup/blob/main/examples/config/coolify.yaml).
 
 ## How table prefix and site URL are determined
 
 1. An explicit `database.tablePrefix` in the profile, if set, always wins.
-2. Otherwise, with the `wp-cli` driver, the remote value wins.
+2. Otherwise, with the ssh provider, the value reported by wp-cli on the server wins.
 3. Otherwise, the dump is parsed: every `CREATE TABLE`/`DROP TABLE`/`INSERT INTO` statement is checked against WordPress's core table names (`options`, `posts`, `postmeta`, `users`, `usermeta`, `comments`, `commentmeta`, `links`), and the prefix covering the *most* of them wins — not simply the first match. This is deliberate: a plugin table like `wp_gdpr_cc_options` sorts alphabetically before the real `wp_options` in most dumps, and a first-match strategy would detect the plugin's prefix instead of the site's.
 4. The site URL that gets search-replaced is read back from the freshly imported database itself (`wp option get siteurl`), not guessed from a naming convention — `urls.staging` in the profile is only ever an additional fallback source.
 

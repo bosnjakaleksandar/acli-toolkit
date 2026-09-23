@@ -1,25 +1,12 @@
-# Configuration and secrets
+# Configuration
 
-A-CLI v2 does not load `.env` files as CLI configuration. It discovers YAML from the platform user location and `.acli/config.yaml` in the current project. Use `acli config path` to print both locations, or `acli config init` to write a starter file with an explanatory header.
+A-CLI does not load `.env` files as CLI configuration. It reads YAML from two places; `acli config path` prints both, and `acli config init` writes a starter file.
 
-Precedence is built-in defaults, user configuration, project configuration, selected preset, `--set` overrides, then explicit CLI options. Every document starts with `version: 1`.
+- **User config** (platform location): your staging profiles and the default profile, plus defaults and presets for `acli create`. Profiles describe how *this machine* reaches a server, so this is the only place they are read from.
+- **Project config** (`.acli/config.yaml`): the project link written by `acli import` / `acli link`, plus create defaults and presets for that project. It cannot declare profiles or a default profile, so a repository you cloned can't redirect `acli pull` to another server.
 
-Reference secrets without storing them:
+Precedence is built-in defaults, user configuration, project configuration, selected preset, `--set` overrides, then explicit CLI options. Every document starts with `version: 1`. Run `acli config validate` before a workflow and `acli config show` to see the merged result (secret-looking fields are redacted).
 
-```yaml
-identityFile: "${ACLI_SSH_KEY}"
-password:
-  command: op read op://wordpress/staging/password
-```
+Values are used exactly as written. Since 2.1, A-CLI no longer resolves `${ENV_VAR}` or `{command: ...}` references, and validation names any that are left. Put machine-specific values such as `ssh.identityFile` directly into your user config, which isn't shared.
 
-Command references execute without a shell. `acli config show --resolved` redacts secret values. Use `acli config validate` before running a workflow.
-
-## Trusting a project configuration
-
-`.acli/config.yaml` is auto-discovered from the current directory — which may be a repository you just cloned, not one you wrote yourself. If that file declares a `command`/`${ENV_VAR}` reference inside `profiles`/`project.profile`, A-CLI will only resolve it if the file is **trusted**:
-
-- Any `.acli/config.yaml` A-CLI itself wrote (`acli profile create`, `acli link`, `acli config init`, ...) is trusted automatically.
-- A config that just appeared in your working directory is not. Review it, then run `acli config trust` to approve its current contents — editing the file afterward revokes trust until you re-approve it.
-- For a one-off run (e.g. in a script), set `ACLI_TRUST_PROJECT_CONFIG=1` instead of trusting the file permanently.
-
-See [SECURITY.md](https://github.com/bosnjakaleksandar/project-setup/blob/main/SECURITY.md#trust-model--please-read-before-running-a-cli-in-a-repository-you-dont-control) for the reasoning behind this.
+The process environment variables A-CLI does read (`ACLI_VERBOSE`, `ACLI_CONFIG_HOME`, `WP_THEME_REPO`, ...) are listed in [`.env.example`](https://github.com/bosnjakaleksandar/project-setup/blob/main/.env.example).

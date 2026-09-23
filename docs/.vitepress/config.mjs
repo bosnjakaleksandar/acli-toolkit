@@ -24,7 +24,7 @@ export default {
       { text: "Import Existing WordPress", link: "/existing-wp" },
       { text: "Presets", link: "/presets" },
       { text: "Doctor", link: "/doctor" },
-      { text: "Environment Variables", link: "/environment-variables" },
+      { text: "Configuration", link: "/environment-variables" },
       { text: "Migrating from create-project", link: "/migrating-from-create-project" },
       { text: "FAQ", link: "/faq" },
     ],

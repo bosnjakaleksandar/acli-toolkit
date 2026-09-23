@@ -237,15 +237,15 @@ Laravel combinations create a real Laravel application in `backend/` using `comp
 
 WordPress projects generate the selected Docker or Lando environment, support starter or custom theme repositories, optional branch selection, and optional plugin setup scripts.
 
-`acli create` only scaffolds new projects. `acli import` is the separate existing-WordPress workflow: it uses a configured staging profile to sync files, export the database, scaffold the local environment, discover Git remotes, migrate the database, and link the project so `acli pull` can re-sync it afterward. A discovered Git origin is fetched and its default branch becomes the local upstream without overwriting imported files. Git integration is strictly pull-only: A-CLI never commits or pushes, and its command runner rejects push attempts. Create a profile first with `acli profile create`; with one configured profile import selects it automatically, while multiple profiles are presented for selection. Use `acli link` to attach a profile to a directory you did not create with A-CLI. See [docs/existing-wp.md](docs/existing-wp.md) and [docs/supported-matrix.md](docs/supported-matrix.md).
+`acli create` only scaffolds new projects. `acli import` is the separate existing-WordPress workflow: it uses a configured staging profile to sync files, export the database, scaffold the local environment, discover Git remotes, migrate the database, and link the project so `acli pull` can re-sync it afterward. A discovered Git origin is fetched and its default branch becomes the local upstream without overwriting imported files. Git integration is strictly pull-only: A-CLI never commits or pushes, and its command runner rejects push attempts. Create a profile first with `acli profile create`: it reaches the server either over SSH with wp-cli (rsync for files) or through a Coolify server's `project` CLI. Import uses `--profile`, then the default profile (`acli profile use`), then a sole profile, and otherwise asks. Use `acli link` to attach a profile to a directory you did not create with A-CLI. See [docs/existing-wp.md](docs/existing-wp.md) and [docs/supported-matrix.md](docs/supported-matrix.md).
 
-Developers who use separate `~/.ssh/config` aliases for Git accounts can map one per profile, for example: `acli profile git-alias agency-staging github-work --scope user`.
+Developers who use separate `~/.ssh/config` aliases for Git accounts can map one per profile, for example: `acli profile git-alias agency-staging github-work`.
 
 Imported WordPress projects receive the bundled WordPress `.gitignore` rules. An existing remote `.gitignore` is preserved as the base, with only missing A-CLI rules added.
 
-## A-CLI v2 configuration
+## Configuration
 
-A-CLI is environment-agnostic. Project recipes live in presets; remote WordPress infrastructure lives in declarative profiles. YAML configuration is layered from built-in defaults, user configuration, `.acli/config.yaml`, selected presets, `--set`, and CLI options.
+Project recipes live in presets; staging servers live in profiles, which are read only from your user configuration. YAML configuration is layered from built-in defaults, user configuration, `.acli/config.yaml` (project link, create defaults and presets), selected presets, `--set`, and CLI options.
 
 ```bash
 acli config path
@@ -257,7 +257,7 @@ acli profile current
 acli import --name client-site --profile agency --dry-run --yes
 ```
 
-Documents require `version: 1`. A-CLI does not load repository `.env` files. Profiles may explicitly reference environment variables or command-based secret providers; resolved output redacts secrets. Generic profiles ship in `examples/config`.
+Documents require `version: 1`. A-CLI does not load repository `.env` files, and values are used as written (no `${ENV_VAR}` or command references). Example profiles for both providers ship in `examples/config`. See [docs/environment-variables.md](docs/environment-variables.md).
 
 ## Troubleshooting
 

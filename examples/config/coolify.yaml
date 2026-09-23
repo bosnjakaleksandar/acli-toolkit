@@ -10,8 +10,8 @@ profiles:
     provider: coolify-cli
     ssh:
       host: staging.example.com
-      username: "${ACLI_SSH_USER}"
-      identityFile: "${ACLI_SSH_KEY}"
+      username: developer
+      identityFile: ~/.ssh/staging
     coolify:
       # Project name exactly as `project list` prints it on the server.
       project: "{projectName}"
