@@ -47,12 +47,12 @@ test("a profile-only workflow asks which configured profile to use when several 
   assert.equal(result.profileName, "other");
 });
 
-test("profile-only import rejects portable paths until they are saved in configuration", async () => {
+test("import rejects a profile name that isn't configured, pointing at profile list/create", async () => {
   await assert.rejects(
     () => resolveProfileSelection({ config: { profiles }, options: { profile: "./portable.yaml" }, required: true, configuredOnly: true, nonInteractive: true }),
     (error) => {
       assert.match(error.message, /not configured/);
-      assert.match(error.hint, /profile import/);
+      assert.match(error.hint, /acli profile list.*acli profile create/);
       return true;
     },
   );
