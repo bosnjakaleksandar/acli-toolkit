@@ -1,5 +1,5 @@
 import type { runCommand } from "../system/commandRunner.ts";
-import type { Profile, ResolvedProfile } from "../core/model/Profile.ts";
+import type { CoolifySelection, Profile, ResolvedProfile } from "../core/model/Profile.ts";
 import type { RemoteFacts } from "../core/model/RemoteFacts.ts";
 import type { Spinner } from "../environments/EnvironmentService.ts";
 
@@ -36,11 +36,23 @@ export interface RemoteBackend {
   exportDatabase(targetDir: string, spinner: Spinner | null): Promise<void>;
   getRemoteFacts(): Promise<RemoteFacts>;
   discoverGit(): Promise<RemoteGitOrigin | null>;
+  /** Projects on the server the user can import, when the server can list them. */
+  listProjects?(): Promise<string[]>;
 }
 
 export interface RemoteBackendOptions {
   /** Whether the backend may prompt the user (false for --yes / --non-interactive runs). */
   interactive?: boolean;
+  /** Called when the user answers a server prompt, so the caller can remember it in the project link. */
+  onSelection?: (key: keyof CoolifySelection, value: string) => void;
+}
+
+/** The project a profile is resolved for: the local name plus what the project link knows about it on the server. */
+export interface ProjectTarget {
+  projectName: string;
+  /** The project's name on the server, when it differs from projectName. */
+  remoteProject?: string;
+  selections?: CoolifySelection;
 }
 
 export type RemoteBackendFactory = (profile: ResolvedProfile, options?: RemoteBackendOptions) => RemoteBackend;
@@ -62,8 +74,8 @@ export interface ProviderDefinition {
   profileKeys: string[];
   /** Validates the provider's own fields of a raw profile. */
   validate(profile: Profile, label: string, errors: string[]): void;
-  /** Resolves the provider's fields; `render` substitutes `{projectName}`. */
-  resolve(profile: Profile, render: (value: unknown) => string): Pick<ResolvedProfile, "remote" | "coolify">;
+  /** Resolves the provider's fields for one project; `render` substitutes `{projectName}`. */
+  resolve(profile: Profile, render: (value: unknown) => string, target: ProjectTarget): Pick<ResolvedProfile, "remote" | "coolify">;
   /** Local tools `acli doctor` should check for this profile. */
   tools(profile: Profile): string[];
   /** One-line description for profile lists (after the host). */

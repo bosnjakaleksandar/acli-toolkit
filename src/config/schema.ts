@@ -2,14 +2,16 @@ import { CONFIG_VERSION } from "./defaults.ts";
 import type { AcliConfig, ProjectLink } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/Profile.ts";
 import { isSafeSshHostAlias } from "../system/safety.ts";
-import { isObject, isValidPort } from "../core/objects.ts";
+import { isObject, isValidPort, REMOTE_PROJECT_PATTERN } from "../core/objects.ts";
 import { getProvider, PROVIDER_NAMES } from "../providers/registry.ts";
 
 export { isObject } from "../core/objects.ts";
 
 const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);
-const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "linkedAt"]);
+const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "remoteProject", "selections", "linkedAt"]);
+const SELECTION_KEYS = new Set(["database", "databaseName", "wordpressContainer"]);
+
 const HOST_KEY_POLICIES = new Set(["strict", "accept-new", "insecure"]);
 // Profile fields every provider shares; each provider adds its own
 // (ProviderDefinition.profileKeys) and validates them itself.
@@ -104,6 +106,14 @@ function validateProjectLink(link: ProjectLink, label: string, errors: string[])
   if (!link.name) errors.push(`${label}: name is required.`);
   if (!link.environment) errors.push(`${label}: environment is required.`);
   if (link.profile !== undefined && typeof link.profile !== "string") errors.push(`${label}.profile must be the name of a profile in your user config (inline profiles are no longer supported).`);
+  if (link.remoteProject !== undefined && (typeof link.remoteProject !== "string" || !REMOTE_PROJECT_PATTERN.test(link.remoteProject))) errors.push(`${label}.remoteProject must be a project name as the server prints it (letters, digits, spaces, . _ -).`);
+  if (link.selections !== undefined) {
+    if (!isObject(link.selections)) errors.push(`${label}.selections must be a mapping.`);
+    else for (const [key, value] of Object.entries(link.selections)) {
+      if (!SELECTION_KEYS.has(key)) errors.push(`${label}.selections: unknown field "${key}".`);
+      else if (typeof value !== "string" || !/^[A-Za-z0-9._-]+$/.test(value)) errors.push(`${label}.selections.${key} must be a name as printed in the server's selection menu.`);
+    }
+  }
 }
 
 

@@ -70,6 +70,7 @@ export interface DoctorCommandOptions {
 
 export interface LinkCommandOptions {
   name?: string;
+  remoteProject?: string;
   environment?: string;
   profile?: string;
   config?: string;

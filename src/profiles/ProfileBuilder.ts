@@ -15,7 +15,6 @@ export interface ProfileBuilderOptions {
   projectRoot?: string;
   wordpressRoot?: string;
   directories?: string;
-  coolifyProject?: string;
   stagingUrl?: string;
   git?: boolean;
   gitSshHostAlias?: string;
@@ -57,11 +56,10 @@ export async function createProfileCommand(name: string | undefined, options: Pr
   if (!host || !username) throw new Error("SSH host and username are required.");
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("SSH port must be between 1 and 65535.");
 
-  let providerFields: Record<string, unknown>;
-  if (coolify) {
-    const project = await value(options.coolifyProject, "Server project name (as `project list` prints it; {projectName} uses the local name):", "{projectName}");
-    providerFields = { coolify: { project } };
-  } else {
+  // A Coolify profile describes only the server: which project to import is
+  // chosen from the server's list at `acli import`.
+  let providerFields: Record<string, unknown> = {};
+  if (!coolify) {
     const projectRoot = await value(options.projectRoot, "Remote project root:", "/srv/projects/{projectName}");
     const wordpressRoot = await value(options.wordpressRoot, "WordPress root relative to project root:", "wordpress");
     const directories = options.directories ? splitList(options.directories) : nonInteractive ? ["uploads", "plugins", "themes"] : await ask(multiselect, { message: "WordPress content directories:", options: [{ label: "Uploads", value: "uploads" }, { label: "Plugins", value: "plugins" }, { label: "Themes", value: "themes" }, { label: "Languages", value: "languages" }], initialValues: ["uploads", "plugins", "themes"], required: true });

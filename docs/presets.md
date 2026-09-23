@@ -24,7 +24,7 @@ acli profile delete agency-staging
 `profile create` first asks how A-CLI reaches the server, then only asks for that provider's fields:
 
 - **SSH with wp-cli** (`provider: ssh`, the default): files are synced with rsync and the database is exported with `wp db export` on the server. Asks for the remote project root, the WordPress root and the content directories.
-- **Coolify project CLI** (`provider: coolify-cli`): the server's `project` command exports files and database; A-CLI downloads the exports. Asks for the server project name (`{projectName}` uses the local name).
+- **Coolify project CLI** (`provider: coolify-cli`): the server's `project` command exports files and database; A-CLI downloads the exports. Asks nothing beyond the SSH connection: the project is chosen at `acli import`, from the server's list.
 
 Every flag has a matching prompt, so `acli profile create agency --provider ssh --host staging.example.com --yes` works non-interactively.
 

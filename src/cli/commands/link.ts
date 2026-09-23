@@ -57,6 +57,7 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
       type: "wordpress",
       environment,
       profile: selection.profileName,
+      ...(options.remoteProject && options.remoteProject !== projectName ? { remoteProject: options.remoteProject } : {}),
       linkedAt: new Date().toISOString(),
     });
 
@@ -69,6 +70,7 @@ export function registerLinkCommand(program: Command): void {
     .command("link")
     .description("Connect an existing local directory to a staging profile")
     .option("--name <name>", "Project name (defaults to the current directory name)")
+    .option("--remote-project <name>", "The project's name on the server, when it differs from the local name")
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--profile <profile>", "Use a named staging profile")
     .option("--config <path>", "Use an explicit A-CLI configuration file")

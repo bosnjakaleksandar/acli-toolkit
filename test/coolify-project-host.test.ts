@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
 import fs from "fs-extra";
+import YAML from "yaml";
 import { CoolifyProjectHost, parseExportPath, parseSelectionMenu } from "../src/providers/coolify/CoolifyProjectHost.ts";
 import { createRemoteBackend } from "../src/providers/registry.ts";
 import { createProfileImportSource } from "../src/wordpress/import/sources/RemoteSource.ts";
@@ -19,10 +20,9 @@ import type { Profile } from "../src/core/model/Profile.ts";
 const rawProfile = {
   provider: "coolify-cli",
   ssh: { host: "staging.example.com", username: "developer" },
-  coolify: { project: "{projectName}" },
 } as unknown as Profile;
 
-const resolve = (profile: Profile = rawProfile, projectName = "Demo") => resolveRemoteProfile(profile, { projectName });
+const resolve = (profile: Profile = rawProfile, projectName = "Demo", target: { remoteProject?: string; selections?: Record<string, string> } = {}) => resolveRemoteProfile(profile, { projectName, ...target });
 
 class NoToolCheckHost extends CoolifyProjectHost {
   requiredTools(): string[] { return []; }
@@ -223,13 +223,13 @@ test("a database menu without a configured choice stops with an actionable error
   await assert.rejects(() => new CoolifyProjectHost(resolve(), runner).exportDatabase("/tmp/unused", null), (error: any) => {
     assert.equal(error.code, "COOLIFY_SELECTION_REQUIRED");
     assert.match(error.message, /ky2690jqn73mdajl8t48tn6r, gk6zccy4rbmh5dlbruv9ypnj/);
-    assert.match(error.hint, /coolify\.database/);
+    assert.match(error.hint, /selections\.database/);
     return true;
   });
   assert.deepEqual(stdins, [""], "never guesses an answer");
 });
 
-test("coolify.database answers the menu by name, matching the label or the container name", async () => {
+test("a remembered database selection answers the menu by name, matching the label or the container name", async () => {
   await withTempDir(async (directory) => {
     const exportPath = "/var/backups/project-databases/demo/demo_1.sql.gz";
     const fixture = path.join(directory, "fixture.sql.gz");
@@ -238,12 +238,12 @@ test("coolify.database answers the menu by name, matching the label or the conta
       const target = path.join(directory, database);
       await fs.ensureDir(target);
       const { stdins, runner } = menuRunner(exportPath, fixture);
-      await new CoolifyProjectHost(resolve({ ...rawProfile, coolify: { project: "{projectName}", database } } as Profile), runner).exportDatabase(target, null);
+      await new CoolifyProjectHost(resolve(rawProfile, "Demo", { selections: { database } }), runner).exportDatabase(target, null);
       assert.deepEqual(stdins, ["", "2\n"]);
       assert.ok(await fs.pathExists(path.join(target, "staging.sql")));
     }
     const { runner } = menuRunner(exportPath, fixture);
-    await assert.rejects(() => new CoolifyProjectHost(resolve({ ...rawProfile, coolify: { project: "{projectName}", database: "missing" } } as Profile), runner).exportDatabase(directory, null), (error: any) => error.code === "COOLIFY_SELECTION_NOT_FOUND");
+    await assert.rejects(() => new CoolifyProjectHost(resolve(rawProfile, "Demo", { selections: { database: "missing" } }), runner).exportDatabase(directory, null), (error: any) => error.code === "COOLIFY_SELECTION_NOT_FOUND");
   });
 });
 
@@ -289,15 +289,42 @@ test("import and pull build an interactive Coolify backend unless the run is non
   assert.equal((createRemoteBackend(resolve(), { interactive: true }) as CoolifyProjectHost).chooseOption !== null, true);
 });
 
-test("coolify-cli profiles validate without remote/database and resolve the server project name", () => {
-  assert.doesNotThrow(() => validateProfileConfig({ ...rawProfile, coolify: { project: "acme client site" } } as Profile));
-  assert.throws(() => validateProfileConfig({ provider: "coolify-cli", ssh: rawProfile.ssh } as unknown as Profile), /coolify.project is required/);
-  assert.throws(() => validateProfileConfig({ ...rawProfile, coolify: { project: "demo; rm -rf /" } } as Profile), /coolify.project must be/);
+test("a coolify-cli profile describes only the server; the project comes from the import/link", () => {
+  assert.doesNotThrow(() => validateProfileConfig(rawProfile));
+  assert.doesNotThrow(() => validateProfileConfig({ ...rawProfile, coolify: { gitHost: "gitlab.example.com" } } as Profile));
+  assert.throws(() => validateProfileConfig({ ...rawProfile, coolify: { project: "{projectName}" } } as unknown as Profile), /coolify\.project is no longer part of a profile/);
+  assert.throws(() => validateProfileConfig({ ...rawProfile, coolify: { database: "db" } } as unknown as Profile), /coolify\.database is no longer part of a profile/);
   assert.throws(() => validateProfileConfig({ ...rawProfile, provider: "ftp" } as unknown as Profile), /provider must be/);
 
-  const fixed = resolve({ ...rawProfile, coolify: { project: "acme client site", gitHost: "gitlab.example.com" } } as Profile, "acme-client-site");
-  assert.deepEqual(fixed.coolify, { project: "acme client site", gitHost: "gitlab.example.com" });
-  assert.equal(resolve().coolify!.project, "Demo");
+  assert.equal(resolve().coolify!.project, "Demo", "defaults to the local project name");
+  const named = resolve({ ...rawProfile, coolify: { gitHost: "gitlab.example.com" } } as Profile, "acme-client-site", { remoteProject: "Acme Client Site", selections: { database: "main-db" } });
+  assert.deepEqual(named.coolify, { project: "Acme Client Site", gitHost: "gitlab.example.com", database: "main-db" });
+  assert.throws(() => resolve(rawProfile, "demo", { remoteProject: "demo; rm -rf /" }), /Unsafe server project name/);
+});
+
+test("an interactive answer is reported so the project link can remember it", async () => {
+  await withTempDir(async (directory) => {
+    const exportPath = "/var/backups/project-databases/demo/demo_1.sql.gz";
+    const fixture = path.join(directory, "fixture.sql.gz");
+    await fs.writeFile(fixture, gzipSync(`CREATE TABLE \`wp_options\` (id int);\n${"-- padding\n".repeat(20)}`));
+    const { runner } = menuRunner(exportPath, fixture);
+    const remembered: [string, string][] = [];
+    const host = new CoolifyProjectHost(resolve(), runner, { chooseOption: async () => 2, onSelection: (key, value) => remembered.push([key, value]) });
+    await host.exportDatabase(directory, null);
+    assert.deepEqual(remembered, [["database", "gk6zccy4rbmh5dlbruv9ypnj"]]);
+  });
+});
+
+test("import writes the server project name and remembered answers into the project link", async () => {
+  await withTempDir(async (directory) => {
+    const source = createProfileImportSource(((profile: any) => createRemoteBackend(profile)) as any);
+    const ctx: any = { targetDir: directory, projectName: "acme-client-site", environment: "docker", remoteProject: "Acme Client Site", selections: { database: "main-db" }, profile: { ...resolve(rawProfile, "acme-client-site", { remoteProject: "Acme Client Site" }), profileName: "cloud" } };
+    await source.linkProfile!(directory, ctx);
+    const link = YAML.parse(await fs.readFile(path.join(directory, ".acli", "config.yaml"), "utf8")).project;
+    assert.equal(link.profile, "cloud");
+    assert.equal(link.remoteProject, "Acme Client Site");
+    assert.deepEqual(link.selections, { database: "main-db" });
+  });
 });
 
 test("createRemoteBackend picks the backend from the profile provider", () => {

@@ -4,7 +4,7 @@ import { isSafeGitUrl, redactUrlCredentials } from "../../../system/safety.ts";
 import { applyGitSshHostAlias, linkGitRemote } from "../../../system/git.ts";
 import type { ImportSource, ImportSourceContext } from "../ImportSource.ts";
 import type { RemoteFacts } from "../../../core/model/RemoteFacts.ts";
-import type { ResolvedProfile } from "../../../core/model/Profile.ts";
+import type { CoolifySelection, ResolvedProfile } from "../../../core/model/Profile.ts";
 import { CliError } from "../../../core/errors.ts";
 
 export interface ProfileImportContext extends ImportSourceContext {
@@ -14,6 +14,10 @@ export interface ProfileImportContext extends ImportSourceContext {
   skipFiles?: boolean;
   skipGitInit?: boolean;
   nonInteractive?: boolean;
+  /** The project's name on the server, when it differs from projectName. */
+  remoteProject?: string;
+  /** Server prompt answers given during this run, remembered in the project link. */
+  selections?: CoolifySelection;
   presetName?: string;
   stagingUrl?: string;
   gitStatus?: string;
@@ -34,7 +38,13 @@ export function createProfileImportSource(
   remoteHostFactory: RemoteBackendFactory = createRemoteBackend,
   gitLinker: GitLinker = linkGitRemote,
 ): ImportSource {
-  const remote = (ctx: ImportSourceContext) => remoteHostFactory((ctx as ProfileImportContext).profile, { interactive: !(ctx as ProfileImportContext).nonInteractive });
+  const remote = (ctx: ImportSourceContext) => {
+    const c = ctx as ProfileImportContext;
+    return remoteHostFactory(c.profile, {
+      interactive: !c.nonInteractive,
+      onSelection: (key, value) => { c.selections = { ...c.selections, [key]: value }; },
+    });
+  };
 
   return {
     label: "Staging profile",
@@ -69,6 +79,8 @@ export function createProfileImportSource(
         type: "wordpress",
         environment: c.environment!,
         profile: c.profile.profileName,
+        ...(c.remoteProject && c.remoteProject !== c.projectName ? { remoteProject: c.remoteProject } : {}),
+        ...(c.selections && Object.keys(c.selections).length ? { selections: c.selections } : {}),
         linkedAt: new Date().toISOString(),
       });
       return c.profile.profileName ?? null;

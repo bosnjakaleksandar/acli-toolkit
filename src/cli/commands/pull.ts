@@ -6,7 +6,7 @@ import { ask } from "../../ui/prompts.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
 import { loadProfile } from "../../profiles/loadProfile.ts";
 import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
-import { findProjectRoot, readLink } from "../../profiles/ProjectLink.ts";
+import { findProjectRoot, readLink, writeLink } from "../../profiles/ProjectLink.ts";
 import { getProjectConfigPath } from "../../config/paths.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { PullService, resolvePullTargets, ALL_TARGETS } from "../../wordpress/pull/PullService.ts";
@@ -58,7 +58,7 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
     const { config } = await loadConfig({ cwd: projectRoot, configPath: explicitConfigPath });
     const rawProfile = loadProfile(link.profile, config);
     if (!rawProfile) throw new CliError(`Profile "${link.profile}" was not found.`, { code: "PROFILE_NOT_FOUND" });
-    const profile = resolveRemoteProfile(rawProfile, { projectName: link.name });
+    const profile = resolveRemoteProfile(rawProfile, { projectName: link.name, ...(link.remoteProject ? { remoteProject: link.remoteProject } : {}), ...(link.selections ? { selections: link.selections } : {}) });
 
     if (options.dryRun) {
       console.log(JSON.stringify({ project: link.name, environment: link.environment, targets: finalTargets, profile: link.profile }, null, 2));
@@ -73,13 +73,20 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
 
     const envService = resolveEnvironmentService(link.environment);
     const pull = new PullService(envService);
-    const ctx = { projectName: link.name, environment: link.environment, profile, keepDump: Boolean(options.keepDump), nonInteractive, resumeCommand: "acli pull db --keep-dump" };
+    // Answers to the server's "which container/database?" prompts are saved
+    // to the project link, so the next pull doesn't ask again.
+    const selections: Record<string, string> = {};
+    const ctx = { projectName: link.name, environment: link.environment, profile, keepDump: Boolean(options.keepDump), nonInteractive, resumeCommand: "acli pull db --keep-dump", onSelection: (key: string, value: string) => { selections[key] = value; } };
 
     await mascot.show("working", `Pulling ${finalTargets.join(", ")}...`);
     mascot.stop();
     const s = spinner();
     s.start(`Pulling ${finalTargets.join(", ")}...`);
-    await pull.pull(projectRoot, ctx, finalTargets, { keepDump: Boolean(options.keepDump) }, s);
+    try {
+      await pull.pull(projectRoot, ctx, finalTargets, { keepDump: Boolean(options.keepDump) }, s);
+    } finally {
+      if (Object.keys(selections).length) await writeLink(projectRoot, { ...link, selections: { ...link.selections, ...selections } });
+    }
     s.stop("Pull complete.");
 
     await mascot.show("success", "Pull complete.");

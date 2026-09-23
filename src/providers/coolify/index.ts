@@ -1,14 +1,13 @@
-import { isObject } from "../../core/objects.ts";
-import { CoolifyProjectHost } from "./CoolifyProjectHost.ts";
+import { isObject, REMOTE_PROJECT_PATTERN } from "../../core/objects.ts";
+import { CoolifyProjectHost, projectSlug } from "./CoolifyProjectHost.ts";
 import { askSelectionMenu } from "./prompts.ts";
 import type { ProviderDefinition } from "../contract.ts";
 
-// Server project names may contain spaces ("acme client site"); the value is
-// always shell-quoted before it reaches the remote `project` CLI.
-export const COOLIFY_PROJECT_PATTERN = /^[A-Za-z0-9{][A-Za-z0-9 {}._-]*$/;
 const HOSTNAME_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/;
-const COOLIFY_KEYS = new Set(["project", "gitHost", "database", "databaseName", "wordpressContainer"]);
-const SELECTION_KEYS = ["database", "databaseName", "wordpressContainer"] as const;
+const COOLIFY_KEYS = new Set(["gitHost"]);
+// Fields that moved out of the profile in 2.1: which project is chosen at
+// import, and prompt answers are remembered per project in its link.
+const MOVED_KEYS = new Set(["project", "database", "databaseName", "wordpressContainer"]);
 
 // The WordPress install lives inside a Coolify-managed container that A-CLI
 // never touches directly; this is the container path the server-side
@@ -22,19 +21,19 @@ export const coolifyProvider: ProviderDefinition = {
 
   validate(profile, label, errors) {
     const coolify = profile.coolify as unknown;
-    if (!isObject(coolify)) { errors.push(`${label}: coolify.project is required for provider: coolify-cli.`); return; }
-    for (const key of Object.keys(coolify)) if (!COOLIFY_KEYS.has(key)) errors.push(`${label}: unknown field "coolify.${key}".`);
-    if (typeof coolify.project !== "string" || !COOLIFY_PROJECT_PATTERN.test(coolify.project)) errors.push(`${label}: coolify.project must be a project name as printed by \`project list\` (letters, digits, spaces, . _ -).`);
-    if (coolify.gitHost !== undefined && (typeof coolify.gitHost !== "string" || !HOSTNAME_PATTERN.test(coolify.gitHost))) errors.push(`${label}: coolify.gitHost must be a hostname, e.g. github.com.`);
-    for (const key of SELECTION_KEYS) {
-      if (coolify[key] !== undefined && (typeof coolify[key] !== "string" || !/^[A-Za-z0-9._-]+$/.test(coolify[key] as string))) errors.push(`${label}: coolify.${key} must be a name as printed in the server's selection menu.`);
+    if (coolify === undefined) return;
+    if (!isObject(coolify)) { errors.push(`${label}: coolify must be a mapping.`); return; }
+    for (const key of Object.keys(coolify)) {
+      if (MOVED_KEYS.has(key)) errors.push(`${label}: coolify.${key} is no longer part of a profile — a profile describes the server; the project is chosen with \`acli import [project]\` and prompt answers are remembered in the project's .acli/config.yaml. Remove the field.`);
+      else if (!COOLIFY_KEYS.has(key)) errors.push(`${label}: unknown field "coolify.${key}".`);
     }
+    if (coolify.gitHost !== undefined && (typeof coolify.gitHost !== "string" || !HOSTNAME_PATTERN.test(coolify.gitHost))) errors.push(`${label}: coolify.gitHost must be a hostname, e.g. github.com.`);
   },
 
-  resolve(profile, render) {
-    const project = render(profile.coolify?.project);
-    if (!project || !COOLIFY_PROJECT_PATTERN.test(project)) throw new Error(`Unsafe value for profile field "coolify.project": ${JSON.stringify(project)}.`);
-    const { database, databaseName, wordpressContainer } = profile.coolify || {};
+  resolve(profile, _render, target) {
+    const project = target.remoteProject || target.projectName;
+    if (!project || !REMOTE_PROJECT_PATTERN.test(project)) throw new Error(`Unsafe server project name: ${JSON.stringify(project)}.`);
+    const { database, databaseName, wordpressContainer } = target.selections || {};
     return {
       remote: { projectRoot: WORDPRESS_ROOT, wordpressRoot: WORDPRESS_ROOT },
       coolify: { project, gitHost: profile.coolify?.gitHost || "github.com", ...(database ? { database } : {}), ...(databaseName ? { databaseName } : {}), ...(wordpressContainer ? { wordpressContainer } : {}) },
@@ -43,9 +42,9 @@ export const coolifyProvider: ProviderDefinition = {
 
   tools: () => ["ssh", "scp", "tar"],
 
-  describe: (profile) => `Coolify project CLI · ${profile.coolify?.project === "{projectName}" ? "server project = local project name" : `server project "${profile.coolify?.project}"`}`,
+  describe: () => "Coolify project CLI",
 
-  summary: (profile) => [`Coolify project: ${profile.coolify?.project}`, "Database and files: exported with the server's project CLI (pull-only)"],
+  summary: () => ["Database and files: exported with the server's project CLI (pull-only)"],
 
   plan(profile, ctx) {
     return {
@@ -56,13 +55,13 @@ export const coolifyProvider: ProviderDefinition = {
   },
 
   // Menu selections only answer the server's "which container/database?"
-  // prompt; adding one to get past that prompt must not invalidate a
-  // --resume of the files already fetched.
+  // prompt, so they don't count; the project counts by its slug, so resuming
+  // "Acme Site" as "acme-site" is the same run.
   fingerprint(profile) {
     if (!profile.coolify) return profile;
-    const { database: _database, databaseName: _databaseName, wordpressContainer: _wordpressContainer, ...coolify } = profile.coolify;
-    return { ...profile, coolify };
+    const { database: _database, databaseName: _databaseName, wordpressContainer: _wordpressContainer, project, ...coolify } = profile.coolify;
+    return { ...profile, coolify: { ...coolify, project: projectSlug(project) } };
   },
 
-  create: (profile, runner, { interactive = false }) => new CoolifyProjectHost(profile, runner, { chooseOption: interactive ? askSelectionMenu : null }),
+  create: (profile, runner, { interactive = false, onSelection }) => new CoolifyProjectHost(profile, runner, { chooseOption: interactive ? askSelectionMenu : null, ...(onSelection ? { onSelection } : {}) }),
 };

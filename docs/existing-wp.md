@@ -63,7 +63,16 @@ acli pull db --yes
 
 ## Coolify staging servers
 
-When the staging server only exposes the `project` CLI (Coolify), use a profile with `provider: coolify-cli` — see [examples/config/coolify.yaml](https://github.com/bosnjakaleksandar/project-setup/blob/main/examples/config/coolify.yaml). Import and pull then work the same way, but each step goes through the server's own exports:
+When the staging server only exposes the `project` CLI (Coolify), use a profile with `provider: coolify-cli` — see [examples/config/coolify.yaml](https://github.com/bosnjakaleksandar/project-setup/blob/main/examples/config/coolify.yaml). The profile describes only the server (host, SSH user, key, Git alias); one profile serves every project on it. The project is chosen per import:
+
+```bash
+acli import                        # pick from the projects the server assigns to you
+acli import "Acme Client Site"     # or name it; the local folder defaults to acme-client-site
+```
+
+The project's `.acli/config.yaml` remembers its server name (`remoteProject`, when it differs from the local name) and any prompt answers (`selections`), so `acli pull` in that folder needs no arguments. To link an existing folder, use `acli link --remote-project "Acme Client Site"`.
+
+Import and pull then work the same way as with ssh profiles, but each step goes through the server's own exports:
 
 | A-CLI step | Server command |
 | --- | --- |
@@ -77,4 +86,4 @@ This stays strictly pull-only: A-CLI never sends `wp-import`, `db-import`, `db-b
 Things to know:
 
 - Every export stays on the server in its backup directory, and developers cannot delete it; ask the server administrator about retention.
-- If a project has more than one WordPress or database container, or more than one database, the server asks which one to use. In an interactive run A-CLI asks the same question and passes your answer on (once per run); with `--yes`/`--non-interactive` it stops with `COOLIFY_SELECTION_REQUIRED` and lists the choices. To skip the question, set `coolify.database`, `coolify.databaseName` or `coolify.wordpressContainer` in the profile to the name the server shows, then `acli import --resume`. A-CLI answers the menu by that name, never by position, and adding the setting does not invalidate the resume.
+- If a project has more than one WordPress or database container, or more than one database, the server asks which one to use. In an interactive run A-CLI asks the same question, passes your answer on, and remembers it in the project's `.acli/config.yaml` (`selections.database`, `selections.databaseName`, `selections.wordpressContainer`), so later pulls don't ask again. With `--yes`/`--non-interactive` it stops with `COOLIFY_SELECTION_REQUIRED` and lists the choices. A-CLI answers the menu by name, never by position.

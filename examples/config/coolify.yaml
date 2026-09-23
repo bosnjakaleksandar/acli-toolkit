@@ -12,15 +12,11 @@ profiles:
       host: staging.example.com
       username: developer
       identityFile: ~/.ssh/staging
-    coolify:
-      # Project name exactly as `project list` prints it on the server.
-      project: "{projectName}"
-      # Host used for the SSH Git origin built from `project status`.
-      # gitHost: github.com
-      # When the server asks which one to use, answer by the name it shows:
-      # database: <database container>
-      # databaseName: <database inside that container>
-      # wordpressContainer: <WordPress service or container>
+    # No project here: a profile describes the server. `acli import` lists
+    # the server's projects (or takes one as an argument), and each project's
+    # .acli/config.yaml remembers its server name and prompt answers.
+    # coolify:
+    #   gitHost: github.com   # host for the SSH Git origin from `project status`
     git:
       enabled: true
       # sshHostAlias: github-work

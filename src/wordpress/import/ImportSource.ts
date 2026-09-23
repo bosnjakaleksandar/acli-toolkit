@@ -4,6 +4,8 @@ import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
  * Public flags accepted by the profile-backed `acli import` command.
  */
 export interface ImportOptions {
+  /** The project's name on the server (`acli import [project]`); picked from the server's list when omitted. */
+  project?: string;
   name?: string;
   environment?: string;
   env?: string;

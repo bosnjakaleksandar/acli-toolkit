@@ -15,11 +15,14 @@ import { maybeInstallDependencies } from "../../system/dependencies.ts";
 import { maybeInitializeGit } from "../../system/git.ts";
 import { buildNextSteps } from "../../projects/nextSteps.ts";
 import { runLocalPreflight } from "../../system/preflight.ts";
-import { validateProjectName } from "../../projects/plan/projectName.ts";
+import { toProjectName, validateProjectName } from "../../projects/plan/projectName.ts";
 import { buildSuccessSummary, formatCreateError } from "../../ui/summaries.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
 import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
 import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
+import { createRemoteBackend } from "../../providers/registry.ts";
+import { shellQuote } from "../../providers/sshArgs.ts";
+import { REMOTE_PROJECT_PATTERN } from "../../core/objects.ts";
 import type { ImportCommandOptions } from "../options.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
 
@@ -28,8 +31,11 @@ import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
  * through a configured staging profile.
  *
  * Profile availability is checked before any project questions: no profile
- * is an error, a sole profile is selected automatically, and multiple
- * profiles are presented for selection unless --profile already chose one.
+ * is an error, --profile or the default profile wins, a sole profile is
+ * selected automatically, and otherwise the user picks one. A profile
+ * describes a server; which project on it to import is the `[project]`
+ * argument, or — when the server can list its projects — picked from that
+ * list.
  */
 export async function importCommand(options: ImportCommandOptions = {}): Promise<void> {
   await runCommand({ title: "IMPORT", icon: "📥", failureMessage: "Import failed." }, async (shell) => {
@@ -57,9 +63,15 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
     });
     const source = ProfileImportSource;
 
-    const name = options.name || (nonInteractive ? undefined : await ask(text, {
-      message: "Project directory/name:",
-      initialValue: "project-name",
+    if (options.project !== undefined && !REMOTE_PROJECT_PATTERN.test(options.project)) {
+      throw new CliError(`"${options.project}" is not a valid server project name.`, { code: "USAGE", hint: "Use the name exactly as the server lists it (letters, digits, spaces, . _ -)." });
+    }
+    let remoteProject = options.project;
+    if (!remoteProject && !options.resume && !nonInteractive) remoteProject = await pickServerProject(selection.profile!);
+
+    const name = options.name || (nonInteractive ? (remoteProject ? toProjectName(remoteProject) : undefined) : await ask(text, {
+      message: "Local project directory/name:",
+      initialValue: remoteProject ? toProjectName(remoteProject) : "project-name",
       validate: validateProjectName,
     }));
     if (!name) throw new MissingOptionError(["--name <directory>"]);
@@ -96,15 +108,20 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       stagingUrl: options.remoteUrl,
       keepDump: Boolean(options.keepDump),
       nonInteractive,
+      remoteProject,
+      selections: {},
     };
 
-    ctx.profile = resolveRemoteProfile(selection.profile!, { projectName: ctx.projectName });
+    ctx.profile = resolveRemoteProfile(selection.profile!, { projectName: ctx.projectName, remoteProject });
     ctx.stagingUrl = ctx.stagingUrl || ctx.profile.urls?.staging || undefined;
-    if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment, ctx.projectName), `Selected profile: ${selection.profileName}`);
+    if (!nonInteractive) {
+      const serverProject = remoteProject && remoteProject !== ctx.projectName ? `\nServer project: ${remoteProject}` : "";
+      note(profileSummary(selection.profile!, ctx.environment, ctx.projectName) + serverProject, `Selected profile: ${selection.profileName}`);
+    }
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;
-    resumeCommand = `acli import --resume --name ${ctx.projectName}`;
+    resumeCommand = `acli import ${remoteProject && remoteProject !== ctx.projectName ? `${shellQuote(remoteProject)} ` : ""}--resume --name ${ctx.projectName}`;
 
     if (options.dryRun) {
       const envServiceForPlan = resolveEnvironmentService(ctx.environment);
@@ -156,10 +173,23 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
 }
 
 
+/**
+ * Asks which server project to import, when the profile's server can list
+ * them. Resolved against a placeholder project name — listing doesn't
+ * depend on which project is chosen.
+ */
+async function pickServerProject(profile: Parameters<typeof resolveRemoteProfile>[0]): Promise<string | undefined> {
+  const backend = createRemoteBackend(resolveRemoteProfile(profile, { projectName: "project-list" }));
+  if (!backend.listProjects) return undefined;
+  const projects = await backend.listProjects();
+  if (!projects.length) throw new CliError("No projects on this server are assigned to you.", { code: "NO_REMOTE_PROJECTS", hint: "Ask the server administrator to grant you access to a project." });
+  return (await ask(select, { message: "Which project do you want to import?", options: projects.map((project) => ({ label: project, value: project })) })) as string;
+}
+
 export function registerImportCommand(program: Command): void {
   program
-    .command("import")
-    .description("Import an existing WordPress site through a configured staging profile")
+    .command("import [project]")
+    .description("Import an existing WordPress site through a configured staging profile. [project] is its name on the server; omit it to pick from the server's list")
     .option("--name <name>", "Project directory/name")
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")
@@ -177,5 +207,5 @@ export function registerImportCommand(program: Command): void {
     .option("--keep-dump", "Keep staging.sql after a successful migration")
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
-    .action((options: ImportCommandOptions) => importCommand(options));
+    .action((project: string | undefined, options: ImportCommandOptions) => importCommand({ ...options, ...(project !== undefined ? { project } : {}) }));
 }

@@ -4,7 +4,7 @@ import { coolifyProvider } from "./coolify/index.ts";
 import type { Profile, ResolvedProfile } from "../core/model/Profile.ts";
 import type { ProviderDefinition, RemoteBackend, RemoteBackendOptions } from "./contract.ts";
 
-export type { ProviderDefinition, RemoteBackend, RemoteBackendFactory, RemoteBackendOptions, RemoteGitOrigin, SyncFilesOptions } from "./contract.ts";
+export type { ProjectTarget, ProviderDefinition, RemoteBackend, RemoteBackendFactory, RemoteBackendOptions, RemoteGitOrigin, SyncFilesOptions } from "./contract.ts";
 
 const PROVIDERS: Record<string, ProviderDefinition> = Object.fromEntries([sshProvider, coolifyProvider].map((provider) => [provider.name, provider]));
 

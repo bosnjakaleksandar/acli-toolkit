@@ -2,6 +2,7 @@ import { normalizeProfile } from "../profiles/normalizeProfile.ts";
 import { providerFor } from "./registry.ts";
 import { renderTemplate, SAFE_TEMPLATE_VALUE } from "./template.ts";
 import type { Profile, ResolvedProfile } from "../core/model/Profile.ts";
+import type { ProjectTarget } from "./contract.ts";
 
 export { renderTemplate } from "./template.ts";
 
@@ -28,7 +29,7 @@ function assertSafeSshField(value: string, label: string): string {
  * resolving twice would join it onto itself. The distinct `ResolvedProfile`
  * return type (rather than a narrowed `Profile`) makes that a compile error.
  */
-export function resolveRemoteProfile(rawProfile: Profile, ctx: { projectName: string }): ResolvedProfile {
+export function resolveRemoteProfile(rawProfile: Profile, ctx: ProjectTarget): ResolvedProfile {
   if (!rawProfile) throw new Error("Existing WordPress setup requires --profile <name|path>.");
   const profile = normalizeProfile(rawProfile);
   const variables = { projectName: ctx.projectName };
@@ -41,7 +42,7 @@ export function resolveRemoteProfile(rawProfile: Profile, ctx: { projectName: st
     hostKeyPolicy: profile.ssh.hostKeyPolicy || "strict",
   };
   const provider = providerFor(profile);
-  const { remote, coolify } = provider.resolve(profile, resolve);
+  const { remote, coolify } = provider.resolve(profile, resolve, ctx);
   return {
     ...profile,
     __resolved: true,

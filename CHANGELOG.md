@@ -10,13 +10,15 @@ This release narrows `acli import` / `acli pull` to two well-defined ways of rea
 
 ### Added
 
-- `provider: coolify-cli` profiles for Coolify staging servers that expose only the `project` CLI: imports and pulls use `project db-export`/`project wp-export` plus `scp`, and Git linking uses the repository and deployed branch from `project status`. When the server asks which container or database to use, A-CLI asks the same question (or reads `coolify.database` / `coolify.databaseName` / `coolify.wordpressContainer`). See `examples/config/coolify.yaml`.
+- `provider: coolify-cli` profiles for Coolify staging servers that expose only the `project` CLI: imports and pulls use `project db-export`/`project wp-export` plus `scp`, and Git linking uses the repository and deployed branch from `project status`. When the server asks which container or database to use, A-CLI asks the same question and remembers the answer in the project link. See `examples/config/coolify.yaml`.
 - `acli pull languages` target (skipped for profiles that don't define it).
 - `acli profile create` asks which provider to use and then only that provider's questions; `--provider` selects it non-interactively.
+- `acli import [project]`: for a Coolify profile, the project is picked from the server's `project list` (or given as the argument), and the local folder name defaults to it. The project link remembers the server name (`remoteProject`) and prompt answers (`selections`), so `acli pull` doesn't ask again. `acli link --remote-project <name>` does the same for an existing folder.
 
 ### Changed
 
 - Remote access is organized as self-contained providers (`src/providers/ssh`, `src/providers/coolify`) behind one contract; the import/pull core no longer branches on the kind of server.
+- A Coolify profile describes only the server: `coolify.project` and the `coolify.database*` selections moved to the project link, and profiles that still set them fail validation with instructions.
 - Profiles and the default profile live only in the user config. A project `.acli/config.yaml` that declares them is rejected with instructions; it keeps the project link and create defaults/presets.
 - `acli import` and `acli link` use the default profile from `acli profile use` when `--profile` isn't given.
 - `acli create` now only scaffolds new projects; existing WordPress sites use the separate, profile-backed `acli import` workflow.

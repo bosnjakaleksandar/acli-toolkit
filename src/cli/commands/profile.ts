@@ -76,7 +76,6 @@ export function registerProfileCommand(program: Command): void {
     .option("--config <path>").option("--host <host>").option("--port <port>").option("--username <username>", "SSH username (may use {projectName})")
     .option("--identity-file <path>").option("--host-key-policy <policy>")
     .option("--project-root <path>", "ssh: remote project root").option("--wordpress-root <path>", "ssh: WordPress root relative to the project root").option("--directories <list>", "ssh: wp-content directories to sync")
-    .option("--coolify-project <name>", "coolify-cli: server project name (default {projectName})")
     .option("--staging-url <url>").option("--git", "Link the site's Git repository").option("--no-git", "Do not link the Git repository").option("--git-ssh-host-alias <alias>", "Local ~/.ssh/config Host alias for fetched Git remotes")
     .option("--force", "Replace an existing profile").option("--yes", "Do not prompt")
     .action(async (name: string | undefined, options: ProfileCommandOptions) => { await createProfileCommand(name, options); });

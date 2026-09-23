@@ -76,7 +76,7 @@ export class PullService {
     // profile can sync".
     // One backend for the whole pull, so an answer picked interactively
     // (e.g. which database container) is reused by later steps.
-    const remote = this.remoteHostFactory(ctx.profile, { interactive: !ctx.nonInteractive });
+    const remote = this.remoteHostFactory(ctx.profile, { interactive: !ctx.nonInteractive, ...(ctx.onSelection ? { onSelection: ctx.onSelection } : {}) });
     const supported = requestedFiles.length ? remote.fileTargets() : [];
     const fileTargets = requestedFiles.filter((target) => supported.includes(target));
     const unsupported = requestedFiles.filter((target) => !supported.includes(target));

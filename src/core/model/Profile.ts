@@ -1,7 +1,8 @@
 /**
  * Answers to the server `project` CLI's "which one?" menus, by name as the
  * menu prints it — needed when a project has more than one WordPress or
- * database container, or more than one database in its container.
+ * database container, or more than one database in its container. Stored
+ * per project, in its link (see ProjectLink.selections).
  */
 export interface CoolifySelection {
   /** Database container: the name shown in the menu, or the container name under it. */
@@ -29,12 +30,11 @@ export interface Profile {
    * `database` are then not used, and `coolify` is required instead.
    */
   provider?: "ssh" | "coolify-cli";
+  /** coolify-cli provider only. Which project on the server is chosen per import, not here. */
   coolify?: {
-    /** Project name as `project list` prints it on the server. May use `{projectName}`. */
-    project: string;
     /** Host used to turn `project status`'s `owner/repo` into an SSH Git URL. Defaults to github.com. */
     gitHost?: string;
-  } & CoolifySelection;
+  };
   ssh: {
     host: string;
     port?: number | string;
@@ -92,7 +92,7 @@ export interface ResolvedProfile {
   profileName?: string;
   projectName: string;
   provider: "ssh" | "coolify-cli";
-  /** Present only for the "coolify-cli" provider, with `project` already rendered. */
+  /** Present only for the "coolify-cli" provider: the server project for this run and its remembered selections. */
   coolify?: { project: string; gitHost: string } & CoolifySelection;
   ssh: {
     host: string;

@@ -74,7 +74,7 @@ export function parseSelectionMenu(output: string): SelectionMenu | null {
 }
 
 /** Asks the user to pick a menu entry; resolves to the chosen option's number. */
-export type MenuChooser = (menu: SelectionMenu, context: { project: string; profileName: string }) => Promise<number>;
+export type MenuChooser = (menu: SelectionMenu, context: { project: string }) => Promise<number>;
 
 interface ProjectStatus {
   status?: string;
@@ -114,16 +114,19 @@ export class CoolifyProjectHost implements RemoteBackend {
   run: Runner;
   /** Interactive fallback for a menu the profile has no answer for; absent in non-interactive runs. */
   chooseOption: MenuChooser | null;
+  /** Told about each interactive answer, so it can be remembered in the project link. */
+  onSelection: ((key: SelectionKey, value: string) => void) | null;
   private serverProject: Promise<string> | null = null;
   // Entries picked interactively during this run, by menu, so a menu that
   // repeats (e.g. the WordPress container for every component) asks once.
   private chosen: Partial<Record<SelectionKey, string>> = {};
 
-  constructor(profile: ResolvedProfile, runner: Runner = runCommand, { chooseOption = null }: { chooseOption?: MenuChooser | null } = {}) {
+  constructor(profile: ResolvedProfile, runner: Runner = runCommand, { chooseOption = null, onSelection = null }: { chooseOption?: MenuChooser | null; onSelection?: ((key: SelectionKey, value: string) => void) | null } = {}) {
     if (profile.provider !== "coolify-cli" || !profile.coolify) throw new Error("CoolifyProjectHost requires a coolify-cli profile.");
     this.profile = profile;
     this.run = runner;
     this.chooseOption = chooseOption;
+    this.onSelection = onSelection;
   }
 
   /**
@@ -137,15 +140,20 @@ export class CoolifyProjectHost implements RemoteBackend {
     return this.serverProject;
   }
 
+  /** Projects assigned to this SSH user, as `project list` prints them. */
+  async listProjects(): Promise<string[]> {
+    return (await this.projectCommand("list")).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  }
+
   private async lookupProject(): Promise<string> {
     const wanted = this.profile.coolify!.project;
-    const projects = (await this.projectCommand("list")).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const projects = await this.listProjects();
     if (projects.includes(wanted)) return wanted;
     const matches = projects.filter((name) => projectSlug(name) === projectSlug(wanted));
     if (matches.length === 1) return matches[0]!;
     throw new CliError(matches.length ? `Project "${wanted}" matches several server projects: ${matches.join(", ")}.` : `Project "${wanted}" is not assigned to ${this.profile.ssh.username} on ${this.profile.ssh.host}.`, {
       code: "COOLIFY_PROJECT_NOT_FOUND",
-      hint: projects.length ? `Projects available to you: ${projects.join(", ")}. Set coolify.project in the profile to the exact name.` : "Ask the server administrator to grant you access to the project.",
+      hint: projects.length ? `Projects available to you: ${projects.join(", ")}. Pass the exact one, e.g. \`acli import "${projects[0]}"\`.` : "Ask the server administrator to grant you access to the project.",
     });
   }
 
@@ -272,27 +280,27 @@ export class CoolifyProjectHost implements RemoteBackend {
   private async chooseFromMenu(menu: SelectionMenu, spinner: Spinner | null): Promise<number> {
     const wanted = this.profile.coolify?.[menu.key] || this.chosen[menu.key];
     const available = menu.options.map((option) => option.names.at(-1)).join(", ");
-    const profileName = this.profile.profileName || "<profile>";
     if (!wanted && this.chooseOption) {
       spinner?.stop?.(`The server needs to know which of the ${menu.what} to use.`);
-      const number = await this.chooseOption(menu, { project: await this.project(), profileName });
+      const number = await this.chooseOption(menu, { project: await this.project() });
       const picked = menu.options.find((option) => option.number === number);
       if (!picked) throw new Error(`Invalid selection: ${number}.`);
       this.chosen[menu.key] = picked.names.at(-1)!;
+      this.onSelection?.(menu.key, this.chosen[menu.key]!);
       spinner?.start?.("Continuing export...");
       return number;
     }
     if (!wanted) {
       throw new CliError(`Project "${this.profile.coolify!.project}" has several ${menu.what} on the server: ${available}.`, {
         code: "COOLIFY_SELECTION_REQUIRED",
-        hint: `Run without --yes to choose interactively, or set coolify.${menu.key} in profile "${profileName}" to the one WordPress uses (check the project's resources in Coolify), then resume.`,
+        hint: `Run once without --yes to choose the one WordPress uses (A-CLI remembers it in the project's .acli/config.yaml), or set project.selections.${menu.key} there yourself, then resume.`,
       });
     }
     const match = menu.options.find((option) => option.names.includes(wanted));
     if (!match) {
-      throw new CliError(`coolify.${menu.key} "${wanted}" is not one of the ${menu.what} on the server: ${available}.`, {
+      throw new CliError(`The remembered ${menu.key} "${wanted}" is not one of the ${menu.what} on the server: ${available}.`, {
         code: "COOLIFY_SELECTION_NOT_FOUND",
-        hint: `Update coolify.${menu.key} in profile "${profileName}".`,
+        hint: `Update or remove project.selections.${menu.key} in the project's .acli/config.yaml.`,
       });
     }
     return match.number;
