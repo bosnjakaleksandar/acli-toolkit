@@ -53,17 +53,17 @@
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
-    "@clack/prompts": "^1.1.0",
+    "@clack/prompts": "^1.8.1",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "figlet": "^1.11.0",
     "fs-extra": "^11.3.4",
     "gradient-string": "^3.0.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.2.0",
     "typescript": "^7.0.2",
     "vitepress": "^1.6.0"
   },
