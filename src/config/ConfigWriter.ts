@@ -4,7 +4,6 @@ import YAML from "yaml";
 import { CONFIG_VERSION } from "./defaults.ts";
 import { readConfigFile } from "./ConfigLoader.ts";
 import { validateConfig } from "./schema.ts";
-import { trustConfig } from "./TrustStore.ts";
 import type { AcliConfig } from "../core/model/AcliConfig.ts";
 
 /**
@@ -20,18 +19,11 @@ export async function readWritableConfig(filePath: string, { allowProjectKey = f
   return config;
 }
 
-/**
- * Atomic (write-then-rename) write of a config document, mode 0600.
- * Also records the written content as trusted (see ConfigTrustService) —
- * a config A-CLI itself just authored is inherently trustworthy, so this
- * lets `loadConfig` distinguish it from a project config that merely
- * appeared in the working directory (e.g. via `git clone`).
- */
+/** Atomic (write-then-rename) write of a config document, mode 0600. */
 export async function writeConfigAtomic(filePath: string, config: AcliConfig): Promise<void> {
   await fs.ensureDir(path.dirname(filePath));
   const content = YAML.stringify(config);
   const temporary = `${filePath}.${process.pid}.tmp`;
   await fs.writeFile(temporary, content, { mode: 0o600 });
   await fs.rename(temporary, filePath);
-  await trustConfig(filePath, content);
 }

@@ -58,7 +58,6 @@ export interface ConfigCommandOptions {
   scope?: "project" | "user";
   config?: string;
   force?: boolean;
-  resolved?: boolean;
 }
 
 export interface DoctorCommandOptions {

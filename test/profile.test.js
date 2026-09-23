@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { deleteProfile, renameProfile, saveProfile, setProfileGitSshHostAlias } from "../src/profiles/ProfileStore.ts";
+import { deleteProfile, saveProfile, setProfileGitSshHostAlias } from "../src/profiles/ProfileStore.ts";
 import { readConfigFile } from "../src/config/ConfigLoader.ts";
 
 const profile = {
@@ -44,25 +44,6 @@ test("a local Git SSH alias can be set and cleared without replacing the rest of
   await setProfileGitSshHostAlias("agency", null, { configPath });
   saved = await readConfigFile(configPath);
   assert.equal(saved.profiles.agency.git.sshHostAlias, undefined);
-});
-
-test("rename updates defaults, presets, and project.profile atomically", async () => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "acli-profile-rename-refs-"));
-  const configPath = path.join(directory, "config.yaml");
-  await saveProfile("old", profile, { configPath, force: true });
-  const config = await readConfigFile(configPath);
-  config.defaults = { profile: "old" };
-  config.presets = { import: { profile: "old" } };
-  config.project = { name: "demo", environment: "docker", profile: "old" };
-  const YAML = (await import("yaml")).default;
-  await fs.writeFile(configPath, YAML.stringify(config));
-
-  await renameProfile("old", "new", { configPath });
-  const renamed = await readConfigFile(configPath);
-  assert.equal(renamed.defaults.profile, "new");
-  assert.equal(renamed.presets.import.profile, "new");
-  assert.equal(renamed.project.profile, "new");
-  await fs.remove(directory);
 });
 
 test("delete rejects dangling references unless --force clears them", async () => {

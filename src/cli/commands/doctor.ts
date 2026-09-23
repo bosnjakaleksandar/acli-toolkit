@@ -16,7 +16,7 @@ export async function doctorCommand(options: DoctorCommandOptions = {}): Promise
   const { config } = await loadConfig({ configPath: options.config });
   const preset = await loadPreset(options.preset, config);
   const presetProfileName = typeof preset.profile === "string" ? preset.profile : preset.profile?.profileName;
-  const profile = await loadProfile(options.profile || presetProfileName, config, process.cwd(), { commandRunner: () => "redacted" });
+  const profile = loadProfile(options.profile || presetProfileName, config);
   const requirements = new Set(["node", "npm", "git"]);
   const environment = options.environment || preset.environment || config.defaults?.environment;
   if (environment) requirements.add(environment as string);

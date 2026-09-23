@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
 import { pullCommand } from "../src/cli/commands/pull.ts";
-import { trustConfig } from "../src/config/TrustStore.ts";
+import { getUserConfigPath } from "../src/config/paths.ts";
 
 process.env.ACLI_QUIET = "1";
 process.env.ACLI_CONFIG_HOME = path.join(os.tmpdir(), `acli-pull-command-tests-${process.pid}`);
@@ -38,57 +38,47 @@ async function captureCliRun(run: () => Promise<void>): Promise<{ exitCode: numb
   }
 }
 
-test("pull discovers the linked project root when invoked from a nested directory", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-pull-nested-"));
-  const nested = path.join(root, "wp-content", "themes", "client-site");
-  await fs.ensureDir(path.join(root, ".acli"));
-  await fs.ensureDir(nested);
-  await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({
+async function writeUserProfile(): Promise<void> {
+  await fs.outputFile(getUserConfigPath(), YAML.stringify({
     version: 1,
-    project: {
-      name: "client-site",
-      environment: "docker",
-      profile: {
+    profiles: {
+      staging: {
         ssh: { host: "staging.example.com", username: "deploy" },
         remote: { projectRoot: "/srv/client-site", wordpressRoot: "wordpress" },
-        database: { driver: "wp-cli" },
       },
     },
   }));
+}
+
+test("pull discovers the linked project root when invoked from a nested directory", async () => {
+  await writeUserProfile();
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-pull-nested-"));
+  const nested = path.join(root, "wp-content", "themes", "client-site");
+  await fs.ensureDir(nested);
+  await fs.outputFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({
+    version: 1,
+    project: { name: "client-site", environment: "docker", profile: "staging" },
+  }));
 
   const result = await withCwd(nested, () => captureCliRun(() => pullCommand([], { dryRun: true, yes: true })));
-  assert.equal(result.exitCode, undefined);
+  assert.equal(result.exitCode, undefined, result.output);
   assert.match(result.output, /"project": "client-site"/);
   assert.match(result.output, /Dry run complete/);
   await fs.remove(root);
 });
 
-test("pull refuses a secret command in an untrusted profile referenced by the project link", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-pull-untrusted-profile-"));
-  await fs.ensureDir(path.join(root, ".acli"));
-  await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({
+test("a project config cannot declare profiles, so a cloned repo cannot redirect a pull to another server", async () => {
+  await writeUserProfile();
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-pull-project-profile-"));
+  await fs.outputFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({
     version: 1,
-    project: { name: "client-site", environment: "docker", profile: "./portable.yaml" },
+    profiles: { staging: { ssh: { host: "attacker.example.com", username: "x" }, remote: { projectRoot: "/x", wordpressRoot: "wp" } } },
+    project: { name: "client-site", environment: "docker", profile: "staging" },
   }));
-  const profilePath = path.join(root, "portable.yaml");
-  const portableText = YAML.stringify({
-    profile: {
-      ssh: { host: "staging.example.com", username: "deploy" },
-      remote: { projectRoot: "/srv/client-site", wordpressRoot: "wordpress" },
-      database: { driver: "direct", password: { command: "definitely-not-a-real-command" } },
-    },
-  });
-  await fs.writeFile(profilePath, portableText);
 
   const result = await withCwd(root, () => captureCliRun(() => pullCommand([], { dryRun: true, yes: true })));
   assert.equal(result.exitCode, 1);
-  assert.match(result.output, /Refusing to resolve secrets from profile source/);
-  assert.doesNotMatch(result.output, /ENOENT|definitely-not-a-real-command.*not found/);
-
-  await trustConfig(profilePath, portableText);
-  const trustedDryRun = await withCwd(root, () => captureCliRun(() => pullCommand([], { dryRun: true, yes: true })));
-  assert.equal(trustedDryRun.exitCode, undefined, trustedDryRun.output);
-  assert.match(trustedDryRun.output, /Dry run complete/);
-  assert.doesNotMatch(trustedDryRun.output, /ENOENT|definitely-not-a-real-command.*not found/);
+  assert.match(result.output, /live only in the user config/);
+  assert.doesNotMatch(result.output, /Dry run complete/);
   await fs.remove(root);
 });

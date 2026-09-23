@@ -5,7 +5,6 @@ import type { Command } from "commander";
 import { loadConfig } from "../../config/ConfigLoader.ts";
 import { getProjectConfigPath, getUserConfigPath } from "../../config/paths.ts";
 import { redactSecrets } from "../../config/redaction.ts";
-import { trustConfig } from "../../config/TrustStore.ts";
 import { CONFIG_VERSION } from "../../config/defaults.ts";
 import type { ConfigCommandOptions } from "../options.ts";
 
@@ -13,13 +12,9 @@ const STARTER_CONFIG_HEADER = `# A-CLI configuration
 #
 #   defaults:  shared field defaults for \`acli create\` (e.g. mysqlVersion, environment)
 #   presets:   named, reusable create plans — see \`acli preset list\` / \`acli preset inspect <name>\`
-#   profiles:  staging environments for \`acli import\` / \`acli pull\` — see \`acli profile create\`
+#   profiles:  staging servers for \`acli import\` / \`acli pull\` (user config only) — see \`acli profile create\`
 #
-# Reference secrets instead of storing them in plain text:
-#   identityFile: "\${ACLI_SSH_KEY}"
-#   password: { command: "op read op://vault/item/password" }
-#
-# Docs: \`acli config path\`, \`acli config show --resolved\`, \`acli config validate\`
+# Docs: \`acli config path\`, \`acli config show\`, \`acli config validate\`
 
 `;
 
@@ -47,29 +42,15 @@ export function registerConfigCommand(program: Command): void {
       const content = STARTER_CONFIG_HEADER + YAML.stringify(starter);
       await fs.ensureDir(path.dirname(filePath));
       await fs.writeFile(filePath, content, { mode: 0o600 });
-      await trustConfig(filePath, content);
       console.log(`Configuration initialized at ${filePath}.`);
       console.log("Next: `acli profile create` to add a staging environment, or `acli create` to scaffold a project.");
     });
-  command.command("trust").description("Mark the current project's .acli/config.yaml as trusted, allowing its secret references to be resolved")
-    .option("--config <path>", "Trust an explicit configuration file instead")
-    .action(async (options: ConfigCommandOptions) => {
-      const filePath = options.config ? path.resolve(process.cwd(), options.config) : getProjectConfigPath();
-      if (!(await fs.pathExists(filePath))) {
-        console.log(`No configuration file found at ${filePath}.`);
-        process.exitCode = 1;
-        return;
-      }
-      const content = await fs.readFile(filePath, "utf8");
-      await trustConfig(filePath, content);
-      console.log(`Trusted ${filePath}. Its secret references will be resolved until the file's contents change.`);
-    });
-  command.command("show").option("--resolved", "Resolve layered configuration and secret references").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {
-    const result = await loadConfig({ configPath: options.config, resolveSecrets: Boolean(options.resolved), resolveProfiles: Boolean(options.resolved) });
-    console.log(YAML.stringify(redactSecrets(options.resolved ? result.config : result.rawConfig)));
+  command.command("show").description("Print the merged configuration").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {
+    const result = await loadConfig({ configPath: options.config });
+    console.log(YAML.stringify(redactSecrets(result.config)));
   });
   command.command("validate").option("--config <path>", "Use an explicit configuration file").action(async (options: ConfigCommandOptions) => {
-    const result = await loadConfig({ configPath: options.config, resolveSecrets: false });
+    const result = await loadConfig({ configPath: options.config });
     console.log(`Configuration is valid (${result.sources.map((source) => source.name).join(", ")}).`);
   });
 }

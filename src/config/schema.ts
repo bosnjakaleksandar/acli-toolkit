@@ -23,12 +23,9 @@ export function validateConfig(config: AcliConfig, source = "configuration", { a
   for (const group of ["defaults", "presets", "profiles"] as const) {
     if (config[group] !== undefined && (!config[group] || typeof config[group] !== "object" || Array.isArray(config[group]))) errors.push(`${source}: ${group} must be a mapping.`);
   }
-  // `defaults`/`presets` are a free-form bag of ProjectPlan scaffolding
-  // fields (mysqlVersion, plugins, setupType, ...) — never a place secrets
-  // belong. Restricting them to plain scalars (rather than accepting any
-  // nested object) closes off hiding a `{command: "..."}` secret reference
-  // under an arbitrary preset/default key, where resolveReferences would
-  // otherwise execute it unconditionally.
+  // `defaults`/`presets` are a free-form bag of flat ProjectPlan scaffolding
+  // fields (mysqlVersion, plugins, setupType, ...), so nested objects are
+  // rejected rather than silently ignored.
   if (isObject(config.defaults)) validatePlanFields(config.defaults, `${source}: defaults`, errors);
   if (isObject(config.presets)) {
     for (const [name, preset] of Object.entries(config.presets)) {
@@ -37,6 +34,8 @@ export function validateConfig(config: AcliConfig, source = "configuration", { a
     }
   }
   for (const [name, profile] of Object.entries(config.profiles || {})) validateProfile(profile, `${source} profile "${name}"`, errors);
+  const reference = findRemovedReference(config);
+  if (reference) errors.push(`${source}: "${reference}" uses a \${ENV_VAR} or {command: ...} reference, which A-CLI 2.1 no longer resolves. Write the value itself (profiles live in your own user config, which isn't shared).`);
   if (config.project !== undefined) validateProjectLink(config.project, `${source} project`, errors);
   if (errors.length) throw new Error(errors.join("\n"));
   return config;
@@ -73,9 +72,23 @@ function validateProfile(profile: Profile, label: string, errors: string[]): voi
   provider?.validate(profile, label, errors);
 }
 
+/** Finds a `${ENV_VAR}` string or `{command: "..."}` object anywhere in the document, returning its dotted path. */
+function findRemovedReference(value: unknown, keyPath: string[] = []): string | null {
+  if (typeof value === "string") return /\$\{[A-Za-z_][A-Za-z0-9_]*\}/.test(value) ? keyPath.join(".") : null;
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) { const found = findRemovedReference(item, [...keyPath, String(index)]); if (found) return found; }
+    return null;
+  }
+  if (!isObject(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length === 1 && entries[0]![0] === "command" && typeof entries[0]![1] === "string") return keyPath.join(".");
+  for (const [key, item] of entries) { const found = findRemovedReference(item, [...keyPath, key]); if (found) return found; }
+  return null;
+}
+
 function validatePlanFields(fields: Record<string, unknown>, label: string, errors: string[]): void {
   for (const [key, value] of Object.entries(fields)) {
-    if (!isPlainScalar(value)) errors.push(`${label}.${key}: must be a string, number, or boolean (or an array of those) — nested objects, including secret "command" references, are not allowed here.`);
+    if (!isPlainScalar(value)) errors.push(`${label}.${key}: must be a string, number, or boolean (or an array of those) — nested objects are not allowed here.`);
   }
 }
 
@@ -90,11 +103,7 @@ function validateProjectLink(link: ProjectLink, label: string, errors: string[])
   for (const key of Object.keys(link)) if (!PROJECT_LINK_KEYS.has(key)) errors.push(`${label}: unknown field "${key}".`);
   if (!link.name) errors.push(`${label}: name is required.`);
   if (!link.environment) errors.push(`${label}: environment is required.`);
-  if (link.profile !== undefined) {
-    if (typeof link.profile === "string") { /* profile name reference, resolved separately */ }
-    else if (isObject(link.profile)) validateProfile(link.profile, `${label}.profile`, errors);
-    else errors.push(`${label}.profile must be a string (profile name) or a mapping (inline profile).`);
-  }
+  if (link.profile !== undefined && typeof link.profile !== "string") errors.push(`${label}.profile must be the name of a profile in your user config (inline profiles are no longer supported).`);
 }
 
 

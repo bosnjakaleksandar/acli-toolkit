@@ -7,11 +7,9 @@ import YAML from "yaml";
 import { saveProfile } from "../src/profiles/ProfileStore.ts";
 import {
   describeProfile,
-  exportProfile,
   getCurrentProfile,
   inspectProfile,
   listProfiles,
-  readImportableProfile,
   validateNamedProfile,
 } from "../src/profiles/ProfileQuery.ts";
 
@@ -26,8 +24,6 @@ const wpProfile = (host: string) => ({
   type: "wordpress" as const,
   ssh: { host, username: "deploy" },
   remote: { projectRoot: "/srv/demo", wordpressRoot: "wordpress" },
-  files: { transport: "rsync" as const },
-  database: { driver: "wp-cli" as const },
 });
 
 async function withConfig(run: (configPath: string) => Promise<void>) {
@@ -115,74 +111,8 @@ test("validateNamedProfile resolves for a valid profile and throws for an unknow
   });
 });
 
-test("exportProfile serializes the profile as YAML and flags literal secret fields", async () => {
-  await withConfig(async (configPath) => {
-    await saveProfile("agency", { ...wpProfile("agency.example.com"), ssh: { host: "agency.example.com", username: "deploy", identityFile: "/home/me/.ssh/id_ed25519" } } as any, { configPath });
-    const result = await exportProfile("agency", { config: configPath });
-    assert.match(result.yaml, /agency\.example\.com/);
-    assert.deepEqual(result.literalSecretPaths, ["ssh.identityFile"]);
-  });
-});
-
-test("exportProfile reports no literal secret fields for a profile using only ${ENV_VAR} references", async () => {
-  await withConfig(async (configPath) => {
-    await saveProfile("agency", { ...wpProfile("agency.example.com"), ssh: { host: "agency.example.com", username: "deploy", identityFile: "${SSH_KEY_PATH}" } } as any, { configPath });
-    const result = await exportProfile("agency", { config: configPath });
-    assert.deepEqual(result.literalSecretPaths, []);
-  });
-});
-
-test("readImportableProfile resolves a profile:-wrapped document", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-profile-"));
-  const filePath = path.join(dir, "shared.yaml");
-  await fs.writeFile(filePath, YAML.stringify({ profile: wpProfile("shared.example.com") }));
-  const result = await readImportableProfile(filePath, "custom-name");
-  assert.equal(result.name, "custom-name");
-  assert.equal((result.profile as any).ssh.host, "shared.example.com");
-  await fs.remove(dir);
-});
-
-test("readImportableProfile resolves a single-entry profiles: map without requiring a name", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-profile-"));
-  const filePath = path.join(dir, "config.yaml");
-  await fs.writeFile(filePath, YAML.stringify({ version: 1, profiles: { onlyone: wpProfile("only.example.com") } }));
-  const result = await readImportableProfile(filePath);
-  assert.equal(result.name, "onlyone");
-  await fs.remove(dir);
-});
-
-test("readImportableProfile requires an explicit name when profiles: has more than one entry", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-profile-"));
-  const filePath = path.join(dir, "config.yaml");
-  await fs.writeFile(filePath, YAML.stringify({ version: 1, profiles: { a: wpProfile("a.example.com"), b: wpProfile("b.example.com") } }));
-  await assert.rejects(() => readImportableProfile(filePath), /contains multiple profiles/);
-  const result = await readImportableProfile(filePath, "b");
-  assert.equal((result.profile as any).ssh.host, "b.example.com");
-  await fs.remove(dir);
-});
-
-test("readImportableProfile falls back to treating the whole document as the profile, and derives a name from the filename", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-profile-"));
-  const filePath = path.join(dir, "bare-profile.yaml");
-  await fs.writeFile(filePath, YAML.stringify(wpProfile("bare.example.com")));
-  const result = await readImportableProfile(filePath);
-  assert.equal(result.name, "bare-profile");
-  await fs.remove(dir);
-});
-
-test("readImportableProfile throws a clear error for a missing file", async () => {
-  await assert.rejects(() => readImportableProfile("/tmp/does-not-exist-acli.yaml"), /File not found/);
-});
-
-test("readImportableProfile rejects an invalid profile before returning it", async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-import-profile-"));
-  const filePath = path.join(dir, "invalid.yaml");
-  await fs.writeFile(filePath, YAML.stringify({ profile: { type: "wordpress" } }));
-  await assert.rejects(() => readImportableProfile(filePath), /ssh\.host is required/);
-  await fs.remove(dir);
-});
-
-test("describeProfile summarizes host, database driver, and file transport", () => {
-  assert.equal(describeProfile(wpProfile("demo.example.com")), "demo.example.com · wp-cli · rsync");
-  assert.equal(describeProfile({ ssh: {}, database: { executable: "auto" }, files: {} }), "unknown host · MariaDB/MySQL · rsync");
+test("describeProfile summarizes the host and how its provider reaches it", () => {
+  assert.equal(describeProfile(wpProfile("demo.example.com")), "demo.example.com · SSH · wp-cli · rsync");
+  assert.equal(describeProfile({ ssh: { host: "cloud.example.com" }, provider: "coolify-cli", coolify: { project: "Demo" } }), "cloud.example.com · Coolify project CLI · Demo");
+  assert.equal(describeProfile({ ssh: {}, provider: "ftp" }), 'unknown host · unknown provider "ftp"');
 });

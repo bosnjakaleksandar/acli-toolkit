@@ -55,7 +55,7 @@ test("an existing-wp plan saved as a preset round-trips into a runnable preset w
 
   // The preset only carries the profile *reference*; resolving the actual
   // connection details still requires that named profile to exist in config.
-  await assert.rejects(() => loadProfile(preset.profile, config, cwd), /shared-host.*not found/is);
+  assert.throws(() => loadProfile(preset.profile, config), /shared-host.*not found/is);
 
   const raw = await fs.readFile(configPath, "utf8");
   assert.doesNotMatch(raw, /example\.com|secret/);

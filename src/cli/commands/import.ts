@@ -54,7 +54,6 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       nonInteractive,
       offerCreateWhenMissing: false,
       configuredOnly: true,
-      ...(options.dryRun ? { commandRunner: () => "redacted" } : {}),
     });
     const source = ProfileImportSource;
 

@@ -4,7 +4,7 @@ export interface ProjectLink {
   name: string;
   type?: string;
   environment: string;
-  profile?: string | Profile;
+  profile?: string;
   linkedAt?: string;
 }
 

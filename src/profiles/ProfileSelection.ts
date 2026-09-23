@@ -18,7 +18,6 @@ export interface ResolveProfileSelectionParams {
   offerCreateWhenMissing?: boolean;
   configuredOnly?: boolean;
   chooseProfile?: (names: string[], config: AcliConfig) => Promise<string>;
-  commandRunner?: (command: string) => string;
 }
 
 export interface ResolveProfileSelectionResult {
@@ -36,7 +35,7 @@ export interface ResolveProfileSelectionResult {
  * convenience; `acli import` disables it and requires an already-configured
  * named profile.
  */
-export async function resolveProfileSelection({ config, options = {}, attachedProfileName, required, nonInteractive, offerCreateWhenMissing = true, configuredOnly = false, chooseProfile, commandRunner }: ResolveProfileSelectionParams): Promise<ResolveProfileSelectionResult> {
+export async function resolveProfileSelection({ config, options = {}, attachedProfileName, required, nonInteractive, offerCreateWhenMissing = true, configuredOnly = false, chooseProfile }: ResolveProfileSelectionParams): Promise<ResolveProfileSelectionResult> {
   let availableProfiles = Object.keys(config.profiles || {});
   if (required && configuredOnly && availableProfiles.length === 0) {
     throw new CliError("No staging profiles are configured.", {
@@ -47,7 +46,7 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
   if (configuredOnly && options.profile && !config.profiles?.[options.profile]) {
     throw new CliError(`Profile "${options.profile}" is not configured.`, {
       code: "PROFILE_NOT_FOUND",
-      hint: "Choose a configured profile, or save a portable YAML first with `acli profile import <path>`.",
+      hint: "Run `acli profile list` to see the configured profiles, or `acli profile create` to add one.",
     });
   }
   if (required && offerCreateWhenMissing && !options.profile && !attachedProfileName && !availableProfiles.length && !nonInteractive) {
@@ -72,7 +71,7 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
   if (required && !profileName && availableProfiles.length > 1 && nonInteractive) {
     throw new MissingOptionError(["--profile <name>"], { hint: `Choose one of: ${availableProfiles.join(", ")}.` });
   }
-  const profile = await loadProfile(profileName, config, process.cwd(), commandRunner ? { commandRunner } : {});
+  const profile = loadProfile(profileName, config);
   if (required && !profile) throw new Error("This workflow requires a profile. Run `acli profile create` or pass --profile.");
   return { config, profileName, profile };
 }

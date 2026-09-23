@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Command } from "commander";
 import { ask } from "../../ui/prompts.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
-import { loadProfile, resolveProfileReferences } from "../../profiles/loadProfile.ts";
+import { loadProfile } from "../../profiles/loadProfile.ts";
 import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
 import { findProjectRoot, readLink } from "../../profiles/ProjectLink.ts";
 import { getProjectConfigPath } from "../../config/paths.ts";
@@ -56,15 +56,12 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
 
     const explicitConfigPath = options.config ? path.resolve(cwd, options.config) : undefined;
     const { config } = await loadConfig({ cwd: projectRoot, configPath: explicitConfigPath });
-    const profileOptions = options.dryRun ? { commandRunner: () => "redacted" } : {};
-    const rawProfile = typeof link.profile === "string"
-      ? await loadProfile(link.profile, config, projectRoot, profileOptions)
-      : await resolveProfileReferences(link.profile, { sourcePath: getProjectConfigPath(projectRoot), ...profileOptions });
+    const rawProfile = loadProfile(link.profile, config);
     if (!rawProfile) throw new CliError(`Profile "${link.profile}" was not found.`, { code: "PROFILE_NOT_FOUND" });
     const profile = resolveRemoteProfile(rawProfile, { projectName: link.name });
 
     if (options.dryRun) {
-      console.log(JSON.stringify({ project: link.name, environment: link.environment, targets: finalTargets, profile: typeof link.profile === "string" ? link.profile : "(inline)" }, null, 2));
+      console.log(JSON.stringify({ project: link.name, environment: link.environment, targets: finalTargets, profile: link.profile }, null, 2));
       outro(chalk.green("Dry run complete. No files or remote state were changed."));
       return;
     }
