@@ -9,11 +9,6 @@ const COOLIFY_KEYS = new Set(["gitHost"]);
 // import, and prompt answers are remembered per project in its link.
 const MOVED_KEYS = new Set(["project", "database", "databaseName", "wordpressContainer"]);
 
-// The WordPress install lives inside a Coolify-managed container that A-CLI
-// never touches directly; this is the container path the server-side
-// `project` CLI exports from, kept only so plans/summaries have a value.
-const WORDPRESS_ROOT = "/var/www/html";
-
 /** A Coolify staging server that exposes only the `project` CLI. */
 export const coolifyProvider: ProviderDefinition = {
   name: "coolify-cli",
@@ -35,7 +30,6 @@ export const coolifyProvider: ProviderDefinition = {
     if (!project || !REMOTE_PROJECT_PATTERN.test(project)) throw new Error(`Unsafe server project name: ${JSON.stringify(project)}.`);
     const { database, databaseName, wordpressContainer } = target.selections || {};
     return {
-      remote: { projectRoot: WORDPRESS_ROOT, wordpressRoot: WORDPRESS_ROOT },
       coolify: { project, gitHost: profile.coolify?.gitHost || "github.com", ...(database ? { database } : {}), ...(databaseName ? { databaseName } : {}), ...(wordpressContainer ? { wordpressContainer } : {}) },
     };
   },
@@ -61,5 +55,5 @@ export const coolifyProvider: ProviderDefinition = {
     return { ...profile, coolify: { ...coolify, project: projectSlug(project) } };
   },
 
-  create: (profile, runner, { interactive = false, onSelection }) => new CoolifyProjectHost(profile, runner, { chooseOption: interactive ? askSelectionMenu : null, ...(onSelection ? { onSelection } : {}) }),
+  create: (profile, runner, { interactive = false, onSelection, knownProjects }) => new CoolifyProjectHost(profile, runner, { chooseOption: interactive ? askSelectionMenu : null, ...(onSelection ? { onSelection } : {}), ...(knownProjects ? { knownProjects } : {}) }),
 };

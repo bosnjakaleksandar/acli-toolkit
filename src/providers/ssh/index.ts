@@ -1,6 +1,7 @@
 import path from "node:path";
 import { isObject } from "../../core/objects.ts";
 import { SshHost } from "./SshHost.ts";
+import { normalizeProfile } from "./normalizeProfile.ts";
 import type { ProviderDefinition } from "../contract.ts";
 
 /** Direct SSH access: files with rsync, the database with wp-cli on the server. */
@@ -21,7 +22,10 @@ export const sshProvider: ProviderDefinition = {
   resolve(profile, render) {
     if (!profile.remote) throw new Error("Profile field \"remote\" is required for the ssh provider.");
     const projectRoot = render(profile.remote.projectRoot);
-    return { remote: { ...profile.remote, projectRoot, wordpressRoot: path.posix.join(projectRoot, render(profile.remote.wordpressRoot)) } };
+    return {
+      remote: { ...profile.remote, projectRoot, wordpressRoot: path.posix.join(projectRoot, render(profile.remote.wordpressRoot)) },
+      files: normalizeProfile(profile).files,
+    };
   },
 
   describe: () => "SSH · wp-cli · rsync",
@@ -30,7 +34,7 @@ export const sshProvider: ProviderDefinition = {
 
   plan(profile, ctx) {
     return {
-      remoteWordPressRoot: profile.remote.wordpressRoot,
+      remoteWordPressRoot: profile.remote?.wordpressRoot,
       databaseDriver: ctx.skipDatabase ? "skipped" : "wp-cli",
       fileTransfer: ctx.skipFiles ? "skipped" : "rsync",
     };

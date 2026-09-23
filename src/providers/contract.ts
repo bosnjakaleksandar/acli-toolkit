@@ -45,6 +45,8 @@ export interface RemoteBackendOptions {
   interactive?: boolean;
   /** Called when the user answers a server prompt, so the caller can remember it in the project link. */
   onSelection?: (key: keyof CoolifySelection, value: string) => void;
+  /** The server's project list when the caller already fetched it this run (saves a round trip). */
+  knownProjects?: string[];
 }
 
 /** The project a profile is resolved for: the local name plus what the project link knows about it on the server. */
@@ -75,7 +77,7 @@ export interface ProviderDefinition {
   /** Validates the provider's own fields of a raw profile. */
   validate(profile: Profile, label: string, errors: string[]): void;
   /** Resolves the provider's fields for one project; `render` substitutes `{projectName}`. */
-  resolve(profile: Profile, render: (value: unknown) => string, target: ProjectTarget): Pick<ResolvedProfile, "remote" | "coolify">;
+  resolve(profile: Profile, render: (value: unknown) => string, target: ProjectTarget): Pick<ResolvedProfile, "remote" | "files" | "coolify">;
   /** One-line description for profile lists (after the host). */
   describe(profile: Profile): string;
   /** Lines for the "Selected profile" note (after the Remote line). */

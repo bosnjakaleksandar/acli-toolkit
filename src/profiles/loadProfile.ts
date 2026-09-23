@@ -1,3 +1,4 @@
+import { CliError } from "../core/errors.ts";
 import type { AcliConfig } from "../core/model/AcliConfig.ts";
 import type { Profile } from "../core/model/Profile.ts";
 
@@ -9,6 +10,6 @@ import type { Profile } from "../core/model/Profile.ts";
 export function loadProfile(profileName: string | undefined, config: Pick<AcliConfig, "profiles"> = { profiles: {} }): (Profile & { profileName: string }) | null {
   if (!profileName) return null;
   const profile = config.profiles?.[profileName];
-  if (!profile) throw new Error(`Profile "${profileName}" was not found. Run \`acli profile list\` to see the configured profiles.`);
+  if (!profile) throw new CliError(`Profile "${profileName}" was not found.`, { code: "PROFILE_NOT_FOUND", hint: "Run `acli profile list` to see your profiles, or `acli profile create` to add one." });
   return { ...profile, profileName };
 }

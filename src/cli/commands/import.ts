@@ -8,8 +8,8 @@ import { ask } from "../../ui/prompts.ts";
 import { CliError, MissingOptionError, TargetExistsError } from "../../core/errors.ts";
 import { runCommand } from "../CommandShell.ts";
 import { readStepState } from "../../core/StepRunner.ts";
-import { ProfileImportSource } from "../../wordpress/import/sources/RemoteSource.ts";
-import { runImportWorkflow } from "../../wordpress/import/ImportWorkflow.ts";
+import { buildImportPlan, runImportWorkflow } from "../../wordpress/import/ImportWorkflow.ts";
+import type { ImportContext } from "../../wordpress/import/ImportContext.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { maybeInstallDependencies } from "../../system/dependencies.ts";
 import { maybeInitializeGit } from "../../system/git.ts";
@@ -41,7 +41,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
   await runCommand({ title: "IMPORT", icon: "📥", failureMessage: "Import failed." }, async (shell) => {
     let targetDir = "";
     let ownsTargetDir = false;
-    let ctx: any = null;
+    let ctx: ImportContext | null = null;
     let s: ReturnType<typeof spinner> | null = null;
     let resumeCommand: string | null = null;
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
@@ -61,13 +61,15 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       offerCreateWhenMissing: false,
       configuredOnly: true,
     });
-    const source = ProfileImportSource;
-
     if (options.project !== undefined && !REMOTE_PROJECT_PATTERN.test(options.project)) {
       throw new CliError(`"${options.project}" is not a valid server project name.`, { code: "USAGE", hint: "Use the name exactly as the server lists it (letters, digits, spaces, . _ -)." });
     }
     let remoteProject = options.project;
-    if (!remoteProject && !options.resume && !nonInteractive) remoteProject = await pickServerProject(selection.profile!);
+    let knownProjects: string[] | undefined;
+    if (!remoteProject && !options.resume && !nonInteractive) {
+      const picked = await pickServerProject(selection.profile!);
+      if (picked) ({ project: remoteProject, projects: knownProjects } = picked);
+    }
 
     const name = options.name || (nonInteractive ? (remoteProject ? toProjectName(remoteProject) : undefined) : await ask(text, {
       message: "Local project directory/name:",
@@ -89,9 +91,13 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       throw new CliError(`--environment must be "docker" or "lando" (got "${environment}").`, { code: "USAGE" });
     }
 
-    ctx = {
+    const profile = resolveRemoteProfile(selection.profile!, { projectName: name, remoteProject });
+    targetDir = path.join(process.cwd(), name);
+    const importCtx: ImportContext = {
+      targetDir,
       projectName: name,
-      environment,
+      profile,
+      environment: environment as ImportContext["environment"],
       appType: "wordpress",
       setupType: "existing-wp",
       projectType: "wp-existing",
@@ -100,34 +106,33 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       // its wordpress image tag (see DockerEnvironment.scaffold) — every
       // import source needs a value here or that placeholder is left
       // unsubstituted in the generated file.
-      wpVersion: options.wpVersion || config.defaults?.wpVersion || DEFAULT_WORDPRESS_VERSION,
+      wpVersion: options.wpVersion || String(config.defaults?.wpVersion || DEFAULT_WORDPRESS_VERSION),
       skipFiles: Boolean(options.skipFiles),
       skipDatabase: Boolean(options.skipDatabase),
       skipGitLink: Boolean(options.skipGitLink),
       skipGitInit: Boolean(options.skipGit),
-      stagingUrl: options.remoteUrl,
+      stagingUrl: options.remoteUrl || profile.urls?.staging || undefined,
       keepDump: Boolean(options.keepDump),
       nonInteractive,
       remoteProject,
       selections: {},
     };
-
-    ctx.profile = resolveRemoteProfile(selection.profile!, { projectName: ctx.projectName, remoteProject });
-    ctx.stagingUrl = ctx.stagingUrl || ctx.profile.urls?.staging || undefined;
+    ctx = importCtx;
+    const remote = createRemoteBackend(profile, {
+      interactive: !nonInteractive,
+      onSelection: (key, value) => { importCtx.selections = { ...importCtx.selections, [key]: value }; },
+      ...(knownProjects ? { knownProjects } : {}),
+    });
     if (!nonInteractive) {
       const serverProject = remoteProject && remoteProject !== ctx.projectName ? `\nServer project: ${remoteProject}` : "";
       note(profileSummary(selection.profile!, ctx.environment, ctx.projectName) + serverProject, `Selected profile: ${selection.profileName}`);
     }
 
-    targetDir = path.join(process.cwd(), ctx.projectName);
-    ctx.targetDir = targetDir;
     resumeCommand = importResumeCommand(ctx.projectName, remoteProject);
 
     if (options.dryRun) {
       const envServiceForPlan = resolveEnvironmentService(ctx.environment);
-      const plan = source.buildPlan
-        ? { ...(source.buildPlan(ctx) as Record<string, unknown>), localUrl: envServiceForPlan.getLocalUrl(ctx) }
-        : { profile: selection.profileName, project: ctx.projectName, localEnvironment: ctx.environment };
+      const plan = { ...buildImportPlan(ctx, remote), localUrl: envServiceForPlan.getLocalUrl(ctx) };
       note(JSON.stringify(plan, null, 2), "Import plan");
       outro(chalk.green("Dry run complete. No project files or remote state were changed."));
       return;
@@ -156,7 +161,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
     await fs.ensureDir(targetDir);
     ownsTargetDir = true;
 
-    await runImportWorkflow({ source, ctx, targetDir, envService, spinner: s, resume: Boolean(options.resume), resumeCommand });
+    await runImportWorkflow({ remote, ctx, targetDir, envService, spinner: s, resume: Boolean(options.resume), resumeCommand });
     s.stop("2/3 Import complete.");
 
     const installPlan = await buildNextSteps(targetDir, ctx);
@@ -180,7 +185,8 @@ export function importResumeCommand(projectName: string, remoteProject?: string)
 
 /**
  * Asks which server project to import, when the profile's server can list
- * them. Resolved against a placeholder project name — listing doesn't
+ * them, and returns it with the full list (reused later to skip a second
+ * lookup). Resolved against a placeholder project name — listing doesn't
  * depend on which project is chosen.
  */
 export async function pickServerProject(
@@ -189,12 +195,12 @@ export async function pickServerProject(
     createBackend = createRemoteBackend,
     choose = async (projects: string[]) => (await ask(select, { message: "Which project do you want to import?", options: projects.map((project) => ({ label: project, value: project })) })) as string,
   }: { createBackend?: (profile: ReturnType<typeof resolveRemoteProfile>) => RemoteBackend; choose?: (projects: string[]) => Promise<string> } = {},
-): Promise<string | undefined> {
+): Promise<{ project: string; projects: string[] } | undefined> {
   const backend = createBackend(resolveRemoteProfile(profile, { projectName: "project-list" }));
   if (!backend.listProjects) return undefined;
   const projects = await backend.listProjects();
   if (!projects.length) throw new CliError("No projects on this server are assigned to you.", { code: "NO_REMOTE_PROJECTS", hint: "Ask the server administrator to grant you access to a project." });
-  return choose(projects);
+  return { project: await choose(projects), projects };
 }
 
 export function registerImportCommand(program: Command): void {

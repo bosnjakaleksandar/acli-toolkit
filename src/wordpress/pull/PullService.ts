@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { CliError } from "../../core/errors.ts";
-import { createRemoteBackend, type RemoteBackendFactory } from "../../providers/registry.ts";
+import { createRemoteBackend, type RemoteBackendFactory, type RemoteBackendOptions } from "../../providers/registry.ts";
 import WordPressMigrationService from "../migration/WordPressMigration.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
@@ -29,6 +29,19 @@ export function resolvePullTargets(requested: string[], available: string[]): st
   return available.filter((target) => requested.includes(target));
 }
 
+/** What one `acli pull` run knows about the linked project. */
+export interface PullContext {
+  projectName: string;
+  environment: string;
+  /** Already resolved (see resolveRemoteProfile) — never resolved again here. */
+  profile: ResolvedProfile;
+  keepDump?: boolean;
+  nonInteractive?: boolean;
+  resumeCommand?: string;
+  /** Told about each server prompt answer, so the project link can remember it. */
+  onSelection?: RemoteBackendOptions["onSelection"];
+}
+
 /**
  * Orchestrates a selective sync from a linked profile into an already
  * scaffolded local project. Shares RemoteBackend with the import pipeline, so
@@ -39,10 +52,8 @@ export function resolvePullTargets(requested: string[], available: string[]): st
  * already be the *resolved* profile (i.e. already passed through
  * `resolveRemoteProfile`). Resolving is not idempotent — `remote.wordpressRoot`
  * becomes an already-joined absolute path after the first resolution, so
- * resolving twice would join it onto itself. Callers resolve exactly once,
- * at their own entry point (RemoteSource.resolveOptions for an import,
- * the `pull` command for a standalone pull) and pass the resolved profile
- * through from there.
+ * resolving twice would join it onto itself. The `pull` command resolves it
+ * exactly once and passes the resolved profile through.
  */
 export class PullService {
   envService: EnvironmentService;
@@ -61,12 +72,12 @@ export class PullService {
   }
 
   /** Imports an already-exported staging.sql (see exportDatabase) and cleans it up unless keepDump is set. */
-  async importDatabase(targetDir: string, ctx: any, spinner: Spinner | null = null, { keepDump = false }: { keepDump?: boolean } = {}): Promise<void> {
+  async importDatabase(targetDir: string, ctx: PullContext, spinner: Spinner | null = null, { keepDump = false }: { keepDump?: boolean } = {}): Promise<void> {
     await this.migration.importAndReplace(targetDir, ctx, spinner);
     if (!keepDump) await fs.remove(path.join(targetDir, "staging.sql")).catch(() => {});
   }
 
-  async pull(targetDir: string, ctx: any, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<void> {
+  async pull(targetDir: string, ctx: PullContext, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<void> {
     // One backend for the whole pull, so an answer picked interactively
     // (e.g. which database container) is reused by later steps.
     const remote = this.remoteHostFactory(ctx.profile, { interactive: !ctx.nonInteractive, ...(ctx.onSelection ? { onSelection: ctx.onSelection } : {}) });

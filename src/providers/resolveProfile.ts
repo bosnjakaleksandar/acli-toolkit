@@ -1,4 +1,3 @@
-import { normalizeProfile } from "../profiles/normalizeProfile.ts";
 import { providerFor } from "./registry.ts";
 import { renderTemplate, SAFE_TEMPLATE_VALUE } from "./template.ts";
 import type { Profile, ResolvedProfile } from "../core/model/Profile.ts";
@@ -31,7 +30,7 @@ function assertSafeSshField(value: string, label: string): string {
  */
 export function resolveRemoteProfile(rawProfile: Profile, ctx: ProjectTarget): ResolvedProfile {
   if (!rawProfile) throw new Error("Existing WordPress setup requires --profile <name|path>.");
-  const profile = normalizeProfile(rawProfile);
+  const profile = rawProfile;
   const variables = { projectName: ctx.projectName };
   const resolve = (value: unknown): string => typeof value === "string" ? renderTemplate(value, variables) : (value as string);
   const ssh = {
@@ -42,7 +41,7 @@ export function resolveRemoteProfile(rawProfile: Profile, ctx: ProjectTarget): R
     hostKeyPolicy: profile.ssh.hostKeyPolicy || "strict",
   };
   const provider = providerFor(profile);
-  const { remote, coolify } = provider.resolve(profile, resolve, ctx);
+  const { remote, files, coolify } = provider.resolve(profile, resolve, ctx);
   return {
     ...profile,
     __resolved: true,
@@ -51,6 +50,7 @@ export function resolveRemoteProfile(rawProfile: Profile, ctx: ProjectTarget): R
     coolify,
     ssh,
     remote,
+    files,
     database: mapStrings(profile.database || {}, resolve) as ResolvedProfile["database"],
     urls: mapStrings(profile.urls || {}, resolve) as Profile["urls"],
     local: mapStrings(profile.local || {}, resolve),

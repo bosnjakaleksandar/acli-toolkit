@@ -1,5 +1,5 @@
-import { isObject } from "../config/schema.ts";
-import type { Profile } from "../core/model/Profile.ts";
+import { isObject } from "../../core/objects.ts";
+import type { Profile } from "../../core/model/Profile.ts";
 
 const DEFAULT_FILE_TARGET_NAMES = ["uploads", "plugins", "themes"];
 
@@ -8,7 +8,7 @@ const DEFAULT_FILE_TARGET_NAMES = ["uploads", "plugins", "themes"];
  * into the newer `files.targets` map (name -> {path, excludes, includes}).
  * Profiles already written in the new shape pass through untouched. This is
  * the single place callers should normalize through — everything downstream
- * (SshHost.syncFiles, PullService) consumes only `targets`.
+ * (SshHost) consumes only `targets`. Applied by the ssh provider's resolve().
  */
 export function normalizeProfile(profile: Profile): Profile {
   if (!isObject(profile)) return profile;

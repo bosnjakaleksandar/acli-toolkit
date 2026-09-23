@@ -106,7 +106,7 @@ test("pickServerProject lists the server's projects and returns the chosen one",
     createBackend: () => ({ listProjects: async () => ["Acme Client Site", "Blog"] }) as any,
     choose: async (projects) => { offered.push(projects); return projects[1]!; },
   });
-  assert.equal(chosen, "Blog");
+  assert.deepEqual(chosen, { project: "Blog", projects: ["Acme Client Site", "Blog"] }, "the list is returned too, so the import doesn't fetch it again");
   assert.deepEqual(offered, [["Acme Client Site", "Blog"]]);
 
   await assert.rejects(() => pickServerProject(coolify, { createBackend: () => ({ listProjects: async () => [] }) as any }), /No projects on this server/);

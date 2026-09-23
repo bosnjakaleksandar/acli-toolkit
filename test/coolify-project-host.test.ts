@@ -7,7 +7,8 @@ import fs from "fs-extra";
 import YAML from "yaml";
 import { CoolifyProjectHost, parseExportPath, parseSelectionMenu } from "../src/providers/coolify/CoolifyProjectHost.ts";
 import { createRemoteBackend } from "../src/providers/registry.ts";
-import { createProfileImportSource } from "../src/wordpress/import/sources/RemoteSource.ts";
+import { runImportWorkflow } from "../src/wordpress/import/ImportWorkflow.ts";
+import { fakeRemote, importCtx } from "./helpers/importFakes.ts";
 import { PullService } from "../src/wordpress/pull/PullService.ts";
 import { SshHost } from "../src/providers/ssh/SshHost.ts";
 import { resolveRemoteProfile } from "../src/providers/resolveProfile.ts";
@@ -106,7 +107,7 @@ test("syncFiles exports each component, downloads it with scp and unpacks it int
     const ssh = calls.find((call) => call.command === "ssh" && call.args.at(-1)!.startsWith("project wp-export"))!;
     assert.equal(ssh.args[0], "-T");
     assert.equal(ssh.args.at(-1), "project wp-export 'Demo' 'languages'");
-    assert.deepEqual(await fs.readdir(path.join(target, ".acli/tmp")), [], "downloaded archive is removed");
+    assert.equal(await fs.pathExists(path.join(target, ".acli/tmp")), false, "downloaded archive and its temp directory are removed");
   });
 });
 
@@ -153,7 +154,7 @@ test("exportDatabase uses db-export sql.gz and writes a mode-0600 staging.sql", 
     assert.equal(await fs.readFile(dumpPath, "utf8"), sql);
     assert.equal((await fs.stat(dumpPath)).mode & 0o777, 0o600);
     assert.equal(calls.find((call) => call.command === "ssh" && call.args.at(-1)!.startsWith("project db-export"))!.args.at(-1), "project db-export 'Demo' 'sql.gz'");
-    assert.deepEqual(await fs.readdir(path.join(target, ".acli/tmp")), []);
+    assert.equal(await fs.pathExists(path.join(target, ".acli/tmp")), false);
   });
 });
 
@@ -191,6 +192,19 @@ test("the server project is found by exact name, else by a unique slug match", a
 
   const ambiguous = fakeRunner({ list: "Acme_Site\nacme site" }, {});
   await assert.rejects(() => new NoToolCheckHost(resolve(rawProfile, "acme-site"), ambiguous.runner).preflight({}), /matches several server projects/);
+});
+
+test("a project list already fetched this run is reused instead of asking the server again", async () => {
+  const commands: string[] = [];
+  const runner = (async (_command: string, args: string[] = []) => {
+    commands.push(args.at(-1)!);
+    if (args.at(-1) === "project list") throw new Error("project list must not run again");
+    return JSON.stringify({ status: "running" });
+  }) as typeof runCommand;
+  const host = new NoToolCheckHost(resolve(rawProfile, "acme-site"), runner, { knownProjects: ["Acme Site", "Blog"] });
+  await host.preflight({});
+  assert.equal(await host.project(), "Acme Site");
+  assert.deepEqual(commands, ["project status 'Acme Site'"]);
 });
 
 const DATABASE_MENU = "Databases for project: Demo\n\n  1) ky2690jqn73mdajl8t48tn6r       [mariadb]\n     ky2690jqn73mdajl8t48tn6r\n  2) main-db                        [mariadb]\n     gk6zccy4rbmh5dlbruv9ypnj\n\n";
@@ -270,7 +284,7 @@ test("without a configured choice an interactive run asks once, answers the serv
   });
 });
 
-test("import and pull build an interactive Coolify backend unless the run is non-interactive", async () => {
+test("pull builds an interactive Coolify backend unless the run is non-interactive", async () => {
   const seen: (boolean | undefined)[] = [];
   const factory = (profile: any, options: any = {}) => {
     seen.push(options.interactive);
@@ -278,11 +292,9 @@ test("import and pull build an interactive Coolify backend unless the run is non
     assert.equal((host as CoolifyProjectHost).chooseOption !== null, Boolean(options.interactive));
     return { ...host, fileTargets: () => [], preflight: async () => {}, syncFiles: async () => {} } as any;
   };
-  const source = createProfileImportSource(factory);
-  await source.preflight!({ targetDir: "/tmp/unused", profile: resolve(), nonInteractive: false });
-  await source.preflight!({ targetDir: "/tmp/unused", profile: resolve(), nonInteractive: true });
-  await new PullService({} as any, factory).pull("/tmp/unused", { profile: resolve(), nonInteractive: false }, ["uploads"], {}, null);
-  assert.deepEqual(seen, [true, false, true]);
+  await new PullService({} as any, factory).pull("/tmp/unused", { projectName: "Demo", environment: "docker", profile: resolve(), nonInteractive: false }, ["uploads"], {}, null);
+  await new PullService({} as any, factory).pull("/tmp/unused", { projectName: "Demo", environment: "docker", profile: resolve(), nonInteractive: true }, ["uploads"], {}, null);
+  assert.deepEqual(seen, [true, false]);
 
   // The defaults must forward the options too — a wrapper that drops them
   // silently turned every run non-interactive.
@@ -317,9 +329,9 @@ test("an interactive answer is reported so the project link can remember it", as
 
 test("import writes the server project name and remembered answers into the project link", async () => {
   await withTempDir(async (directory) => {
-    const source = createProfileImportSource(((profile: any) => createRemoteBackend(profile)) as any);
-    const ctx: any = { targetDir: directory, projectName: "acme-client-site", environment: "docker", remoteProject: "Acme Client Site", selections: { database: "main-db" }, profile: { ...resolve(rawProfile, "acme-client-site", { remoteProject: "Acme Client Site" }), profileName: "cloud" } };
-    await source.linkProfile!(directory, ctx);
+    const ctx = importCtx(directory, { projectName: "acme-client-site", remoteProject: "Acme Client Site", selections: { database: "main-db" }, skipGitLink: true, profile: { ...resolve(rawProfile, "acme-client-site", { remoteProject: "Acme Client Site" }), profileName: "cloud" } });
+    const envService = { scaffold: async () => {} } as any;
+    await runImportWorkflow({ remote: fakeRemote(), ctx, targetDir: directory, envService, resume: false });
     const link = YAML.parse(await fs.readFile(path.join(directory, ".acli", "config.yaml"), "utf8")).project;
     assert.equal(link.profile, "cloud");
     assert.equal(link.remoteProject, "Acme Client Site");

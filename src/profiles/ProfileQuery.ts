@@ -1,4 +1,5 @@
 import { loadConfig } from "../config/ConfigLoader.ts";
+import { CliError } from "../core/errors.ts";
 import { redactSecrets } from "../config/redaction.ts";
 import { validateProfileConfig } from "../config/schema.ts";
 import { getProvider } from "../providers/registry.ts";
@@ -41,14 +42,14 @@ export async function getCurrentProfile(options: ProfileQueryOptions = {}): Prom
 export async function inspectProfile(name: string, options: ProfileQueryOptions = {}): Promise<unknown> {
   const { config } = await loadConfig({ configPath: options.config });
   const profile = config.profiles?.[name];
-  if (!profile) throw new Error(`Profile "${name}" was not found.`);
+  if (!profile) throw new CliError(`Profile "${name}" was not found.`, { code: "PROFILE_NOT_FOUND", hint: "Run `acli profile list` to see your profiles." });
   return redactSecrets(profile);
 }
 
 export async function validateNamedProfile(name: string, options: ProfileQueryOptions = {}): Promise<void> {
   const { config } = await loadConfig({ configPath: options.config });
   const profile = config.profiles?.[name];
-  if (!profile) throw new Error(`Profile "${name}" was not found.`);
+  if (!profile) throw new CliError(`Profile "${name}" was not found.`, { code: "PROFILE_NOT_FOUND", hint: "Run `acli profile list` to see your profiles." });
   validateProfileConfig(profile, `profile "${name}"`);
 }
 

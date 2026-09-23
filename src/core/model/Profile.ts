@@ -101,10 +101,12 @@ export interface ResolvedProfile {
     identityFile: string;
     hostKeyPolicy: "strict" | "accept-new" | "insecure";
   };
-  remote: {
+  /** ssh provider only: absolute remote paths, already joined. */
+  remote?: {
     projectRoot: string;
     wordpressRoot: string;
   };
+  /** ssh provider only: normalized into `targets`. */
   files?: Profile["files"];
   database: NonNullable<Profile["database"]>;
   git?: Profile["git"];

@@ -8,7 +8,7 @@ import { deepMerge } from "../src/config/merge.ts";
 import { getUserConfigPath } from "../src/config/paths.ts";
 import { redactSecrets } from "../src/config/redaction.ts";
 import { validateConfig, validateProfileConfig } from "../src/config/schema.ts";
-import { normalizeProfile } from "../src/profiles/normalizeProfile.ts";
+import { normalizeProfile } from "../src/providers/ssh/normalizeProfile.ts";
 import { writeConfigAtomic } from "../src/config/ConfigWriter.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../src/config/defaults.ts";
 

@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { runImportWorkflow } from "../src/wordpress/import/ImportWorkflow.ts";
-import type { ImportSource, ImportSourceContext } from "../src/wordpress/import/ImportSource.ts";
+import { fakeRemote, importCtx } from "./helpers/importFakes.ts";
 
 /**
  * Regression coverage for phase 1c: ImportWorkflow used to track "was a
@@ -20,20 +20,9 @@ async function tempDir(prefix: string) {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-function makeFakeSource(sql: string): ImportSource {
-  return {
-    label: "Fake source",
-    async fetchFiles() {},
-    async fetchDatabase(ctx: ImportSourceContext) {
-      await fs.writeFile(path.join(ctx.targetDir, "staging.sql"), sql);
-      return { hasDump: true };
-    },
-  };
-}
-
 test("a --resume run still imports a database dump that was fetched in the interrupted run, even though 'fetch-database' itself is skipped", async () => {
   const targetDir = await tempDir("acli-import-resume-");
-  const source = makeFakeSource("CREATE TABLE `wp_options` (id INT);\nCREATE TABLE `wp_postmeta` (id INT);");
+  const remote = fakeRemote({ dump: "CREATE TABLE `wp_options` (id INT);\nCREATE TABLE `wp_postmeta` (id INT);" });
 
   // First attempt: fetch-files, fetch-database, and detect-prefix all
   // succeed and get persisted; scaffold-environment then fails, simulating
@@ -41,8 +30,8 @@ test("a --resume run still imports a database dump that was fetched in the inter
   const failingEnvService = {
     scaffold: async () => { throw new Error("simulated interruption"); },
   };
-  const ctx1: any = { targetDir };
-  await assert.rejects(() => runImportWorkflow({ source, ctx: ctx1, targetDir, envService: failingEnvService as any, resume: false }));
+  const ctx1 = importCtx(targetDir);
+  await assert.rejects(() => runImportWorkflow({ remote, ctx: ctx1, targetDir, envService: failingEnvService as any, resume: false }));
   assert.ok(await fs.pathExists(path.join(targetDir, "staging.sql")), "the dump must have been persisted before the simulated failure");
 
   // Resumed attempt: fetch-files/fetch-database/detect-prefix are skipped
@@ -58,8 +47,8 @@ test("a --resume run still imports a database dump that was fetched in the inter
     wp: async (_dir: string, args: string[]) => (args.join(" ") === "option get siteurl" ? "http://localhost:8080" : ""),
     searchReplace: async () => { calls.push("searchReplace"); },
   };
-  const ctx2: any = { targetDir };
-  await runImportWorkflow({ source, ctx: ctx2, targetDir, envService: workingEnvService as any, resume: true });
+  const ctx2 = importCtx(targetDir);
+  await runImportWorkflow({ remote, ctx: ctx2, targetDir, envService: workingEnvService as any, resume: true });
 
   assert.ok(calls.includes("importDb"), "the resumed run must still import the already-fetched dump, not silently skip it");
   assert.ok(calls.includes("searchReplace"));
@@ -70,15 +59,11 @@ test("a --resume run still imports a database dump that was fetched in the inter
 
 test("a --resume run with --skip-database (no dump ever fetched) does not attempt to import on resume either", async () => {
   const targetDir = await tempDir("acli-import-resume-skipdb-");
-  const source: ImportSource = {
-    label: "Fake source",
-    async fetchFiles() {},
-    async fetchDatabase() { throw new Error("must not be called when skipDatabase is set"); },
-  };
+  const remote = fakeRemote({ overrides: { exportDatabase: async () => { throw new Error("must not be called when skipDatabase is set"); } } });
 
   const failingEnvService = { scaffold: async () => { throw new Error("simulated interruption"); } };
-  const ctx1: any = { targetDir, skipDatabase: true };
-  await assert.rejects(() => runImportWorkflow({ source, ctx: ctx1, targetDir, envService: failingEnvService as any, resume: false }));
+  const ctx1 = importCtx(targetDir, { skipDatabase: true });
+  await assert.rejects(() => runImportWorkflow({ remote, ctx: ctx1, targetDir, envService: failingEnvService as any, resume: false }));
   assert.equal(await fs.pathExists(path.join(targetDir, "staging.sql")), false);
 
   const calls: string[] = [];
@@ -90,8 +75,8 @@ test("a --resume run with --skip-database (no dump ever fetched) does not attemp
     wp: async () => "",
     searchReplace: async () => { calls.push("searchReplace"); },
   };
-  const ctx2: any = { targetDir, skipDatabase: true };
-  await runImportWorkflow({ source, ctx: ctx2, targetDir, envService: workingEnvService as any, resume: true });
+  const ctx2 = importCtx(targetDir, { skipDatabase: true });
+  await runImportWorkflow({ remote, ctx: ctx2, targetDir, envService: workingEnvService as any, resume: true });
 
   assert.ok(!calls.includes("importDb"), "no dump was ever fetched, so resume must not attempt an import");
   await fs.remove(targetDir);

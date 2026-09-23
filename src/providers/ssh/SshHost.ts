@@ -20,8 +20,14 @@ type Runner = typeof runCommand;
 export class SshHost implements RemoteBackend {
   profile: ResolvedProfile;
   run: Runner;
+  remote: NonNullable<ResolvedProfile["remote"]>;
 
-  constructor(profile: ResolvedProfile, runner: Runner = runCommand) { this.profile = profile; this.run = runner; }
+  constructor(profile: ResolvedProfile, runner: Runner = runCommand) {
+    if (!profile.remote) throw new Error("SshHost requires a profile with remote paths (the ssh provider).");
+    this.profile = profile;
+    this.run = runner;
+    this.remote = profile.remote;
+  }
 
   requiredTools(ctx: { environment?: string; skipFiles?: boolean }): string[] {
     const tools = ["ssh", ctx.environment === "lando" ? "lando" : "docker"];
@@ -31,7 +37,7 @@ export class SshHost implements RemoteBackend {
 
   async preflight(ctx: { environment?: string; skipFiles?: boolean }): Promise<void> {
     assertToolsAvailable(this.requiredTools(ctx));
-    await this.run("ssh", buildSshArgs(this.profile.ssh, `test -d ${shellQuote(this.profile.remote.wordpressRoot)}`));
+    await this.run("ssh", buildSshArgs(this.profile.ssh, `test -d ${shellQuote(this.remote.wordpressRoot)}`));
   }
 
   fileTargets(): string[] {
@@ -52,7 +58,7 @@ export class SshHost implements RemoteBackend {
       const destination = path.join(targetDir, ...relativePath.split("/"));
       await fs.ensureDir(destination);
       spinner?.message(`Syncing ${relativePath}...`);
-      const remoteSource = path.posix.join(this.profile.remote.wordpressRoot, relativePath);
+      const remoteSource = path.posix.join(this.remote.wordpressRoot, relativePath);
       const args = ["-az"];
       for (const item of target.excludes || []) args.push("--exclude", item);
       for (const item of target.includes || []) args.push("--include", item);
@@ -63,7 +69,7 @@ export class SshHost implements RemoteBackend {
 
   async exportDatabase(targetDir: string, spinner: Spinner | null): Promise<void> {
     spinner?.message("Exporting database with wp-cli...");
-    const command = `cd ${shellQuote(this.profile.remote.wordpressRoot)} && wp db export - --quiet`;
+    const command = `cd ${shellQuote(this.remote.wordpressRoot)} && wp db export - --quiet`;
     const dumpPath = path.join(targetDir, "staging.sql");
     try {
       const dump = await this.run("ssh", buildSshArgs(this.profile.ssh, command), { encoding: null, stdoutFile: dumpPath });
@@ -88,7 +94,7 @@ export class SshHost implements RemoteBackend {
     // An explicit database.tablePrefix override always wins and skips the
     // remote fetch for it entirely.
     const explicitPrefix = this.profile.database?.tablePrefix || null;
-    const root = shellQuote(this.profile.remote.wordpressRoot);
+    const root = shellQuote(this.remote.wordpressRoot);
     const fetch = (command: string) => this.run("ssh", buildSshArgs(this.profile.ssh, `cd ${root} && ${command}`)).then((value) => (value as string)?.trim() || null).catch(() => null);
     const [fetchedPrefix, siteUrl] = await Promise.all([
       explicitPrefix ? Promise.resolve(null) : fetch("wp config get table_prefix --quiet"),
@@ -102,12 +108,12 @@ export class SshHost implements RemoteBackend {
     const paths = this.profile.git?.discoveryPaths || [".", "wp-content/themes/{projectName}"];
     if (this.profile.git?.includeProjectRoot) {
       try {
-        const url = await this.run("ssh", buildSshArgs(this.profile.ssh, `git -C ${shellQuote(this.profile.remote.projectRoot)} config --get remote.origin.url`)) as string;
+        const url = await this.run("ssh", buildSshArgs(this.profile.ssh, `git -C ${shellQuote(this.remote.projectRoot)} config --get remote.origin.url`)) as string;
         if (url) return { directory: ".", url: url.trim() };
       } catch { /* Continue with WordPress-relative discovery paths. */ }
     }
     for (const candidate of paths) {
-      const directory = path.posix.join(this.profile.remote.wordpressRoot, renderTemplate(candidate, { projectName: this.profile.projectName }));
+      const directory = path.posix.join(this.remote.wordpressRoot, renderTemplate(candidate, { projectName: this.profile.projectName }));
       try {
         const url = await this.run("ssh", buildSshArgs(this.profile.ssh, `git -C ${shellQuote(directory)} config --get remote.origin.url`)) as string;
         if (url) return { directory: candidate, url: url.trim() };

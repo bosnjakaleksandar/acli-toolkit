@@ -121,12 +121,16 @@ export class CoolifyProjectHost implements RemoteBackend {
   // repeats (e.g. the WordPress container for every component) asks once.
   private chosen: Partial<Record<SelectionKey, string>> = {};
 
-  constructor(profile: ResolvedProfile, runner: Runner = runCommand, { chooseOption = null, onSelection = null }: { chooseOption?: MenuChooser | null; onSelection?: ((key: SelectionKey, value: string) => void) | null } = {}) {
+  /** `project list` output already fetched this run, if any. */
+  private knownProjects: string[] | null;
+
+  constructor(profile: ResolvedProfile, runner: Runner = runCommand, { chooseOption = null, onSelection = null, knownProjects = null }: { chooseOption?: MenuChooser | null; onSelection?: ((key: SelectionKey, value: string) => void) | null; knownProjects?: string[] | null } = {}) {
     if (profile.provider !== "coolify-cli" || !profile.coolify) throw new Error("CoolifyProjectHost requires a coolify-cli profile.");
     this.profile = profile;
     this.run = runner;
     this.chooseOption = chooseOption;
     this.onSelection = onSelection;
+    this.knownProjects = knownProjects;
   }
 
   /**
@@ -142,7 +146,8 @@ export class CoolifyProjectHost implements RemoteBackend {
 
   /** Projects assigned to this SSH user, as `project list` prints them. */
   async listProjects(): Promise<string[]> {
-    return (await this.projectCommand("list")).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    this.knownProjects ??= (await this.projectCommand("list")).split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return this.knownProjects;
   }
 
   private async lookupProject(): Promise<string> {
@@ -186,22 +191,26 @@ export class CoolifyProjectHost implements RemoteBackend {
     const workDir = await this.workDir(targetDir);
     const wpContent = path.join(targetDir, "wp-content");
     await fs.ensureDir(wpContent);
-    for (const name of names) {
-      spinner?.message(`Exporting ${name} on the server...`);
-      const remotePath = parseExportPath(await this.projectCommand("wp-export", [project, name], spinner));
-      if (!remotePath) {
-        spinner?.message(`Skipping ${name}: not present on the server.`);
-        continue;
+    try {
+      for (const name of names) {
+        spinner?.message(`Exporting ${name} on the server...`);
+        const remotePath = parseExportPath(await this.projectCommand("wp-export", [project, name], spinner));
+        if (!remotePath) {
+          spinner?.message(`Skipping ${name}: not present on the server.`);
+          continue;
+        }
+        spinner?.message(`Downloading ${name}...`);
+        const archive = await this.download(remotePath, workDir);
+        try {
+          await this.assertSafeArchive(archive, (entry) => entry === name || entry.startsWith(`${name}/`));
+          spinner?.message(`Unpacking ${name}...`);
+          await this.run("tar", ["-xzf", archive, "-C", wpContent]);
+        } finally {
+          await fs.remove(archive).catch(() => {});
+        }
       }
-      spinner?.message(`Downloading ${name}...`);
-      const archive = await this.download(remotePath, workDir);
-      try {
-        await this.assertSafeArchive(archive, (entry) => entry === name || entry.startsWith(`${name}/`));
-        spinner?.message(`Unpacking ${name}...`);
-        await this.run("tar", ["-xzf", archive, "-C", wpContent]);
-      } finally {
-        await fs.remove(archive).catch(() => {});
-      }
+    } finally {
+      await this.releaseWorkDir(workDir);
     }
   }
 
@@ -223,6 +232,7 @@ export class CoolifyProjectHost implements RemoteBackend {
       throw error;
     } finally {
       await fs.remove(archive).catch(() => {});
+      await this.releaseWorkDir(workDir);
     }
   }
 
@@ -332,5 +342,10 @@ export class CoolifyProjectHost implements RemoteBackend {
     await fs.ensureDir(directory);
     await fs.chmod(directory, 0o700).catch(() => {});
     return directory;
+  }
+
+  /** Removes the download directory once it is empty, so no leftover .acli/tmp stays in the project. */
+  private async releaseWorkDir(directory: string): Promise<void> {
+    await fs.rmdir(directory).catch(() => {});
   }
 }

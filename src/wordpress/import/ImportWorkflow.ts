@@ -3,44 +3,43 @@ import fs from "fs-extra";
 import DatabaseDumpService from "../migration/DatabaseDump.ts";
 import WordPressMigrationService from "../migration/WordPressMigration.ts";
 import { StepRunner } from "../../core/StepRunner.ts";
-import type { ImportSource, ImportSourceContext } from "./ImportSource.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import { mergeGitignoreForImport } from "../../system/gitignore.ts";
+import { linkGitRemote } from "../../system/git.ts";
 import { redactSecrets } from "../../config/redaction.ts";
-import { getProvider } from "../../providers/registry.ts";
+import { writeLink } from "../../profiles/ProjectLink.ts";
+import { providerFor, type RemoteBackend } from "../../providers/registry.ts";
+import { linkDiscoveredGit } from "./linkGit.ts";
+import type { ImportContext } from "./ImportContext.ts";
 
 export interface ImportWorkflowOptions {
-  source: ImportSource;
-  ctx: ImportSourceContext & { environment?: string; skipFiles?: boolean; skipDatabase?: boolean; skipGitLink?: boolean; keepDump?: boolean };
+  /** The profile provider's backend for this project (see createRemoteBackend). */
+  remote: RemoteBackend;
+  ctx: ImportContext;
   targetDir: string;
   envService: EnvironmentService;
   spinner?: Spinner | null;
   resume?: boolean;
   resumeCommand?: string;
+  /** Injectable for tests; defaults to the real pull-only Git linker. */
+  gitLinker?: typeof linkGitRemote;
 }
 
 /**
- * Runs the source-agnostic half of an import: preflight, fetch files, fetch
- * a database dump, detect its table prefix, scaffold the local environment,
- * link the project to its source (profile/git, when the source supports
- * it), then (if a dump was fetched) run the same import/search-replace
- * pipeline every import source shares (DatabaseDumpService,
- * WordPressMigrationService).
+ * Runs an import: preflight, fetch files, fetch a database dump, detect its
+ * table prefix, scaffold the local environment, link the project to its
+ * profile and Git origin, then (if a dump was fetched) import it and
+ * search-replace URLs (DatabaseDumpService, WordPressMigrationService).
+ * Everything server-specific happens in `remote`, the profile provider's
+ * backend, so this runs unchanged for every provider.
  *
- * The `preflight`/`getRemoteFacts`/`linkProfile`/`linkGit` steps are no-ops
- * for sources that don't implement the matching optional ImportSource
- * method (local/git/zip/sql today) — this is the one executor for every
- * source, remote or local; a source opts into the steps it needs rather
- * than the workflow branching on which source it's running.
- *
- * Prefix detection runs *before* scaffolding, matching what a source-level
- * import always required: the prefix gets templated into
- * docker-compose.yaml/.lando.yml, so detecting it after the environment is
- * already scaffolded would leave those files pointed at the wrong tables
- * (silently falling back to the "wp_" default). When available, an
- * authoritative remote-reported prefix (getRemoteFacts) wins over guessing
- * from the dump's own contents.
+ * Prefix detection runs *before* scaffolding: the prefix gets templated
+ * into docker-compose.yaml/.lando.yml, so detecting it after the
+ * environment is already scaffolded would leave those files pointed at the
+ * wrong tables (silently falling back to the "wp_" default). When
+ * available, an authoritative remote-reported prefix (getRemoteFacts) wins
+ * over guessing from the dump's own contents.
  *
  * Whether a dump exists is checked on disk (`<targetDir>/staging.sql`)
  * rather than tracked in an in-memory flag, so it stays correct across a
@@ -52,7 +51,7 @@ export interface ImportWorkflowOptions {
  * job (src/cli/commands/import.ts), mirroring how createProjectCommand handles
  * those same generic post-scaffold steps.
  */
-export async function runImportWorkflow({ source, ctx, targetDir, envService, spinner, resume, resumeCommand }: ImportWorkflowOptions): Promise<void> {
+export async function runImportWorkflow({ remote, ctx, targetDir, envService, spinner = null, resume, resumeCommand, gitLinker = linkGitRemote }: ImportWorkflowOptions): Promise<void> {
   const databaseDumpService = new DatabaseDumpService();
   const migrationService = new WordPressMigrationService(envService);
   const dumpPath = path.join(targetDir, "staging.sql");
@@ -63,7 +62,7 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       id: "preflight",
       title: "Validating requirements",
       run: async () => {
-        await source.preflight?.(ctx);
+        await remote.preflight({ environment: ctx.environment, skipFiles: ctx.skipFiles });
       },
     },
     {
@@ -71,8 +70,8 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       title: "Fetching WordPress files",
       run: async () => {
         if (ctx.skipFiles) return;
-        spinner?.message?.(`Fetching files via ${source.label}...`);
-        await source.fetchFiles(ctx, spinner);
+        spinner?.message?.("Fetching WordPress files...");
+        await remote.syncFiles(targetDir, spinner);
       },
     },
     {
@@ -80,7 +79,7 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       title: "Fetching database dump",
       run: async () => {
         if (ctx.skipDatabase) return;
-        await source.fetchDatabase(ctx, spinner);
+        await remote.exportDatabase(targetDir, spinner);
       },
     },
     {
@@ -89,7 +88,7 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       run: async () => {
         if (!(await hasDump())) return null;
         spinner?.message?.("Detecting table prefix...");
-        const remoteFacts = source.getRemoteFacts ? await source.getRemoteFacts(ctx) : null;
+        const remoteFacts = await remote.getRemoteFacts();
         const tablePrefix = await databaseDumpService.detectTablePrefix(targetDir, spinner, remoteFacts);
         ctx.tablePrefix = tablePrefix;
         return tablePrefix;
@@ -112,18 +111,28 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       id: "link-profile",
       title: "Linking project to its source",
       run: async () => {
-        if (!source.linkProfile) return null;
         spinner?.message?.("Linking project to its staging profile...");
-        return source.linkProfile(targetDir, ctx);
+        // Everything that identifies this project on its server lives in the
+        // link, so `acli pull` needs no arguments later.
+        await writeLink(targetDir, {
+          name: ctx.projectName,
+          type: "wordpress",
+          environment: ctx.environment,
+          profile: ctx.profile.profileName,
+          ...(ctx.remoteProject && ctx.remoteProject !== ctx.projectName ? { remoteProject: ctx.remoteProject } : {}),
+          ...(ctx.selections && Object.keys(ctx.selections).length ? { selections: ctx.selections } : {}),
+          linkedAt: new Date().toISOString(),
+        });
+        return ctx.profile.profileName ?? null;
       },
     },
     {
       id: "link-git",
       title: "Linking Git repository",
       run: async () => {
-        if (!source.linkGit || ctx.skipGitLink || ctx.skipGitInit) return null;
+        if (ctx.skipGitLink || ctx.skipGitInit) return null;
         spinner?.message?.("Discovering remote Git repository...");
-        return source.linkGit(targetDir, ctx, spinner);
+        return linkDiscoveredGit(remote, targetDir, ctx, { spinner, ...(resumeCommand ? { resumeCommand } : {}), gitLinker });
       },
       onSkip: (result: any) => {
         if (result?.summary) ctx.gitStatus = result.summary;
@@ -162,15 +171,33 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       command: "import",
       projectName: ctx.projectName,
       environment: ctx.environment,
-      mysqlVersion: (ctx as any).mysqlVersion,
-      wpVersion: (ctx as any).wpVersion,
+      mysqlVersion: ctx.mysqlVersion,
+      wpVersion: ctx.wpVersion,
       skipFiles: ctx.skipFiles,
       skipDatabase: ctx.skipDatabase,
       skipGitLink: ctx.skipGitLink,
       // Each provider decides which of its profile fields count, e.g.
       // Coolify menu selections don't invalidate a --resume.
-      profile: ctx.profile ? getProvider(ctx.profile as any)?.fingerprint(redactSecrets(ctx.profile) as any) ?? redactSecrets(ctx.profile) : null,
+      profile: providerFor(ctx.profile).fingerprint(redactSecrets(ctx.profile) as Record<string, unknown>),
     },
   });
   await runner.run({ resume: Boolean(resume) });
+}
+
+/** The `acli import --dry-run` plan: what would be fetched from where, and which local tools it needs. */
+export function buildImportPlan(ctx: ImportContext, remote: RemoteBackend): Record<string, unknown> {
+  return {
+    profile: ctx.profile.profileName || null,
+    project: ctx.projectName,
+    localEnvironment: ctx.environment,
+    remoteHost: ctx.profile.ssh.host,
+    provider: ctx.profile.provider,
+    ...providerFor(ctx.profile).plan(ctx.profile, { skipFiles: ctx.skipFiles, skipDatabase: Boolean(ctx.skipDatabase) }),
+    gitLink: !ctx.skipGitInit && !ctx.skipGitLink && ctx.profile.git?.enabled !== false,
+    // Shown because it decides which URLs get search-replaced: the imported
+    // site's own siteurl always is, and this is the extra source folded in
+    // alongside it (from --remote-url, or the profile's own urls.staging).
+    stagingUrl: ctx.stagingUrl ?? ctx.profile.urls?.staging ?? null,
+    requiredTools: remote.requiredTools({ environment: ctx.environment, skipFiles: ctx.skipFiles }),
+  };
 }

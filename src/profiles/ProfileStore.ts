@@ -6,6 +6,7 @@ import { validateConfig, validateProfileConfig } from "../config/schema.ts";
 import { readWritableConfig, writeConfigAtomic } from "../config/ConfigWriter.ts";
 import type { Profile } from "../core/model/Profile.ts";
 import { isSafeSshHostAlias } from "../system/safety.ts";
+import { CliError } from "../core/errors.ts";
 
 export interface ProfileConfigPathOptions {
   /** An explicit config file instead of the user config (tests, --config). */
@@ -40,7 +41,7 @@ export async function deleteProfile(name: string, options: ProfileWriteOptions =
   const filePath = resolveProfileConfigPath(options);
   if (!(await fs.pathExists(filePath))) throw new Error(`Configuration file not found: ${filePath}`);
   const config = await readConfigFile(filePath);
-  if (!config.profiles?.[name]) throw new Error(`Profile "${name}" was not found in ${filePath}.`);
+  if (!config.profiles?.[name]) throw new CliError(`Profile "${name}" was not found in ${filePath}.`, { code: "PROFILE_NOT_FOUND", hint: "Run `acli profile list` to see your profiles." });
   const references = findProfileReferences(config, name);
   if (references.length && !options.force) {
     throw new Error(`Profile "${name}" is still referenced by ${references.join(", ")}. Update those references first, or pass --force to clear them while deleting.`);
@@ -78,7 +79,7 @@ export async function setProfileGitSshHostAlias(name: string, alias: string | nu
   if (!(await fs.pathExists(filePath))) throw new Error(`Configuration file not found: ${filePath}`);
   const config = await readConfigFile(filePath);
   const profile = config.profiles?.[name];
-  if (!profile) throw new Error(`Profile "${name}" was not found in ${filePath}.`);
+  if (!profile) throw new CliError(`Profile "${name}" was not found in ${filePath}.`, { code: "PROFILE_NOT_FOUND", hint: "Run `acli profile list` to see your profiles." });
   profile.git ||= {};
   if (alias === null) delete profile.git.sshHostAlias;
   else profile.git.sshHostAlias = alias;

@@ -4,7 +4,7 @@ import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
 import { runImportWorkflow } from "../src/wordpress/import/ImportWorkflow.ts";
-import type { ImportSource, ImportSourceContext } from "../src/wordpress/import/ImportSource.ts";
+import { fakeRemote, importCtx } from "./helpers/importFakes.ts";
 import type EnvironmentService from "../src/environments/EnvironmentService.ts";
 
 /**
@@ -20,17 +20,6 @@ async function tempDir(prefix: string) {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-function makeFakeSource(sql: string): ImportSource {
-  return {
-    label: "Fake source",
-    async fetchFiles() {},
-    async fetchDatabase(ctx: ImportSourceContext) {
-      await fs.writeFile(path.join(ctx.targetDir, "staging.sql"), sql);
-      return { hasDump: true };
-    },
-  };
-}
-
 function makeFakeEnvService(scaffoldSpy: (options: any) => void): EnvironmentService {
   return {
     scaffold: async (_dir: string, _type: string, options: any) => { scaffoldSpy(options); },
@@ -44,30 +33,26 @@ function makeFakeEnvService(scaffoldSpy: (options: any) => void): EnvironmentSer
 
 test("detects the table prefix before scaffolding, so the local environment is templated with the real prefix instead of defaulting to wp_", async () => {
   const targetDir = await tempDir("acli-import-order-");
-  const source = makeFakeSource("CREATE TABLE `xyz_options` (id INT);\nCREATE TABLE `xyz_postmeta` (id INT);");
+  const remote = fakeRemote({ dump: "CREATE TABLE `xyz_options` (id INT);\nCREATE TABLE `xyz_postmeta` (id INT);" });
   let seenPrefix: unknown;
   const envService = makeFakeEnvService((options) => { seenPrefix = options.tablePrefix; });
-  const ctx: any = { targetDir };
+  const ctx = importCtx(targetDir);
 
-  await runImportWorkflow({ source, ctx, targetDir, envService, resume: false });
+  await runImportWorkflow({ remote, ctx, targetDir, envService, resume: false });
 
   assert.equal(seenPrefix, "xyz_", "scaffold() must already see the detected prefix, not undefined/the wp_ default");
   assert.equal(ctx.tablePrefix, "xyz_");
   await fs.remove(targetDir);
 });
 
-test("scaffolds normally (with the wp_ default) when the source supplies no database dump", async () => {
+test("scaffolds normally (with the wp_ default) when the server supplies no database dump", async () => {
   const targetDir = await tempDir("acli-import-order-nodump-");
-  const source: ImportSource = {
-    label: "Fake source (no dump)",
-    async fetchFiles() {},
-    async fetchDatabase() { return { hasDump: false }; },
-  };
+  const remote = fakeRemote({ dump: null });
   let seenPrefix: unknown = "unset";
   const envService = makeFakeEnvService((options) => { seenPrefix = options.tablePrefix; });
-  const ctx: any = { targetDir };
+  const ctx = importCtx(targetDir);
 
-  await runImportWorkflow({ source, ctx, targetDir, envService, resume: false });
+  await runImportWorkflow({ remote, ctx, targetDir, envService, resume: false });
 
   assert.equal(seenPrefix, undefined, "no dump means no prefix to detect — envService.scaffold itself owns the wp_ fallback");
   await fs.remove(targetDir);

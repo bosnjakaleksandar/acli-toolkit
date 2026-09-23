@@ -31,16 +31,9 @@ export interface ProjectPlan {
   plugins?: string[];
   installWpCli?: boolean;
 
-  stagingUrl?: string;
-  profile?: string | ResolvedProfileRef;
-
   skipGitInit?: boolean;
   /** Final observed Git state for the success summary; never persisted as configuration. */
   gitStatus?: string;
-  skipFiles?: boolean;
-  skipDatabase?: boolean;
-  skipGitLink?: boolean;
-  keepDump?: boolean;
 
   packageManager?: string;
   nonInteractive?: boolean;
@@ -48,7 +41,3 @@ export interface ProjectPlan {
   [key: string]: unknown;
 }
 
-/** The minimal shape a plan keeps for an attached profile — never the resolved connection details. */
-export interface ResolvedProfileRef {
-  profileName: string;
-}
