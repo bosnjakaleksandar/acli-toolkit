@@ -5,13 +5,6 @@
 node_modules/
 
 # -------------------------------------- #
-# Build output                           #
-# -------------------------------------- #
-
-dist/
-*.tsbuildinfo
-
-# -------------------------------------- #
 # Environment / secrets                  #
 # -------------------------------------- #
 
@@ -25,22 +18,31 @@ dist/
 
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # -------------------------------------- #
-# IDE / Editor / OS                      #
+# IDE / Editor                           #
 # -------------------------------------- #
 
+.vscode/
 .idea/
-*.swp
+*.sublime-project
+*.sublime-workspace
+
+# -------------------------------------- #
+# OS files                               #
+# -------------------------------------- #
+
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*.tmp
 
 # -------------------------------------- #
-# Local tools (per machine)              #
+# A-CLI                                  #
 # -------------------------------------- #
 
-# A-CLI project link from running acli inside this repo.
 .acli/
-# Personal Claude Code settings; shared ones (.claude/settings.json) can be committed.
-.claude/settings.local.json
-# .codegraph/ ignores its own index; only its .gitignore is committed.

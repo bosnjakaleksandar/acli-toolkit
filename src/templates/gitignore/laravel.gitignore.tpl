@@ -1,74 +1,36 @@
-# =================================================================== #
-# Laravel - ignore vendor, storage, and local environment config.     #
-# =================================================================== #
-
 # -------------------------------------- #
-# Core / Dependencies                    #
+# Laravel backend (backend/)             #
 # -------------------------------------- #
 
-# The Laravel app lives in backend/ (this project also has a separate
-# frontend/), so paths meant to anchor at the app root must be prefixed
-# accordingly — a bare /vendor/ here would only ever match a vendor/
-# directory at the *project* root, which never exists.
+# The Laravel app lives in backend/ (the frontend is in frontend/), so rules
+# that must anchor at the app root are prefixed — a bare /vendor/ would only
+# match a vendor/ directory at the project root, which never exists.
 /backend/vendor/
-node_modules/
-auth.json
-
-# -------------------------------------- #
-# Storage / Cache                        #
-# -------------------------------------- #
-
 /backend/public/hot
 /backend/public/storage
+/backend/public/build
 /backend/storage/*.key
+/backend/storage/pail
 /backend/storage/framework/cache/data/*
 /backend/storage/framework/sessions/*
 /backend/storage/framework/testing/*
 /backend/storage/framework/views/*
 /backend/storage/logs/*
+auth.json
 
 # -------------------------------------- #
-# IDE / EDITOR                           #
+# Tests / local tooling                  #
 # -------------------------------------- #
 
-.vscode/
-.idea/
-*.sublime-project
-*.sublime-workspace
-
-# -------------------------------------- #
-# OS Files                               #
-# -------------------------------------- #
-
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*.tmp
-
-# -------------------------------------- #
-# Environment / Local                    #
-# -------------------------------------- #
-
-.env
-.env.*
-!.env.example
 .phpunit.result.cache
+.phpunit.cache
 docker-compose.override.yml
 Homestead.json
 Homestead.yaml
 
 # -------------------------------------- #
-# A-CLI                                  #
-# -------------------------------------- #
-
-.acli/
-
-# -------------------------------------- #
-# SQL / Logs                             #
+# Database dumps                         #
 # -------------------------------------- #
 
 *.sql
-*.log
-npm-debug.log
-yarn-error.log
+*.sql.gz
