@@ -1,7 +1,46 @@
+# -------------------------------------- #
+# Dependencies                           #
+# -------------------------------------- #
+
 node_modules/
-*.DS_Store
-.env
-.acli/
+
+# -------------------------------------- #
+# Build output                           #
+# -------------------------------------- #
+
 dist/
 *.tsbuildinfo
-.claude/
+
+# -------------------------------------- #
+# Environment / secrets                  #
+# -------------------------------------- #
+
+.env
+.env.*
+!.env.example
+
+# -------------------------------------- #
+# Logs                                   #
+# -------------------------------------- #
+
+*.log
+npm-debug.log*
+
+# -------------------------------------- #
+# IDE / Editor / OS                      #
+# -------------------------------------- #
+
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# -------------------------------------- #
+# Local tools (per machine)              #
+# -------------------------------------- #
+
+# A-CLI project link from running acli inside this repo.
+.acli/
+# Personal Claude Code settings; shared ones (.claude/settings.json) can be committed.
+.claude/settings.local.json
+# .codegraph/ ignores its own index; only its .gitignore is committed.
