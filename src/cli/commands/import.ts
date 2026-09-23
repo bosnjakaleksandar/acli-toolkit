@@ -100,7 +100,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
 
     ctx.profile = resolveRemoteProfile(selection.profile!, { projectName: ctx.projectName });
     ctx.stagingUrl = ctx.stagingUrl || ctx.profile.urls?.staging || undefined;
-    if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment), `Selected profile: ${selection.profileName}`);
+    if (!nonInteractive) note(profileSummary(selection.profile!, ctx.environment, ctx.projectName), `Selected profile: ${selection.profileName}`);
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;

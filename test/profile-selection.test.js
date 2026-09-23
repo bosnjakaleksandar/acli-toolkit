@@ -84,3 +84,9 @@ test("the default profile from `acli profile use` is selected when several profi
   const explicit = await resolveProfileSelection({ config, options: { profile: "first" }, required: true, nonInteractive: true, configuredOnly: true, offerCreateWhenMissing: false });
   assert.equal(explicit.profileName, "first");
 });
+
+test("profileSummary fills in {projectName} once the project name is known", () => {
+  const profile = { provider: "coolify-cli", ssh: { host: "cloud.example.com", username: "dev" }, coolify: { project: "{projectName}" } };
+  assert.match(profileSummary(profile, "docker", "client-site"), /Coolify project: client-site/);
+  assert.match(profileSummary(profile, "docker"), /Coolify project: \{projectName\}/);
+});

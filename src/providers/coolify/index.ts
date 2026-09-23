@@ -43,7 +43,7 @@ export const coolifyProvider: ProviderDefinition = {
 
   tools: () => ["ssh", "scp", "tar"],
 
-  describe: (profile) => `Coolify project CLI · ${profile.coolify?.project || "unknown project"}`,
+  describe: (profile) => `Coolify project CLI · ${profile.coolify?.project === "{projectName}" ? "server project = local project name" : `server project "${profile.coolify?.project}"`}`,
 
   summary: (profile) => [`Coolify project: ${profile.coolify?.project}`, "Database and files: exported with the server's project CLI (pull-only)"],
 

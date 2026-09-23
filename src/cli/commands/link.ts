@@ -37,7 +37,7 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
     let { config } = await loadConfig({ configPath: options.config });
     const selection = await resolveProfileSelection({ config, options, attachedProfileName: undefined, required: true, nonInteractive });
     config = selection.config;
-    if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile!, environment)));
+    if (!nonInteractive) console.log(chalk.gray(profileSummary(selection.profile!, environment, projectName)));
 
     const envFilePath = path.join(cwd, ENV_FILE_NAMES[environment]!);
     if (!(await fs.pathExists(envFilePath))) {

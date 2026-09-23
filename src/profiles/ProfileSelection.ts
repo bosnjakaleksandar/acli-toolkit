@@ -80,6 +80,12 @@ export function profileOption(name: string, profile: Profile): { label: string; 
   return { label: `${name} — ${describeProfile(profile)}`, value: name };
 }
 
-export function profileSummary(profile: Profile, environment: string | undefined): string {
-  return [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, ...(getProvider(profile)?.summary(profile) || []), `Local: ${environment}`].join("\n");
+/**
+ * The "Selected profile" note. Once the project name is known, `{projectName}`
+ * placeholders are shown filled in, so the summary reads as the actual
+ * server user, project and paths this run will use.
+ */
+export function profileSummary(profile: Profile, environment: string | undefined, projectName?: string): string {
+  const summary = [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, ...(getProvider(profile)?.summary(profile) || []), `Local: ${environment}`].join("\n");
+  return projectName ? summary.replaceAll("{projectName}", projectName) : summary;
 }

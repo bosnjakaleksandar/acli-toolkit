@@ -113,6 +113,7 @@ test("validateNamedProfile resolves for a valid profile and throws for an unknow
 
 test("describeProfile summarizes the host and how its provider reaches it", () => {
   assert.equal(describeProfile(wpProfile("demo.example.com")), "demo.example.com · SSH · wp-cli · rsync");
-  assert.equal(describeProfile({ ssh: { host: "cloud.example.com" }, provider: "coolify-cli", coolify: { project: "Demo" } }), "cloud.example.com · Coolify project CLI · Demo");
+  assert.equal(describeProfile({ ssh: { host: "cloud.example.com" }, provider: "coolify-cli", coolify: { project: "Demo" } }), 'cloud.example.com · Coolify project CLI · server project "Demo"');
+  assert.equal(describeProfile({ ssh: { host: "cloud.example.com" }, provider: "coolify-cli", coolify: { project: "{projectName}" } }), "cloud.example.com · Coolify project CLI · server project = local project name");
   assert.equal(describeProfile({ ssh: {}, provider: "ftp" }), 'unknown host · unknown provider "ftp"');
 });
