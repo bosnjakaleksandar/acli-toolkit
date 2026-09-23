@@ -1,6 +1,7 @@
 import path from "node:path";
 import ScaffoldStrategy from "./ScaffoldStrategy.ts";
 import { runCommand } from "../../system/commandRunner.ts";
+import { applyGitignoreTemplate } from "../../system/gitignore.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 
@@ -29,5 +30,8 @@ export default class NextjsStrategy extends ScaffoldStrategy {
       "--import-alias", "@/*",
       "--use-npm", "--skip-install", "--disable-git", "--yes",
     ], { cwd: parentDir });
+    // Keep create-next-app's own .gitignore and add A-CLI's shared rules
+    // (env files, editors, OS files, .acli/) that it doesn't cover.
+    await applyGitignoreTemplate(targetDir, "nextjs");
   }
 }

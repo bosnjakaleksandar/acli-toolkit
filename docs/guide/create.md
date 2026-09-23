@@ -17,6 +17,8 @@
 
 React, Next.js and Laravel are generated with their official tools (`create-vite`, `create-next-app`, `composer`), so they don't need Docker or Lando.
 
+Every project gets a `.gitignore` with its framework's rules (build output, `vendor/`, WordPress core and uploads, …) plus the ones all projects share: dependencies, `.env` files (keeping `.env.example`), logs, editor and OS files, and `.acli/`. For React and Next.js, these are added to the generator's own `.gitignore` without removing anything from it.
+
 ## Step by step
 
 Run:
