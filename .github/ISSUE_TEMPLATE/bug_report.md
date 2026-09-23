@@ -23,7 +23,7 @@ acli ...
 - OS:
 - Local environment: docker / lando
 
-**`acli doctor` output** (if relevant)
+**Output of the failing command, re-run with `--verbose`** (remove hostnames or keys you don't want to share)
 
 ```
 paste here
