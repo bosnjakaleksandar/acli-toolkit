@@ -109,7 +109,7 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
     },
     {
       id: "link-profile",
-      title: "Linking project to its source",
+      title: "Linking project to its profile",
       run: async () => {
         spinner?.message?.("Linking project to its staging profile...");
         // Everything that identifies this project on its server lives in the
