@@ -37,10 +37,11 @@ jobs:
       - run: npm run build
       - run: npm test
 
-      # npm Trusted Publishing (OIDC) needs npm CLI >=11.5.0 — newer than
-      # what Node 22's bundled npm ships (npm 12 no longer supports Node 22.18, so stay on 11). `npm ci`/`npm test` above still run
-      # under the Node-bundled npm; only the publish step needs the upgrade.
-      - run: npm install -g npm@11
+      # Staged publishing through Trusted Publishing (OIDC) needs npm
+      # >=11.20 — newer than Node 22's bundled npm. npm 12 no longer supports
+      # Node 22.18, so stay on 11. `npm ci`/`npm test` above still run under
+      # the Node-bundled npm; only the publish step needs the upgrade.
+      - run: npm install -g npm@^11.20.0
 
       # A tag matching v*.*.* triggers this workflow regardless of which
       # commit it points at — without this check, anyone able to push a tag
@@ -67,16 +68,13 @@ jobs:
             exit 1
           fi
 
-      # Publishes via npm Trusted Publishing (OIDC) — no NPM_TOKEN secret
-      # needed. npm exchanges this job's GitHub Actions OIDC token
-      # (id-token: write, granted above) for a short-lived publish
-      # credential, scoped to this exact repo + workflow file, with no
-      # long-lived secret stored anywhere. Requires a one-time, manual setup
-      # step this workflow file cannot do on its own: on npmjs.com, under
-      # the `acli-toolkit` package's Settings → Trusted Publisher, add a
-      # GitHub Actions publisher pointing at this repo and at
-      # `.github/workflows/release.yml`. Until that's configured, this step
-      # fails outright (no fallback) — do the npmjs.com setup, publish a
-      # prerelease tag (e.g. v2.0.1-rc.1) to confirm it works, and only then
-      # remove the now-unused NPM_TOKEN secret from the repo.
-      - run: npm publish --provenance
+      # Stages the release via npm Trusted Publishing (OIDC): no token is
+      # stored anywhere. npm exchanges this job's GitHub Actions OIDC token
+      # (id-token: write, granted above) for a short-lived credential scoped
+      # to this repo + workflow file (configured on npmjs.com under the
+      # package's Settings → Trusted Publisher). The trusted publisher may
+      # only *stage*: the version stays private until a maintainer approves
+      # it with 2FA — `npm stage list acli-toolkit`, then
+      # `npm stage approve <stage-id>` (or on npmjs.com). A compromised
+      # workflow therefore can't publish on its own.
+      - run: npm stage publish --provenance
