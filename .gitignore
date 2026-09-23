@@ -39,8 +39,5 @@ Thumbs.db
 # Local tools (per machine)              #
 # -------------------------------------- #
 
-# A-CLI project link from running acli inside this repo.
 .acli/
-# Personal Claude Code settings; shared ones (.claude/settings.json) can be committed.
 .claude/settings.local.json
-# .codegraph/ ignores its own index; only its .gitignore is committed.
