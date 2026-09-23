@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- `acli create` offers a Docker or Lando environment for every project type, not only WordPress: React and Next.js get a Node dev container, and Laravel projects get PHP 8.3 + Composer, MySQL and a Node container for the frontend (with `lando artisan`, `lando composer` and `lando npm`). Ports are bound to `127.0.0.1`.
+- `--environment none` (and a *None* choice) runs an application natively; it is the default for applications. WordPress still requires Docker or Lando.
+
+### Changed
+
+- The local-environment question is asked for every project type; the advanced-settings question is asked only for WordPress.
+
 ## [3.0.0] - 2026-09-24
 
 This release narrows `acli import` / `acli pull` to two well-defined ways of reaching a staging server and removes the configuration machinery that existed for one-off setups. It is a major version because commands, options and configuration fields were removed (see **Removed**); configurations that use them fail validation with a message saying what to change. `acli create` (React, Next.js, Laravel, WordPress) and the Docker/Lando environments are unchanged.
