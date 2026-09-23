@@ -7,7 +7,7 @@ Older versions of this tool (`create-project`, pre-A-CLI) connected to a single 
 - SSH username was always the project name; the remote path was always `~/<project>/wordpress`.
 - The remote database ran in Docker, discovered by a container name containing the project name.
 
-A-CLI's [profiles](./presets.md) replace these environment variables with declarative configuration. The Docker-container database convention itself is no longer supported (A-CLI 2.1 removed `profile import-legacy` and the `docker` database driver): the ssh provider exports the database with `wp db export` on the server.
+A-CLI's [profiles](./profiles.md) replace these environment variables with declarative configuration. The Docker-container database convention itself is no longer supported (A-CLI 2.1 removed `profile import-legacy` and the `docker` database driver): the ssh provider exports the database with `wp db export` on the server.
 
 If your legacy staging server has wp-cli, create an ssh profile that mirrors the old layout:
 

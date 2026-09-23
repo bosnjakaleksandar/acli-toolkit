@@ -7,8 +7,7 @@ export default {
   themeConfig: {
     nav: [
       { text: "Guide", link: "/quick-start" },
-      { text: "Presets", link: "/presets" },
-      { text: "Doctor", link: "/doctor" },
+      { text: "Profiles", link: "/profiles" },
     ],
 
     sidebar: [
@@ -22,8 +21,7 @@ export default {
       { text: "Next.js", link: "/nextjs" },
       { text: "Laravel", link: "/laravel" },
       { text: "Import Existing WordPress", link: "/existing-wp" },
-      { text: "Presets", link: "/presets" },
-      { text: "Doctor", link: "/doctor" },
+      { text: "Profiles", link: "/profiles" },
       { text: "Configuration", link: "/environment-variables" },
       { text: "Migrating from create-project", link: "/migrating-from-create-project" },
       { text: "FAQ", link: "/faq" },

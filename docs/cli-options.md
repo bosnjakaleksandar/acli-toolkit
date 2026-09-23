@@ -11,7 +11,7 @@ These apply to every command, not just `create`:
 - `--debug` — show debug details and stack traces on failure
 - `--quiet` — suppress decorative output
 
-Running `acli` with no arguments opens an interactive menu in this order: Create, Import, Profiles, Link, Pull, Doctor. Profiles opens a submenu for creating, importing, exporting, listing, selecting a default, and deleting staging profiles.
+Running `acli` with no arguments opens an interactive menu in this order: Create, Import, Profiles, Link, Pull. Profiles opens a submenu for creating, listing, selecting a default, setting a Git SSH alias, and deleting staging profiles.
 
 `acli update` installs the latest published version globally. `acli update --check` reports whether one is available (exit code 1 if so) without installing anything — useful for scripting.
 
@@ -27,8 +27,8 @@ Pass partial options to skip prompts for values you already know. The CLI asks o
 
 ```bash
 acli create --name my-app
-acli create --name my-app --preset react
-acli create --name salon --preset wordpress --environment lando
+acli create --name my-app --type application --framework react
+acli create --name salon --type wordpress --wp-type theme --environment lando
 ```
 
 `--environment` only applies to WordPress projects — React/Next.js/Laravel are scaffolded by their own official generators and run via their own dev servers, so no local environment choice is needed for them.
@@ -41,17 +41,19 @@ acli create --type application --framework nextjs --laravel --name booking-app -
 
 To bring in an *existing* WordPress site rather than scaffolding a new one, use `acli import` instead — see [Import an existing WordPress project](./existing-wp.md). The compatibility flag `create --existing` now exits with a usage error and points to `acli import`; it never starts an import.
 
-Presets and CLI options can be combined. CLI options override preset values:
+Values in `defaults` in your configuration are used unless an option overrides them, so a team can set its starter theme once:
 
-```bash
-acli create --preset wordpress --name my-site --environment lando
+```yaml
+defaults:
+  themeRepo: git@github.com:your-org/starter-theme.git
+  plugins: [advanced-custom-fields]
 ```
 
 ## Examples
 
 ```bash
-acli create --name my-app --preset react
-acli create --name salon --preset wordpress --environment lando
+acli create --name my-app --type application --framework react
+acli create --name salon --type wordpress --wp-type theme --environment lando
 acli create --type application --framework nextjs --laravel --name booking-app
 ```
 
@@ -59,11 +61,8 @@ acli create --type application --framework nextjs --laravel --name booking-app
 
 - `--name <name>`
 - `--environment <docker|lando>` or `--env <docker|lando>`
-- `--preset <preset>`
 - `--config <path>`
-- `--set <key=value>`
 - `--dry-run`
-- `--from-last`
 - `--resume`
 - `--existing` (compatibility error only — use `acli import`)
 - `--type <application|wordpress>`

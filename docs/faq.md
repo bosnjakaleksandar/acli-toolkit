@@ -1,8 +1,8 @@
 # FAQ
 
-## Do presets skip every question?
+## Do options skip every question?
 
-No. Presets skip only questions that have values. Missing values still use the normal prompts.
+No. Options (and `defaults` in your configuration) skip only the questions they answer. Missing values still use the normal prompts, or fail with `--yes`.
 
 ## Can I use HTTPS theme repositories?
 

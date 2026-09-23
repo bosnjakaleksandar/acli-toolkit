@@ -29,6 +29,8 @@ This release narrows `acli import` / `acli pull` to two well-defined ways of rea
 
 ### Removed
 
+- `acli doctor`. `acli create` and `acli import` already check the tools they need before starting; that check now names each missing or too-old tool with how to install it.
+- Presets (`--preset`, the built-in `react`/`next`/`wordpress`/... presets, named and file presets, `acli preset`, and "Save this plan as a reusable preset"), `--from-last` with its `.acli/history.json`, and `--set`. `acli create` takes values from `defaults` in configuration and from its own options, e.g. `--type application --framework react`. An empty leftover `presets: {}` is ignored; a non-empty one fails validation with instructions.
 - The ssh provider's `docker` and `direct` database drivers, container discovery by name, and the `sftp` file transport. The ssh provider always exports with wp-cli and syncs with rsync; profiles still using a removed value fail validation with a message saying what to remove.
 - `${ENV_VAR}` and `{command: ...}` references in configuration, the project-config trust store, `acli config trust`, and `acli config show --resolved`.
 - Profile templates, `acli profile import-legacy`, `profile rename`, `profile import`/`export` of portable files, `--scope` on profile commands, and inline profiles in project links.

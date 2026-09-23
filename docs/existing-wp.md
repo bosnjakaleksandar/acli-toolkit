@@ -1,6 +1,6 @@
 # Import an existing WordPress project
 
-`acli import` brings an existing WordPress site into a new local project through a saved [staging profile](./presets.md). A profile uses one of two providers:
+`acli import` brings an existing WordPress site into a new local project through a saved [staging profile](./profiles.md). A profile uses one of two providers:
 
 - **SSH with wp-cli**: files are synced with rsync and the database is exported with `wp db export` on the server.
 - **Coolify project CLI**: the server's `project` command exports files and database (see [Coolify staging servers](#coolify-staging-servers)).

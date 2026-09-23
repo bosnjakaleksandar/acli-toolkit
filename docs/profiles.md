@@ -1,13 +1,6 @@
-# Presets and profiles
+# Profiles
 
-Presets describe what A-CLI creates. Profiles describe how it connects to an organization's WordPress staging infrastructure.
-
-```bash
-acli preset list
-acli preset inspect react
-```
-
-Named presets live in user or project configuration, and a portable preset YAML file is accepted by `--preset`. Profiles live only in your user configuration (see [Configuration](./environment-variables.md)). Complete profile examples ship in `examples/config`.
+A profile describes a staging server and how A-CLI reaches it; one profile serves every project on that server. Profiles live only in your user configuration (see [Configuration](./environment-variables.md)). Complete examples ship in `examples/config`.
 
 Create and manage profiles without editing YAML:
 

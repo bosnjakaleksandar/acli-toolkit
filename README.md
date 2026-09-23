@@ -48,7 +48,7 @@ acli create
 `create-project` remains available temporarily as a compatibility alias. It prints a deprecation warning and forwards legacy project-generation options to `acli create`:
 
 ```bash
-create-project --preset react
+create-project --type application --framework react
 # Warning: 'create-project' is deprecated. Use 'acli create' instead.
 ```
 
@@ -61,10 +61,8 @@ Project generation is one A-CLI command rather than the entire application. Comm
 ```bash
 acli create
 acli import
-acli doctor
 acli update
 acli config
-acli preset
 acli profile
 acli link
 acli pull
@@ -122,11 +120,7 @@ Required tools depend on the project type:
 - SSH and rsync for existing WordPress staging syncs
 - WP-CLI is optional locally; Docker/Lando workflows can run WP commands inside the environment
 
-Check your machine with:
-
-```bash
-acli doctor
-```
+`acli create` and `acli import` check the tools they need before they start and, if something is missing or too old, say how to install it.
 
 ## Quick Start
 
@@ -139,14 +133,12 @@ The CLI asks what you want to create and any project-specific questions — incl
 ## Examples
 
 ```bash
-acli create --preset wordpress
-acli create --preset wordpress-woo
-acli create --preset react
-acli create --preset next
-acli create --preset laravel-react
-acli create --preset laravel-next
-acli create --preset ./preset.yaml
-acli doctor
+acli create --type wordpress --wp-type theme
+acli create --type wordpress --wp-type woo
+acli create --type application --framework react
+acli create --type application --framework nextjs
+acli create --type application --framework react --laravel
+acli create --type application --framework nextjs --laravel
 ```
 
 ## CLI Options
@@ -161,8 +153,8 @@ You can also pass partial options. The CLI skips prompts for supplied values and
 
 ```bash
 acli create --name my-app
-acli create --name my-app --preset react
-acli create --name salon --preset wordpress --environment lando
+acli create --name my-app --type application --framework react
+acli create --name salon --type wordpress --wp-type theme --environment lando
 ```
 
 For non-interactive usage, pass `--yes` or `--non-interactive`. Missing required values are reported as errors instead of prompts:
@@ -172,17 +164,12 @@ acli import --name client-site --profile agency --environment lando --yes
 acli create --type application --framework nextjs --laravel --name booking-app --yes
 ```
 
-Presets and CLI options can be combined. CLI options override preset values, so this uses the WordPress preset but creates a Lando environment:
-
-```bash
-acli create --preset wordpress --name my-site --environment lando
-```
+Values in `defaults` in your configuration (for example your starter theme repository) are used unless an option overrides them.
 
 A few of the most common `create` options — see [docs/cli-options.md](docs/cli-options.md) for the full reference (every `create`/`import` flag, plus global options like `--verbose`, `--debug`, and `--skip-update`):
 
 - `--name <name>`
 - `--environment <docker|lando>` or `--env <docker|lando>`
-- `--preset <preset>`
 - `--type <application|wordpress>`
 - `--framework <react|nextjs|next>`
 - `--laravel`
@@ -190,42 +177,6 @@ A few of the most common `create` options — see [docs/cli-options.md](docs/cli
 - `--yes` or `--non-interactive`
 - `--dry-run`
 - `--resume`
-
-## Doctor
-
-`acli doctor` only checks what the selected workflow needs: Node.js/npm/Git always; Docker Compose or Lando if a local environment is selected; Composer/PHP for Laravel presets; SSH plus rsync or SCP if a staging profile applies. Pass `--preset`/`--profile`/`--environment` to check exactly what a specific `acli create`/`acli import` run would need. WP-CLI is never checked — it's optional locally; Docker/Lando workflows run `wp` inside the environment.
-
-Missing tools are reported with suggested fixes. See [docs/doctor.md](docs/doctor.md) for the full breakdown.
-
-## Presets
-
-Presets skip questions that already have answers. Built-in presets are:
-
-- `wordpress`
-- `wordpress-woo`
-- `react`
-- `next`
-- `laravel-react`
-- `laravel-next`
-
-Custom YAML preset example:
-
-```yaml
-projectName: acme-site
-projectType: wordpress
-environment: lando
-mysqlVersion: "8.0"
-wpVersion: "7.0.2"
-themeRepo: https://github.com/example/starter-theme.git
-themeBranch: main
-plugins: [advanced-custom-fields]
-```
-
-Run it with:
-
-```bash
-acli create --preset ./preset.yaml
-```
 
 ## Generated Projects
 
@@ -245,12 +196,11 @@ Imported WordPress projects receive the bundled WordPress `.gitignore` rules. An
 
 ## Configuration
 
-Project recipes live in presets; staging servers live in profiles, which are read only from your user configuration. YAML configuration is layered from built-in defaults, user configuration, `.acli/config.yaml` (project link, create defaults and presets), selected presets, `--set`, and CLI options.
+Staging servers live in profiles, which are read only from your user configuration. `defaults` holds values `acli create` should use without asking (for example a team's starter theme). YAML configuration is layered from built-in defaults, user configuration, then `.acli/config.yaml` (project link and create defaults), and command options override all of them.
 
 ```bash
 acli config path
 acli config validate
-acli preset list
 acli profile create
 acli profile use agency
 acli profile current
@@ -261,7 +211,7 @@ Documents require `version: 1`. A-CLI does not load repository `.env` files, and
 
 ## Troubleshooting
 
-Run `acli doctor` first. It catches most missing local tools.
+Missing local tools are reported, with install hints, before a command changes anything. `--verbose` shows every command A-CLI runs.
 
 If a global update fails with a permissions error, configure an npm user-owned global directory (recommended by npm) or use `npx acli-toolkit` instead. Check the installed copy with `acli --version` and the registry release with `npm view acli-toolkit version`.
 

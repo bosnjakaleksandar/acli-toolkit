@@ -11,8 +11,8 @@ Choose a project type and project-specific options — including a local environ
 You can also pass partial or full CLI options:
 
 ```bash
-acli create --name my-app --preset react
-acli create --name my-site --preset wordpress --environment docker
+acli create --name my-app --type application --framework react
+acli create --name my-site --type wordpress --wp-type theme --environment docker
 ```
 
 See [CLI Options](./cli-options.md) for the full reference.
