@@ -16,6 +16,9 @@ jobs:
   test:
     # Full suite (typecheck + node:test, including .test.ts files) requires
     # Node's native TypeScript type-stripping, stable since Node 22.18.
+    # The check name keeps the major version only: branch protection on main
+    # requires "test (ubuntu-latest, 22)" and "test (macos-latest, 22)".
+    name: test (${{ matrix.os }}, 22)
     strategy:
       fail-fast: false
       matrix:
