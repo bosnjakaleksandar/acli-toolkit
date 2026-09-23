@@ -38,9 +38,9 @@ jobs:
       - run: npm test
 
       # npm Trusted Publishing (OIDC) needs npm CLI >=11.5.0 — newer than
-      # what Node 22's bundled npm ships. `npm ci`/`npm test` above still run
+      # what Node 22's bundled npm ships (npm 12 no longer supports Node 22.18, so stay on 11). `npm ci`/`npm test` above still run
       # under the Node-bundled npm; only the publish step needs the upgrade.
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@11
 
       # A tag matching v*.*.* triggers this workflow regardless of which
       # commit it points at — without this check, anyone able to push a tag
