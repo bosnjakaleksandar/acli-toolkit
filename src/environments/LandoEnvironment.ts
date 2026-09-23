@@ -2,7 +2,7 @@ import EnvironmentService, { type Spinner } from "./EnvironmentService.ts";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveTemplateName, resolveDbImage } from "./templateMap.ts";
+import { frontendDevServer, resolveTemplateName, resolveDbImage } from "./templateMap.ts";
 import { assertSafeTablePrefix, assertSafeWpVersion } from "../system/safety.ts";
 import { runCommand } from "../system/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
@@ -26,13 +26,16 @@ export default class LandoService extends EnvironmentService {
   getLocalUrl(ctx: any): string { return ctx.profile?.local?.url || `https://${ctx.projectName}.lndo.site`; }
 
   async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
-    const { projectName, mysqlVersion, wpVersion, tablePrefix } = options;
+    const { projectName, mysqlVersion, wpVersion, tablePrefix, framework } = options;
     const templateName = resolveTemplateName(type);
+    const frontend = frontendDevServer(framework);
     const content = applyPlaceholders(await readTemplate(TEMPLATES_ROOT, "lando", templateName), {
       DB_IMAGE: mysqlVersion ? resolveDbImage(mysqlVersion) : undefined,
       WP_VERSION: assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION),
       TABLE_PREFIX: assertSafeTablePrefix(tablePrefix || "wp_"),
       PROJECT_NAME: projectName,
+      FRONTEND_PORT: frontend.port,
+      FRONTEND_DEV_COMMAND: frontend.command,
     });
     await fs.writeFile(path.join(targetDir, ".lando.yml"), content);
   }

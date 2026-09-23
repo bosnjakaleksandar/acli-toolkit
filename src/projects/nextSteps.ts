@@ -50,9 +50,18 @@ export async function buildNextSteps(targetDir: string, ctx: ProjectPlan): Promi
       installDir = path.join(targetDir, "wp-content", "themes", projectName);
       hasPackageDependencies = true;
     }
+  } else if (environment === "docker" || environment === "lando") {
+    // The environment installs dependencies and starts every dev server.
+    nextSteps += environment === "docker" ? `  docker compose up\n` : `  lando start\n`;
+    nextSteps += `  ${chalk.gray(`# ${appUrls(ctx).join("  ·  ")}`)}\n`;
+    if (projectType === "nextjs" || projectType === "react") {
+      // Installing on this machine too keeps editor tooling (ESLint,
+      // TypeScript) working; the containers keep their own node_modules.
+      installDir = ctx.useLaravel ? path.join(targetDir, "frontend") : targetDir;
+      hasPackageDependencies = true;
+    }
   } else {
-    // Application projects (React/Next.js/Laravel) run via their own dev
-    // servers — no docker-compose.yaml/.lando.yml is scaffolded for them.
+    // Running natively: each part starts with its own dev server.
     if (ctx.useLaravel) {
       nextSteps += `  ${chalk.gray("# Backend (Laravel)")}\n`;
       nextSteps += `  cd backend && php artisan serve\n`;
@@ -105,4 +114,14 @@ async function appendThemeSteps(targetDir: string, projectName: string) {
     installDir: hasPkg || hasComposer ? themeDir : null,
     packageManager,
   };
+}
+
+/** Where an application's dev servers are reachable in its Docker/Lando environment. */
+function appUrls(ctx: ProjectPlan): string[] {
+  const name = ctx.projectName!;
+  const frontendPort = ctx.projectType === "nextjs" ? 3000 : 5173;
+  if (ctx.environment === "lando") {
+    return ctx.useLaravel ? [`backend https://${name}.lndo.site`, `frontend http://frontend.${name}.lndo.site`] : [`http://${name}.lndo.site`];
+  }
+  return ctx.useLaravel ? ["backend http://localhost:8000", `frontend http://localhost:${frontendPort}`] : [`http://localhost:${frontendPort}`];
 }

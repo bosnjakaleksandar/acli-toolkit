@@ -33,5 +33,7 @@ export default class NextjsStrategy extends ScaffoldStrategy {
     // Keep create-next-app's own .gitignore and add A-CLI's shared rules
     // (env files, editors, OS files, .acli/) that it doesn't cover.
     await applyGitignoreTemplate(targetDir, "nextjs");
+    // Docker/Lando dev server, unless the project runs natively.
+    await this.envService?.scaffold(targetDir, "nextjs", ctx, spinner);
   }
 }

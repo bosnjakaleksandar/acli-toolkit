@@ -5,8 +5,8 @@ import { assertSafeWpVersion, assertSafeTablePrefix } from "../src/system/safety
 
 test("resolveTemplateName maps known aliases and passes through unknown types unchanged", () => {
   assert.equal(resolveTemplateName("wp-existing"), "wordpress");
-  assert.equal(resolveTemplateName("react"), "app");
-  assert.equal(resolveTemplateName("laravel"), "laravel");
+  assert.equal(resolveTemplateName("next"), "nextjs");
+  for (const type of ["react", "nextjs", "laravel", "wordpress"]) assert.equal(resolveTemplateName(type), type);
 });
 
 test("resolveDbImage accepts a plain MySQL version and a mariadb:version spec", () => {

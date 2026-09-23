@@ -56,7 +56,8 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
     const mergedContext = mergeProjectContext((config.defaults || {}) as ProjectPlan, normalizeCliOptions(options));
     ctx = await collectProjectContext({ ...mergedContext, setupType: "new" }, { nonInteractive });
-    const envService = resolveEnvironmentService(ctx.environment!);
+    // "none" runs the project natively: no Docker/Lando files are generated.
+    const envService = ctx.environment && ctx.environment !== "none" ? resolveEnvironmentService(ctx.environment) : null;
     const strategy = resolveStrategy(ctx, envService);
 
     ctx = await strategy.askQuestions(ctx, { nonInteractive });
@@ -66,7 +67,8 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
       const plan = strategy.buildPlan ? strategy.buildPlan(ctx) : {
         project: ctx!.projectName,
         projectType: ctx!.projectType,
-        ...(ctx!.appType === "wordpress" ? { localEnvironment: ctx!.environment } : {}),
+        localEnvironment: ctx!.environment,
+        ...(ctx!.useLaravel ? { laravel: true } : {}),
       };
       console.log(JSON.stringify(redactSecrets(plan), null, 2));
       outro(chalk.green("Dry run complete. No project files or remote state were changed."));
@@ -127,7 +129,7 @@ export function registerCreateCommand(program: Command): void {
     .command("create")
     .description("Scaffold a new application or WordPress project")
     .option("--name <name>", "Project directory/name")
-    .option("--environment <environment>", "Local environment: docker or lando")
+    .option("--environment <environment>", "Local environment: docker, lando, or none (applications only)")
     .option("--env <environment>", "Alias for --environment")
     .option("--config <path>", "Use an explicit A-CLI configuration file")
     .option("--dry-run", "Validate and print the execution plan without mutation")

@@ -79,25 +79,24 @@ export async function collectProjectContext(known: ProjectPlan = {}, { nonIntera
     projectType = wpType as string;
   }
 
-  // Application projects (React/Next.js/Laravel) are scaffolded by their
-  // official generators and run via their own dev servers — Docker/Lando
-  // no longer applies, so skip asking. The value is never read by those
-  // strategies; it only still matters for WordPress projects.
-  const environment = appType === "application"
-    ? (known.environment ?? "docker")
-    : hasValue(known, "environment")
-      ? known.environment
+  // WordPress always runs in Docker or Lando. Application projects can too,
+  // or run natively with their own dev servers (the default).
+  const environment = hasValue(known, "environment")
+    ? known.environment
+    : appType === "application" && nonInteractive
+      ? "none"
       : await ask(select, {
           message: "Which local environment do you prefer?",
-          options: [
-            { label: "Docker (docker-compose.yaml)", value: "docker" },
-            { label: "Lando (.lando.yml)", value: "lando" },
-          ],
+          ...(appType === "application" ? { initialValue: "none" } : {}),
+          options: environmentOptions(appType),
         });
 
-  const customizeAdvanced = nonInteractive || hasValue(known, "customizeAdvanced")
-    ? Boolean(known.customizeAdvanced)
-    : await ask(confirm, { message: "Customize advanced settings (MySQL/WordPress versions)?", initialValue: false });
+  // The advanced settings are WordPress's MySQL and WordPress versions.
+  const customizeAdvanced = appType !== "wordpress"
+    ? false
+    : nonInteractive || hasValue(known, "customizeAdvanced")
+      ? Boolean(known.customizeAdvanced)
+      : await ask(confirm, { message: "Customize advanced settings (MySQL/WordPress versions)?", initialValue: false });
 
   const ctx: ProjectPlan = {
     ...known,
@@ -117,6 +116,15 @@ export async function collectProjectContext(known: ProjectPlan = {}, { nonIntera
 
 export { validateProjectName };
 
+/** Local environment choices: application projects may also run natively. */
+export function environmentOptions(appType: ProjectPlan["appType"]): Array<{ label: string; value: string; hint?: string }> {
+  return [
+    ...(appType === "application" ? [{ label: "None — run it natively", value: "none", hint: "npm run dev / php artisan serve" }] : []),
+    { label: "Docker (docker-compose.yaml)", value: "docker" },
+    { label: "Lando (.lando.yml)", value: "lando" },
+  ];
+}
+
 /**
  * Pure transform applying a new-project type edit selection to the current
  * context. Kept separate from the prompt so the mapping is unit-testable
@@ -128,7 +136,7 @@ export function applyProjectTypeChange(ctx: ProjectPlan, projectType: string): P
   // Legacy import fields never survive editing a new-project plan.
   const cleared = { ...ctx, profile: undefined, stagingUrl: undefined };
   if (projectType === "react" || projectType === "nextjs") return { ...cleared, setupType: "new", appType: "application", framework: projectType as ProjectPlan["framework"], projectType, wpType: null };
-  return { ...cleared, setupType: "new", appType: "wordpress", framework: null, useLaravel: false, projectType, wpType: projectType as ProjectPlan["wpType"] };
+  return { ...cleared, setupType: "new", appType: "wordpress", framework: null, useLaravel: false, projectType, wpType: projectType as ProjectPlan["wpType"], ...(cleared.environment === "none" || !cleared.environment ? { environment: "docker" } : {}) };
 }
 
 export async function editProjectContext(ctx: ProjectPlan): Promise<ProjectPlan> {
@@ -144,7 +152,7 @@ export async function editProjectContext(ctx: ProjectPlan): Promise<ProjectPlan>
   });
   if (section === "done") return ctx;
   if (section === "name") return { ...ctx, projectName: await ask(text, { message: "Project name:", initialValue: ctx.projectName, validate: validateProjectName }) };
-  if (section === "environment") return { ...ctx, environment: await ask(select, { message: "Local environment:", options: [{ label: "Docker Compose", value: "docker" }, { label: "Lando", value: "lando" }], initialValue: ctx.environment }) as ProjectPlan["environment"] };
+  if (section === "environment") return { ...ctx, environment: await ask(select, { message: "Local environment:", options: environmentOptions(ctx.appType), initialValue: ctx.environment }) as ProjectPlan["environment"] };
   if (section === "git") return { ...ctx, skipGitInit: !(await ask(confirm, { message: "Initialize a Git repository?", initialValue: !ctx.skipGitInit })) };
   const projectType = await ask(select, {
     message: "Project type:",

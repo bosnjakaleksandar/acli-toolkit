@@ -62,14 +62,14 @@ test("error summary preserves the project directory (never deletes it) once file
   assert.match(result, /Resume:\s+acli create --resume --name site/);
 });
 
-test("application-type projects omit the Environment row (no docker-compose.yaml/.lando.yml is scaffolded for them)", () => {
-  const summary = plain(buildProjectSummary({
-    projectName: "storefront", projectType: "react", appType: "application", environment: "docker", skipGitInit: false,
+test("summaries show the chosen environment, including running natively", () => {
+  const native = plain(buildProjectSummary({
+    projectName: "storefront", projectType: "react", appType: "application", environment: "none", skipGitInit: false,
   }, "/work/storefront"));
-  assert.doesNotMatch(summary, /Environment/);
+  assert.match(native, /Environment\s+None \(runs natively\)/);
 
-  const success = plain(buildSuccessSummary("/work/storefront", {
+  const docker = plain(buildSuccessSummary("/work/storefront", {
     projectName: "storefront", appType: "application", environment: "docker", skipGitInit: false,
-  }, "  cd storefront\n  npm run dev"));
-  assert.doesNotMatch(success, /Environment/);
+  }, "  cd storefront\n  docker compose up"));
+  assert.match(docker, /Environment\s+Docker Compose/);
 });
