@@ -83,7 +83,8 @@ export async function maybeInitializeGit(targetDir: string, ctx: GitContext): Pr
 
 /**
  * Connects a newly imported working tree to an existing remote without ever
- * checking out over imported files, committing, or pushing. The remote's
+ * checking out over imported files, committing, or pushing. The given
+ * `branch` (the one actually deployed, when known) or else the remote's
  * default branch becomes the local baseline/upstream, so editors show real
  * differences instead of treating every imported file as an unrelated
  * untracked file.
@@ -92,7 +93,7 @@ export async function linkGitRemote(
   targetDir: string,
   remoteUrl: string,
   runner: Runner = runCommand,
-  { previousRemoteUrl }: { previousRemoteUrl?: string } = {},
+  { previousRemoteUrl, branch }: { previousRemoteUrl?: string; branch?: string } = {},
 ): Promise<GitSetupResult> {
   await fs.ensureDir(targetDir);
   if (!(await fs.pathExists(path.join(targetDir, ".git")))) await runner("git", ["init"], { cwd: targetDir });
@@ -115,8 +116,10 @@ export async function linkGitRemote(
   }
   if (!currentOrigin) await runner("git", ["remote", "add", "origin", remoteUrl], { cwd: targetDir });
 
-  const remoteHead = String(await runner("git", ["ls-remote", "--symref", "origin", "HEAD"], { cwd: targetDir }));
-  const defaultBranch = parseDefaultBranch(remoteHead);
+  // A known deployed branch (e.g. from Coolify's `project status`) is the
+  // right baseline for files copied from that deployment; otherwise fall
+  // back to the remote's default branch.
+  const defaultBranch = branch || parseDefaultBranch(String(await runner("git", ["ls-remote", "--symref", "origin", "HEAD"], { cwd: targetDir })));
   await runner("git", ["fetch", "--no-tags", "origin"], { cwd: targetDir });
 
   if (!defaultBranch) {
