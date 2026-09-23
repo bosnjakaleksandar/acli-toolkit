@@ -101,5 +101,6 @@ export async function readImportableProfile(filePath: string, requestedName?: st
 }
 
 export function describeProfile(profile: any): string {
+  if (profile.provider === "coolify-cli") return `${profile.ssh?.host || "unknown host"} · Coolify project CLI · ${profile.coolify?.project || "unknown project"}`;
   return `${profile.ssh?.host || "unknown host"} · ${profile.database?.executable === "auto" ? "MariaDB/MySQL" : profile.database?.driver || "unknown DB"} · ${profile.files?.transport || "rsync"}`;
 }

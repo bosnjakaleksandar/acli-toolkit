@@ -31,6 +31,7 @@ export const TOOL_CATALOG: Record<string, ToolCheck> = {
   ssh: { label: "SSH", command: "ssh", args: ["-V"], fix: "Install OpenSSH." },
   rsync: { label: "rsync", command: "rsync", args: ["--version"], fix: "Install rsync for the selected profile." },
   scp: { label: "SCP", command: "scp", args: [], presenceOnly: true, fix: "Install an SCP client for the selected profile." },
+  tar: { label: "tar", command: "tar", args: ["--version"], fix: "Install tar (bundled with macOS, Linux and Windows 10+)." },
 };
 
 export function checkTool(key: string): ToolCheckResult | null {

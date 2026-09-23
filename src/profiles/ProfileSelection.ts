@@ -77,11 +77,15 @@ export async function resolveProfileSelection({ config, options = {}, attachedPr
 
 export function profileOption(name: string, profile: Profile): { label: string; value: string } {
   const host = profile.ssh?.host || "unknown host";
+  if (profile.provider === "coolify-cli") return { label: `${name} — ${host} · Coolify project CLI`, value: name };
   const database = profile.database?.driver || "unknown DB";
   return { label: `${name} — ${host} · ${database} · ${profile.files?.transport || "rsync"}`, value: name };
 }
 
 export function profileSummary(profile: Profile, environment: string | undefined): string {
+  if (profile.provider === "coolify-cli") {
+    return [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, `Coolify project: ${profile.coolify?.project}`, "Database and files: exported with the server's project CLI (pull-only)", `Local: ${environment}`].join("\n");
+  }
   const dump = profile.database?.executable === "auto" ? "MariaDB/MySQL auto-detect" : profile.database?.driver;
-  return [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, `WordPress: ${profile.remote.projectRoot}/${profile.remote.wordpressRoot}`, `Database: ${dump}`, `Files: ${profile.files?.transport || "rsync"}`, `Local: ${environment}`].join("\n");
+  return [`Remote: ${profile.ssh.username}@${profile.ssh.host}`, `WordPress: ${profile.remote?.projectRoot}/${profile.remote?.wordpressRoot}`, `Database: ${dump}`, `Files: ${profile.files?.transport || "rsync"}`, `Local: ${environment}`].join("\n");
 }

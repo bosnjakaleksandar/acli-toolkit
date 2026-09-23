@@ -8,6 +8,7 @@ import { renderTemplate } from "./resolveProfile.ts";
 import type { ResolvedProfile } from "../core/model/Profile.ts";
 import type { RemoteFacts } from "../core/model/RemoteFacts.ts";
 import type { Spinner } from "../environments/EnvironmentService.ts";
+import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "./RemoteBackend.ts";
 
 type Runner = typeof runCommand;
 
@@ -17,7 +18,7 @@ type Runner = typeof runCommand;
  * git-origin discovery. Construct it with an *already resolved* profile —
  * see `resolveRemoteProfile`, which is not idempotent.
  */
-export class RemoteHost {
+export class RemoteHost implements RemoteBackend {
   profile: ResolvedProfile;
   run: Runner;
 
@@ -35,7 +36,11 @@ export class RemoteHost {
     await this.run("ssh", buildSshArgs(this.profile.ssh, `test -d ${shellQuote(this.profile.remote.wordpressRoot)}`));
   }
 
-  async syncFiles(targetDir: string, spinner: Spinner | null, { directories: namesOverride }: { directories?: string[] } = {}): Promise<void> {
+  fileTargets(): string[] {
+    return Object.keys(this.profile.files?.targets || {});
+  }
+
+  async syncFiles(targetDir: string, spinner: Spinner | null, { directories: namesOverride }: SyncFilesOptions = {}): Promise<void> {
     const config = this.profile.files || {};
     // Profiles are normalized (see normalizeProfile) before reaching
     // RemoteHost, so `targets` is always present here — legacy
@@ -105,7 +110,7 @@ export class RemoteHost {
     return { tablePrefix: explicitPrefix || fetchedPrefix, siteUrl };
   }
 
-  async discoverGit(): Promise<{ directory: string; url: string } | null> {
+  async discoverGit(): Promise<RemoteGitOrigin | null> {
     if (this.profile.git?.enabled === false) return null;
     const paths = this.profile.git?.discoveryPaths || [".", "wp-content/themes/{projectName}"];
     if (this.profile.git?.includeProjectRoot) {

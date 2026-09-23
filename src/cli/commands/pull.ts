@@ -76,7 +76,7 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
 
     const envService = resolveEnvironmentService(link.environment);
     const pull = new PullService(envService);
-    const ctx = { projectName: link.name, environment: link.environment, profile, keepDump: Boolean(options.keepDump), resumeCommand: "acli pull db --keep-dump" };
+    const ctx = { projectName: link.name, environment: link.environment, profile, keepDump: Boolean(options.keepDump), nonInteractive, resumeCommand: "acli pull db --keep-dump" };
 
     await mascot.show("working", `Pulling ${finalTargets.join(", ")}...`);
     mascot.stop();

@@ -39,6 +39,7 @@ function makeFakeRemote() {
   const calls = [];
   return {
     calls,
+    fileTargets: () => ["uploads", "plugins", "themes"],
     syncFiles: async (targetDir, spinner, options) => { calls.push({ op: "syncFiles", options }); },
     exportDatabase: async (targetDir) => { calls.push({ op: "exportDatabase" }); await fs.writeFile(path.join(targetDir, "staging.sql"), "CREATE TABLE `wp_options` (id INT);"); },
   };
@@ -72,6 +73,18 @@ test("pull with file targets only syncs those directories and never touches the 
     await service.pull(dir, { projectName: "demo", profile: baseProfile }, ["uploads", "themes"], {}, null);
 
     assert.deepEqual(fakeRemote.calls, [{ op: "syncFiles", options: { directories: ["uploads", "themes"] } }]);
+  });
+});
+
+test("pull skips file targets the profile's backend has no source for instead of failing", async () => {
+  await withTempDir(async (dir) => {
+    const fakeRemote = makeFakeRemote();
+    const messages = [];
+    const service = new PullService(makeFakeEnvService(), () => fakeRemote);
+    await service.pull(dir, { projectName: "demo", profile: baseProfile }, ["uploads", "languages"], {}, { message: (text) => messages.push(text) });
+
+    assert.deepEqual(fakeRemote.calls, [{ op: "syncFiles", options: { directories: ["uploads"] } }]);
+    assert.ok(messages.some((text) => /Skipping languages/.test(text)));
   });
 });
 

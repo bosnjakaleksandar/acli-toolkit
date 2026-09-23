@@ -1,16 +1,14 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { CliError } from "../../core/errors.ts";
-import { RemoteHost } from "../../remote/RemoteHost.ts";
+import { createRemoteBackend, type RemoteBackendFactory } from "../../remote/RemoteBackend.ts";
 import WordPressMigrationService from "../migration/WordPressMigration.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import type { ResolvedProfile } from "../../core/model/Profile.ts";
 
-export const FILE_TARGETS = ["uploads", "plugins", "themes"];
+export const FILE_TARGETS = ["uploads", "plugins", "themes", "languages"];
 export const ALL_TARGETS = ["db", ...FILE_TARGETS];
-
-type RemoteHostFactory = (profile: ResolvedProfile) => RemoteHost;
 
 /**
  * Turns whatever a user typed for `acli pull [targets...]` into a concrete,
@@ -35,7 +33,7 @@ export function resolvePullTargets(requested: string[]): string[] {
 
 /**
  * Orchestrates a selective sync from a linked profile into an already
- * scaffolded local project. Shares RemoteHost with the import pipeline, so
+ * scaffolded local project. Shares RemoteBackend with the import pipeline, so
  * a daily re-sync and the initial import pull files and databases the same
  * way.
  *
@@ -50,18 +48,13 @@ export function resolvePullTargets(requested: string[]): string[] {
  */
 export class PullService {
   envService: EnvironmentService;
-  remoteHostFactory: RemoteHostFactory;
+  remoteHostFactory: RemoteBackendFactory;
   migration: WordPressMigrationService;
 
-  constructor(envService: EnvironmentService, remoteHostFactory: RemoteHostFactory = (profile) => new RemoteHost(profile)) {
+  constructor(envService: EnvironmentService, remoteHostFactory: RemoteBackendFactory = createRemoteBackend) {
     this.envService = envService;
     this.remoteHostFactory = remoteHostFactory;
     this.migration = new WordPressMigrationService(envService);
-  }
-
-  async syncFiles(targetDir: string, profile: ResolvedProfile, directories: string[] | undefined, spinner: Spinner | null = null): Promise<void> {
-    const remote = this.remoteHostFactory(profile);
-    await remote.syncFiles(targetDir, spinner, directories ? { directories } : {});
   }
 
   async exportDatabase(targetDir: string, profile: ResolvedProfile, spinner: Spinner | null = null): Promise<void> {
@@ -76,16 +69,27 @@ export class PullService {
   }
 
   async pull(targetDir: string, ctx: any, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<void> {
-    const fileTargets = targets.filter((target) => FILE_TARGETS.includes(target));
+    const requestedFiles = targets.filter((target) => FILE_TARGETS.includes(target));
+    // A target the profile's backend has no source for (e.g. `languages` on
+    // an ssh profile whose files.targets doesn't list it) is skipped rather
+    // than failing the whole pull — `acli pull full` means "everything this
+    // profile can sync".
+    // One backend for the whole pull, so an answer picked interactively
+    // (e.g. which database container) is reused by later steps.
+    const remote = this.remoteHostFactory(ctx.profile, { interactive: !ctx.nonInteractive });
+    const supported = requestedFiles.length ? remote.fileTargets() : [];
+    const fileTargets = requestedFiles.filter((target) => supported.includes(target));
+    const unsupported = requestedFiles.filter((target) => !supported.includes(target));
+    if (unsupported.length) spinner?.message(`Skipping ${unsupported.join(", ")}: not configured for this profile.`);
 
     if (fileTargets.length) {
       spinner?.message(`Syncing ${fileTargets.join(", ")}...`);
-      await this.syncFiles(targetDir, ctx.profile, fileTargets, spinner);
+      await remote.syncFiles(targetDir, spinner, { directories: fileTargets });
     }
 
     if (targets.includes("db")) {
       spinner?.message("Exporting remote database...");
-      await this.exportDatabase(targetDir, ctx.profile, spinner);
+      await remote.exportDatabase(targetDir, spinner);
       await this.importDatabase(targetDir, ctx, spinner, { keepDump });
     }
   }

@@ -1,4 +1,4 @@
-import { RemoteHost } from "../../../remote/RemoteHost.ts";
+import { createRemoteBackend, type RemoteBackendFactory } from "../../../remote/RemoteBackend.ts";
 import { writeLink } from "../../../profiles/ProjectLink.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../../../system/safety.ts";
 import { applyGitSshHostAlias, linkGitRemote } from "../../../system/git.ts";
@@ -13,16 +13,17 @@ export interface ProfileImportContext extends ImportSourceContext {
   environment?: string;
   skipFiles?: boolean;
   skipGitInit?: boolean;
+  nonInteractive?: boolean;
   presetName?: string;
   stagingUrl?: string;
   gitStatus?: string;
 }
 
-type RemoteHostFactory = (profile: ResolvedProfile) => RemoteHost;
 type GitLinker = typeof linkGitRemote;
 
 /**
- * The saved-profile import source. Reuses RemoteHost directly — the same
+ * The saved-profile import source. Reuses the profile's RemoteBackend
+ * (RemoteHost, or CoolifyProjectHost for a coolify-cli profile) — the same
  * collaborator PullService uses — so an initial import and a later
  * `acli pull` share one code path.
  *
@@ -30,10 +31,10 @@ type GitLinker = typeof linkGitRemote;
  * purely for tests — the same seam PullService already uses.
  */
 export function createProfileImportSource(
-  remoteHostFactory: RemoteHostFactory = (profile) => new RemoteHost(profile),
+  remoteHostFactory: RemoteBackendFactory = createRemoteBackend,
   gitLinker: GitLinker = linkGitRemote,
 ): ImportSource {
-  const remote = (ctx: ImportSourceContext) => remoteHostFactory((ctx as ProfileImportContext).profile);
+  const remote = (ctx: ImportSourceContext) => remoteHostFactory((ctx as ProfileImportContext).profile, { interactive: !(ctx as ProfileImportContext).nonInteractive });
 
   return {
     label: "Staging profile",
@@ -88,7 +89,7 @@ export function createProfileImportSource(
       const localRemoteUrl = applyGitSshHostAlias(found.url, c.profile.git?.sshHostAlias);
       let result;
       try {
-        result = await gitLinker(targetDir, localRemoteUrl, undefined, { previousRemoteUrl: found.url });
+        result = await gitLinker(targetDir, localRemoteUrl, undefined, { previousRemoteUrl: found.url, ...(found.branch ? { branch: found.branch } : {}) });
       } catch (error: any) {
         const details = `${error?.stderr || ""}\n${error?.message || ""}`;
         if (/Permission denied \(publickey\)|Could not read from remote repository/i.test(details)) {
@@ -116,9 +117,12 @@ export function createProfileImportSource(
         project: c.projectName,
         localEnvironment: c.environment,
         remoteHost: c.profile.ssh.host,
-        remoteWordPressRoot: c.profile.remote.wordpressRoot,
-        databaseDriver: c.skipDatabase ? "skipped" : c.profile.database.driver,
-        fileTransfer: c.skipFiles ? "skipped" : c.profile.files?.transport || "rsync",
+        provider: c.profile.provider,
+        ...(c.profile.coolify
+          ? { coolifyProject: c.profile.coolify.project }
+          : { remoteWordPressRoot: c.profile.remote.wordpressRoot }),
+        databaseDriver: c.skipDatabase ? "skipped" : c.profile.coolify ? "project db-export" : c.profile.database.driver,
+        fileTransfer: c.skipFiles ? "skipped" : c.profile.coolify ? "project wp-export + scp" : c.profile.files?.transport || "rsync",
         gitLink: !c.skipGitInit && !c.skipGitLink && c.profile.git?.enabled !== false,
         // Shown because it decides which URLs get search-replaced: the
         // imported site's own siteurl always is, and this is the extra

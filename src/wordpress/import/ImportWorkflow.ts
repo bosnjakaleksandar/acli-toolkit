@@ -51,6 +51,16 @@ export interface ImportWorkflowOptions {
  * job (src/cli/commands/import.ts), mirroring how createProjectCommand handles
  * those same generic post-scaffold steps.
  */
+// A coolify-cli profile's menu selections only answer the server's "which
+// container/database?" prompt — adding one to get past that prompt must not
+// invalidate a --resume of the files already fetched.
+function fingerprintProfile(profile: any): unknown {
+  const redacted: any = redactSecrets(profile);
+  if (!redacted?.coolify) return redacted;
+  const { database: _database, databaseName: _databaseName, wordpressContainer: _wordpressContainer, ...coolify } = redacted.coolify;
+  return { ...redacted, coolify };
+}
+
 export async function runImportWorkflow({ source, ctx, targetDir, envService, spinner, resume, resumeCommand }: ImportWorkflowOptions): Promise<void> {
   const databaseDumpService = new DatabaseDumpService();
   const migrationService = new WordPressMigrationService(envService);
@@ -166,7 +176,7 @@ export async function runImportWorkflow({ source, ctx, targetDir, envService, sp
       skipFiles: ctx.skipFiles,
       skipDatabase: ctx.skipDatabase,
       skipGitLink: ctx.skipGitLink,
-      profile: redactSecrets(ctx.profile),
+      profile: fingerprintProfile(ctx.profile),
     },
   });
   await runner.run({ resume: Boolean(resume) });

@@ -6,11 +6,18 @@ import { isSafeSshHostAlias } from "../system/safety.ts";
 
 const ROOT_KEYS = new Set(["version", "defaults", "presets", "profiles"]);
 const PROJECT_ROOT_KEYS = new Set([...ROOT_KEYS, "project"]);
-const PROFILE_KEYS = new Set(["type", "ssh", "remote", "files", "database", "git", "urls", "local"]);
+const PROFILE_KEYS = new Set(["type", "provider", "coolify", "ssh", "remote", "files", "database", "git", "urls", "local"]);
+const COOLIFY_KEYS = new Set(["project", "gitHost", "database", "databaseName", "wordpressContainer"]);
+const COOLIFY_SELECTION_KEYS = ["database", "databaseName", "wordpressContainer"] as const;
 const PROJECT_LINK_KEYS = new Set(["name", "type", "environment", "profile", "linkedAt"]);
 const DB_DRIVERS = new Set(["wp-cli", "docker", "direct"]);
 const FILE_TRANSPORTS = new Set(["rsync", "sftp"]);
 const HOST_KEY_POLICIES = new Set(["strict", "accept-new", "insecure"]);
+const PROVIDERS = new Set(["ssh", "coolify-cli"]);
+// Server project names may contain spaces ("acme client site"); the
+// value is always shell-quoted before it reaches the remote `project` CLI.
+export const COOLIFY_PROJECT_PATTERN = /^[A-Za-z0-9{][A-Za-z0-9 {}._-]*$/;
+const HOSTNAME_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 
 export function validateConfig(config: AcliConfig, source = "configuration", { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): AcliConfig {
   const errors: string[] = [];
@@ -61,16 +68,33 @@ function validateProfile(profile: Profile, label: string, errors: string[]): voi
   if (!profile.ssh?.username) errors.push(`${label}: ssh.username is required.`);
   if (profile.ssh?.port !== undefined && !isValidPort(profile.ssh.port)) errors.push(`${label}: ssh.port must be an integer from 1 to 65535.`);
   if (profile.ssh?.hostKeyPolicy !== undefined && !HOST_KEY_POLICIES.has(profile.ssh.hostKeyPolicy)) errors.push(`${label}: ssh.hostKeyPolicy must be strict, accept-new, or insecure.`);
-  if (!profile.remote?.projectRoot) errors.push(`${label}: remote.projectRoot is required.`);
-  if (!profile.remote?.wordpressRoot) errors.push(`${label}: remote.wordpressRoot is required.`);
+  const provider = profile.provider ?? "ssh";
+  if (!PROVIDERS.has(provider)) errors.push(`${label}: provider must be ssh or coolify-cli.`);
+  if (provider === "coolify-cli") validateCoolify(profile, label, errors);
+  else {
+    if (profile.coolify !== undefined) errors.push(`${label}: coolify is only allowed with provider: coolify-cli.`);
+    if (!profile.remote?.projectRoot) errors.push(`${label}: remote.projectRoot is required.`);
+    if (!profile.remote?.wordpressRoot) errors.push(`${label}: remote.wordpressRoot is required.`);
+  }
   const transport = profile.files?.transport || "rsync";
   if (!FILE_TRANSPORTS.has(transport)) errors.push(`${label}: files.transport must be rsync or sftp.`);
   if (profile.files?.targets !== undefined) validateFileTargets(profile.files.targets, `${label}.files.targets`, errors);
-  if (!DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
+  if (provider !== "coolify-cli" && !DB_DRIVERS.has(profile.database?.driver)) errors.push(`${label}: database.driver must be wp-cli, docker, or direct.`);
   if (profile.database?.tablePrefix !== undefined && typeof profile.database.tablePrefix !== "string") errors.push(`${label}: database.tablePrefix must be a string.`);
   if (profile.database?.normalizeCollations !== undefined && typeof profile.database.normalizeCollations !== "boolean") errors.push(`${label}: database.normalizeCollations must be a boolean.`);
   if (profile.database?.port !== undefined && !isValidPort(profile.database.port)) errors.push(`${label}: database.port must be an integer from 1 to 65535.`);
   if (profile.git?.sshHostAlias !== undefined && !isSafeSshHostAlias(profile.git.sshHostAlias)) errors.push(`${label}: git.sshHostAlias must be a valid SSH config Host alias (letters, numbers, dots, dashes, and underscores).`);
+}
+
+function validateCoolify(profile: Profile, label: string, errors: string[]): void {
+  const coolify = profile.coolify as unknown;
+  if (!isObject(coolify)) { errors.push(`${label}: coolify.project is required for provider: coolify-cli.`); return; }
+  for (const key of Object.keys(coolify)) if (!COOLIFY_KEYS.has(key)) errors.push(`${label}: unknown field "coolify.${key}".`);
+  if (typeof coolify.project !== "string" || !COOLIFY_PROJECT_PATTERN.test(coolify.project)) errors.push(`${label}: coolify.project must be a project name as printed by \`project list\` (letters, digits, spaces, . _ -).`);
+  if (coolify.gitHost !== undefined && (typeof coolify.gitHost !== "string" || !HOSTNAME_PATTERN.test(coolify.gitHost))) errors.push(`${label}: coolify.gitHost must be a hostname, e.g. github.com.`);
+  for (const key of COOLIFY_SELECTION_KEYS) {
+    if (coolify[key] !== undefined && (typeof coolify[key] !== "string" || !/^[A-Za-z0-9._-]+$/.test(coolify[key] as string))) errors.push(`${label}: coolify.${key} must be a name as printed in the server's selection menu.`);
+  }
 }
 
 function validatePlanFields(fields: Record<string, unknown>, label: string, errors: string[]): void {

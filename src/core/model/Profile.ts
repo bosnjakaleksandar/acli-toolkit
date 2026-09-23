@@ -1,4 +1,18 @@
 /**
+ * Answers to the server `project` CLI's "which one?" menus, by name as the
+ * menu prints it — needed when a project has more than one WordPress or
+ * database container, or more than one database in its container.
+ */
+export interface CoolifySelection {
+  /** Database container: the name shown in the menu, or the container name under it. */
+  database?: string;
+  /** Database inside that container, when it holds more than one. */
+  databaseName?: string;
+  /** WordPress container: the service name shown in the menu, or the container name. */
+  wordpressContainer?: string;
+}
+
+/**
  * A profile as authored in config: names, template placeholders (`{projectName}`),
  * and possibly-unresolved secret references (`${ENV_VAR}` / `{command: "..."}`).
  * Not safe to use for connections directly — pass it through
@@ -8,6 +22,19 @@ export interface Profile {
   /** Defaults to "wordpress" when absent — see config/schema.ts's validateProfileConfig. The only value it may currently hold. */
   type?: "wordpress";
   profileName?: string;
+  /**
+   * How A-CLI reaches the remote site. "ssh" (the default) means direct SSH
+   * access to the WordPress files and database. "coolify-cli" means the
+   * server only exposes the `project` CLI (Coolify staging) — `remote` and
+   * `database` are then not used, and `coolify` is required instead.
+   */
+  provider?: "ssh" | "coolify-cli";
+  coolify?: {
+    /** Project name as `project list` prints it on the server. May use `{projectName}`. */
+    project: string;
+    /** Host used to turn `project status`'s `owner/repo` into an SSH Git URL. Defaults to github.com. */
+    gitHost?: string;
+  } & CoolifySelection;
   ssh: {
     host: string;
     port?: number | string;
@@ -15,7 +42,8 @@ export interface Profile {
     identityFile?: string;
     hostKeyPolicy?: "strict" | "accept-new" | "insecure";
   };
-  remote: {
+  /** Required for the "ssh" provider; unused by "coolify-cli". */
+  remote?: {
     projectRoot: string;
     wordpressRoot: string;
   };
@@ -34,6 +62,8 @@ export interface Profile {
    * loosely-typed object (rather than a driver-keyed union) because it's
    * authored as free-form YAML and the databaseCommand module is
    * the single place that actually interprets it per driver.
+   * Required for the "ssh" provider; "coolify-cli" reads only `tablePrefix`
+   * and `normalizeCollations` from it.
    */
   database: {
     driver: "wp-cli" | "docker" | "direct";
@@ -81,6 +111,9 @@ export interface ResolvedProfile {
   readonly __resolved: true;
   profileName?: string;
   projectName: string;
+  provider: "ssh" | "coolify-cli";
+  /** Present only for the "coolify-cli" provider, with `project` already rendered. */
+  coolify?: { project: string; gitHost: string } & CoolifySelection;
   ssh: {
     host: string;
     port: number;

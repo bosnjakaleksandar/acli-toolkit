@@ -1,7 +1,9 @@
 import path from "node:path";
 import { normalizeProfile } from "../profiles/normalizeProfile.ts";
+import { COOLIFY_PROJECT_PATTERN } from "../config/schema.ts";
 import type { Profile, ResolvedProfile } from "../core/model/Profile.ts";
 
+const COOLIFY_WORDPRESS_ROOT = "/var/www/html";
 const SAFE_TEMPLATE_VALUE = /^[a-zA-Z0-9._@:/~-]+$/;
 
 export function renderTemplate(template: string, variables: Record<string, unknown>): string {
@@ -49,14 +51,31 @@ export function resolveRemoteProfile(rawProfile: Profile, ctx: { projectName: st
     identityFile: profile.ssh.identityFile ? assertSafeSshField(resolve(profile.ssh.identityFile).replace(/^~/, process.env.HOME || ""), "ssh.identityFile") : "",
     hostKeyPolicy: profile.ssh.hostKeyPolicy || "strict",
   };
-  const projectRoot = resolve(profile.remote.projectRoot);
-  const wordpressRoot = path.posix.join(projectRoot, resolve(profile.remote.wordpressRoot));
+  const provider = profile.provider ?? "ssh";
+  let remote: ResolvedProfile["remote"];
+  let coolify: ResolvedProfile["coolify"];
+  if (provider === "coolify-cli") {
+    // The WordPress install lives inside a Coolify-managed container that A-CLI
+    // never touches directly; this is the container path the server-side
+    // `project` CLI exports from, kept only so plans/summaries have a value.
+    remote = { projectRoot: COOLIFY_WORDPRESS_ROOT, wordpressRoot: COOLIFY_WORDPRESS_ROOT };
+    const project = resolve(profile.coolify?.project);
+    if (!project || !COOLIFY_PROJECT_PATTERN.test(project)) throw new Error(`Unsafe value for profile field "coolify.project": ${JSON.stringify(project)}.`);
+    const { database, databaseName, wordpressContainer } = profile.coolify || {};
+    coolify = { project, gitHost: profile.coolify?.gitHost || "github.com", ...(database ? { database } : {}), ...(databaseName ? { databaseName } : {}), ...(wordpressContainer ? { wordpressContainer } : {}) };
+  } else {
+    if (!profile.remote) throw new Error("Profile field \"remote\" is required for the ssh provider.");
+    const projectRoot = resolve(profile.remote.projectRoot);
+    remote = { ...profile.remote, projectRoot, wordpressRoot: path.posix.join(projectRoot, resolve(profile.remote.wordpressRoot)) };
+  }
   return {
     ...profile,
     __resolved: true,
     projectName: ctx.projectName,
+    provider,
+    coolify,
     ssh,
-    remote: { ...profile.remote, projectRoot, wordpressRoot },
+    remote,
     database: mapStrings(profile.database || {}, resolve) as Profile["database"],
     urls: mapStrings(profile.urls || {}, resolve) as Profile["urls"],
     local: mapStrings(profile.local || {}, resolve),
