@@ -1,4 +1,4 @@
-import { note, outro, select, spinner, text } from "@clack/prompts";
+import { log, note, outro, select, spinner, text } from "@clack/prompts";
 import chalk from "chalk";
 import fs from "fs-extra";
 import path from "node:path";
@@ -165,11 +165,13 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
     s.stop("2/3 Import complete.");
 
     const installPlan = await buildNextSteps(targetDir, ctx);
-    s.start("3/3 Finalizing...");
-    let nextSteps = await maybeInstallDependencies(installPlan, s, ctx);
+    // No spinner here: a running clack spinner blocks keyboard input, and
+    // both steps below may ask a question (install dependencies, git init).
+    log.step("3/3 Finalizing...");
+    const nextSteps = await maybeInstallDependencies(installPlan, s, ctx);
     ctx.dependenciesInstalled = !nextSteps.includes(" install");
     await maybeInitializeGit(targetDir, ctx);
-    s.stop("3/3 Done.");
+    log.success("3/3 Done.");
 
     await mascot.show("success", "Import completed successfully.");
     mascot.stop();

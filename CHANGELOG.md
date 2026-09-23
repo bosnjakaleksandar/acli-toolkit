@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Fixed
+
+- `acli import` no longer shows the *Finalizing* spinner while it asks whether to install dependencies (or to initialize Git). The spinner made the question look like a step that was still running, so the import seemed to hang.
+
 ### Added
 
 - `acli create` offers a Docker or Lando environment for every project type, not only WordPress: React and Next.js get a Node dev container, and Laravel projects get PHP 8.3 + Composer, MySQL and a Node container for the frontend (with `lando artisan`, `lando composer` and `lando npm`). Ports are bound to `127.0.0.1`.
