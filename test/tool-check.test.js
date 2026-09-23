@@ -38,3 +38,8 @@ test("minimum-version checks reject runtimes below the supported floor", () => {
   assert.equal(meetsMinimumVersion("PHP 8.3.6 (cli)", "8.2.0"), true);
   assert.equal(TOOL_CATALOG.node.minimumVersion, "22.18.0");
 });
+
+test("scp has no version flag, so it only needs to be startable", () => {
+  assert.equal(TOOL_CATALOG.scp.presenceOnly, true);
+  assert.equal(checkTool("scp").ok, true);
+});

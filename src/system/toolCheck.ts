@@ -6,6 +6,8 @@ export interface ToolCheck {
   args: string[];
   fix: string;
   minimumVersion?: string;
+  /** The tool has no version flag (OpenSSH scp): it only has to be startable, whatever its exit status. */
+  presenceOnly?: boolean;
 }
 
 export interface ToolCheckResult extends ToolCheck {
@@ -28,7 +30,7 @@ export const TOOL_CATALOG: Record<string, ToolCheck> = {
   php: { label: "PHP", command: "php", args: ["--version"], fix: "Install PHP 8.2 or newer.", minimumVersion: "8.2.0" },
   ssh: { label: "SSH", command: "ssh", args: ["-V"], fix: "Install OpenSSH." },
   rsync: { label: "rsync", command: "rsync", args: ["--version"], fix: "Install rsync for the selected profile." },
-  scp: { label: "SCP", command: "scp", args: ["-V"], fix: "Install an SCP client for the selected profile." },
+  scp: { label: "SCP", command: "scp", args: [], presenceOnly: true, fix: "Install an SCP client for the selected profile." },
 };
 
 export function checkTool(key: string): ToolCheckResult | null {
@@ -36,6 +38,7 @@ export function checkTool(key: string): ToolCheckResult | null {
   if (!check) return null;
   const result = spawnSync(check.command, check.args, { encoding: "utf8", shell: false });
   const output = result.stdout?.trim() || result.stderr?.trim() || "";
+  if (check.presenceOnly) return { key, ...check, ok: !result.error, version: result.error ? "" : "installed" };
   const version = output.split("\n")[0]!;
   const ok = !result.error && result.status === 0 && (!check.minimumVersion || meetsMinimumVersion(version, check.minimumVersion));
   return { key, ...check, ok, version };
