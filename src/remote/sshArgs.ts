@@ -27,11 +27,11 @@ export function sshTransport(ssh: Ssh): string {
 }
 
 export function scpConnectionArgs(ssh: Ssh): string[] {
-  return ["-P", String(ssh.port), ...(ssh.identityFile ? ["-i", ssh.identityFile] : [])];
+  return ["-P", String(ssh.port), ...connectionOptions(ssh)];
 }
 
-// Shared by buildSshArgs and sshTransport so the identity-file and
-// host-key-policy handling can never drift between the ssh and rsync paths.
+// Shared by buildSshArgs, sshTransport and scpConnectionArgs so the identity-file and
+// host-key-policy handling can never drift between the ssh, rsync and scp paths.
 function connectionOptions(ssh: Ssh): string[] {
   const options: string[] = [];
   if (ssh.identityFile) options.push("-i", ssh.identityFile, "-o", "IdentitiesOnly=yes");
