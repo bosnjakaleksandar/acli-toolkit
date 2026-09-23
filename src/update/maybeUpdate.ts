@@ -20,7 +20,7 @@ export async function maybeUpdate(packageMetadata: PackageMetadata): Promise<boo
   if (!latestVersion || !process.stdin.isTTY || !process.stdout.isTTY) return false;
 
   // Already asked about this exact version earlier in the same check
-  // window (e.g. running `doctor` a few times in a row while debugging) —
+  // window (e.g. running a command a few times in a row while debugging) —
   // don't interrupt again with a full prompt, just a quiet reminder.
   if (alreadyNotified) {
     console.log(chalk.gray(`\nA-CLI ${latestVersion} is available (current: ${packageMetadata.version}). Run \`acli update\` to install.\n`));

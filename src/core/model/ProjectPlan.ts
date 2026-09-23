@@ -1,4 +1,3 @@
-import type { ResolvedProfile } from "./Profile.ts";
 
 /**
  * Everything decided *before* scaffolding starts: the merged result of
@@ -7,10 +6,8 @@ import type { ResolvedProfile } from "./Profile.ts";
  *
  * Kept intentionally permissive (most fields optional, `[key: string]:
  * unknown` escape hatch) because the concrete field set still depends on
- * which project or import workflow is selected, and several collaborators
- * (strategies, CliOptionsService) remain untyped JS until
- * later phases convert them. Tightening this into a discriminated union
- * per project type is expected once those conversions land.
+ * which project type or workflow is selected. Tightening this into a
+ * discriminated union per project type is future work.
  */
 export interface ProjectPlan {
   setupType?: "new" | "existing-wp";
@@ -54,32 +51,4 @@ export interface ProjectPlan {
 /** The minimal shape a plan keeps for an attached profile — never the resolved connection details. */
 export interface ResolvedProfileRef {
   profileName: string;
-}
-
-/**
- * Stricter, `setupType`-narrowed views of ProjectPlan, for the two call
- * sites that already know which branch they're in and want that expressed
- * in the type rather than read back out with an unchecked field access:
- * `NewProjectPlan` (a fresh scaffold — never has a profile) and
- * `ExistingWpPlan` (an existing-WP import — always does, and by the time a
- * caller has one, `profile` is already the *resolved* connection-ready
- * object, not the raw config reference ProjectPlan.profile describes).
- *
- * Not yet what most of the codebase types `ctx` as — that's still the
- * permissive `ProjectPlan` above, and deliberately so: most collaborators
- * (strategies, CliOptionsService, ...) build
- * or read a plan before `setupType` has necessarily settled either way, and
- * converting every one of those call sites to narrow first is real,
- * separate work (see the class entry above) rather than a mechanical
- * rename. Adopt these two where a function already only makes sense for one
- * branch — new code and future narrowing passes should prefer them there
- * instead of reaching for `ProjectPlan` plus a manual cast.
- */
-export interface NewProjectPlan extends Omit<ProjectPlan, "setupType" | "profile"> {
-  setupType?: "new";
-}
-
-export interface ExistingWpPlan extends Omit<ProjectPlan, "setupType" | "profile"> {
-  setupType: "existing-wp";
-  profile: ResolvedProfile;
 }

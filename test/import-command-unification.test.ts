@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { importCommand } from "../src/cli/commands/import.ts";
+import { importCommand, importResumeCommand, pickServerProject } from "../src/cli/commands/import.ts";
 import { createProjectCommand } from "../src/cli/commands/create.ts";
 import { saveProfile } from "../src/profiles/ProfileStore.ts";
 
@@ -91,4 +91,26 @@ test("create --existing returns a usage error and never delegates to import", as
   assert.match(result.output, /acli import/);
   assert.equal(await fs.pathExists(path.join(dir, "must-not-import")), false);
   await fs.remove(dir);
+});
+
+test("the import resume command quotes a server project name that differs from the local name", () => {
+  assert.equal(importResumeCommand("acme-client-site", "acme client site"), "acli import 'acme client site' --resume --name acme-client-site");
+  assert.equal(importResumeCommand("client-site", "client-site"), "acli import --resume --name client-site");
+  assert.equal(importResumeCommand("client-site"), "acli import --resume --name client-site");
+});
+
+test("pickServerProject lists the server's projects and returns the chosen one", async () => {
+  const coolify = { provider: "coolify-cli", ssh: { host: "cloud.example.com", username: "dev" } } as any;
+  const offered: string[][] = [];
+  const chosen = await pickServerProject(coolify, {
+    createBackend: () => ({ listProjects: async () => ["Acme Client Site", "Blog"] }) as any,
+    choose: async (projects) => { offered.push(projects); return projects[1]!; },
+  });
+  assert.equal(chosen, "Blog");
+  assert.deepEqual(offered, [["Acme Client Site", "Blog"]]);
+
+  await assert.rejects(() => pickServerProject(coolify, { createBackend: () => ({ listProjects: async () => [] }) as any }), /No projects on this server/);
+
+  const ssh = { ssh: { host: "h.example.com", username: "u" }, remote: { projectRoot: "/srv/{projectName}", wordpressRoot: "wp" } } as any;
+  assert.equal(await pickServerProject(ssh, { createBackend: () => ({}) as any }), undefined, "servers that can't list projects are not asked");
 });

@@ -276,7 +276,7 @@ test("import and pull build an interactive Coolify backend unless the run is non
     seen.push(options.interactive);
     const host = createRemoteBackend(profile, options);
     assert.equal((host as CoolifyProjectHost).chooseOption !== null, Boolean(options.interactive));
-    return { ...host, fileTargets: () => [], preflight: async () => {} } as any;
+    return { ...host, fileTargets: () => [], preflight: async () => {}, syncFiles: async () => {} } as any;
   };
   const source = createProfileImportSource(factory);
   await source.preflight!({ targetDir: "/tmp/unused", profile: resolve(), nonInteractive: false });

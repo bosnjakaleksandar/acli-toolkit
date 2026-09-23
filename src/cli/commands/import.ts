@@ -20,7 +20,7 @@ import { buildSuccessSummary, formatCreateError } from "../../ui/summaries.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
 import { resolveProfileSelection, profileSummary } from "../../profiles/ProfileSelection.ts";
 import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
-import { createRemoteBackend } from "../../providers/registry.ts";
+import { createRemoteBackend, type RemoteBackend } from "../../providers/registry.ts";
 import { shellQuote } from "../../providers/sshArgs.ts";
 import { REMOTE_PROJECT_PATTERN } from "../../core/objects.ts";
 import type { ImportCommandOptions } from "../options.ts";
@@ -121,7 +121,7 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
 
     targetDir = path.join(process.cwd(), ctx.projectName);
     ctx.targetDir = targetDir;
-    resumeCommand = `acli import ${remoteProject && remoteProject !== ctx.projectName ? `${shellQuote(remoteProject)} ` : ""}--resume --name ${ctx.projectName}`;
+    resumeCommand = importResumeCommand(ctx.projectName, remoteProject);
 
     if (options.dryRun) {
       const envServiceForPlan = resolveEnvironmentService(ctx.environment);
@@ -173,17 +173,28 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
 }
 
 
+/** The exact command that continues this import, including the server project when it differs from the local name. */
+export function importResumeCommand(projectName: string, remoteProject?: string): string {
+  return `acli import ${remoteProject && remoteProject !== projectName ? `${shellQuote(remoteProject)} ` : ""}--resume --name ${projectName}`;
+}
+
 /**
  * Asks which server project to import, when the profile's server can list
  * them. Resolved against a placeholder project name — listing doesn't
  * depend on which project is chosen.
  */
-async function pickServerProject(profile: Parameters<typeof resolveRemoteProfile>[0]): Promise<string | undefined> {
-  const backend = createRemoteBackend(resolveRemoteProfile(profile, { projectName: "project-list" }));
+export async function pickServerProject(
+  profile: Parameters<typeof resolveRemoteProfile>[0],
+  {
+    createBackend = createRemoteBackend,
+    choose = async (projects: string[]) => (await ask(select, { message: "Which project do you want to import?", options: projects.map((project) => ({ label: project, value: project })) })) as string,
+  }: { createBackend?: (profile: ReturnType<typeof resolveRemoteProfile>) => RemoteBackend; choose?: (projects: string[]) => Promise<string> } = {},
+): Promise<string | undefined> {
+  const backend = createBackend(resolveRemoteProfile(profile, { projectName: "project-list" }));
   if (!backend.listProjects) return undefined;
   const projects = await backend.listProjects();
   if (!projects.length) throw new CliError("No projects on this server are assigned to you.", { code: "NO_REMOTE_PROJECTS", hint: "Ask the server administrator to grant you access to a project." });
-  return (await ask(select, { message: "Which project do you want to import?", options: projects.map((project) => ({ label: project, value: project })) })) as string;
+  return choose(projects);
 }
 
 export function registerImportCommand(program: Command): void {

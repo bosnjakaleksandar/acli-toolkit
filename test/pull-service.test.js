@@ -3,33 +3,36 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { ALL_TARGETS, PullService, resolvePullTargets } from "../src/wordpress/pull/PullService.ts";
+import { PullService, resolvePullTargets } from "../src/wordpress/pull/PullService.ts";
+
+const ALL_TARGETS = ["db", "uploads", "plugins", "themes"];
 import { SshHost } from "../src/providers/ssh/SshHost.ts";
 import { resolveRemoteProfile } from "../src/providers/resolveProfile.ts";
 import { CliError } from "../src/core/errors.ts";
 
 test("resolvePullTargets defaults to every target when nothing is requested", () => {
-  assert.deepEqual(resolvePullTargets([]), ALL_TARGETS);
-  assert.deepEqual(resolvePullTargets(undefined), ALL_TARGETS);
+  assert.deepEqual(resolvePullTargets([], ALL_TARGETS), ALL_TARGETS);
+  assert.deepEqual(resolvePullTargets(undefined, ALL_TARGETS), ALL_TARGETS);
 });
 
 test('resolvePullTargets treats "full" as every target', () => {
-  assert.deepEqual(resolvePullTargets(["full"]), ALL_TARGETS);
-  assert.deepEqual(resolvePullTargets(["db", "full"]), ALL_TARGETS);
+  assert.deepEqual(resolvePullTargets(["full"], ALL_TARGETS), ALL_TARGETS);
+  assert.deepEqual(resolvePullTargets(["db", "full"], ALL_TARGETS), ALL_TARGETS);
 });
 
 test("resolvePullTargets keeps only the requested targets, deduplicated, in canonical order", () => {
-  assert.deepEqual(resolvePullTargets(["uploads", "db", "uploads"]), ["db", "uploads"]);
-  assert.deepEqual(resolvePullTargets(["themes"]), ["themes"]);
+  assert.deepEqual(resolvePullTargets(["uploads", "db", "uploads"], ALL_TARGETS), ["db", "uploads"]);
+  assert.deepEqual(resolvePullTargets(["themes"], ALL_TARGETS), ["themes"]);
 });
 
 test("resolvePullTargets rejects unknown targets", () => {
   assert.throws(
-    () => resolvePullTargets(["db", "bogus"]),
+    () => resolvePullTargets(["db", "languages"], ALL_TARGETS),
     (error) => {
       assert.ok(error instanceof CliError);
       assert.equal(error.code, "INVALID_PULL_TARGET");
-      assert.match(error.message, /bogus/);
+      assert.match(error.message, /languages/);
+      assert.match(error.hint, /db, uploads, plugins, themes/);
       return true;
     },
   );
@@ -76,16 +79,11 @@ test("pull with file targets only syncs those directories and never touches the 
   });
 });
 
-test("pull skips file targets the profile's backend has no source for instead of failing", async () => {
-  await withTempDir(async (dir) => {
-    const fakeRemote = makeFakeRemote();
-    const messages = [];
-    const service = new PullService(makeFakeEnvService(), () => fakeRemote);
-    await service.pull(dir, { projectName: "demo", profile: baseProfile }, ["uploads", "languages"], {}, { message: (text) => messages.push(text) });
-
-    assert.deepEqual(fakeRemote.calls, [{ op: "syncFiles", options: { directories: ["uploads"] } }]);
-    assert.ok(messages.some((text) => /Skipping languages/.test(text)));
-  });
+test("the pullable targets come from the profile, including custom ssh file targets", () => {
+  const withCustom = resolveRemoteProfile({ ssh: { host: "example.com", username: "deploy" }, remote: { projectRoot: "/srv/demo", wordpressRoot: "wordpress" }, files: { targets: { uploads: { path: "wp-content/uploads" }, mu: { path: "wp-content/mu-plugins" } } } }, { projectName: "demo" });
+  const service = new PullService(makeFakeEnvService());
+  assert.deepEqual(service.availableTargets(withCustom), ["db", "uploads", "mu"]);
+  assert.deepEqual(resolvePullTargets(["mu"], service.availableTargets(withCustom)), ["mu"]);
 });
 
 test("pull with db target exports, imports, and removes the dump by default", async () => {
@@ -113,7 +111,7 @@ test("a full pull syncs files and the database together", async () => {
   await withTempDir(async (dir) => {
     const fakeRemote = makeFakeRemote();
     const service = new PullService(makeFakeEnvService(), () => fakeRemote);
-    await service.pull(dir, { projectName: "demo", profile: baseProfile }, resolvePullTargets([]), {}, null);
+    await service.pull(dir, { projectName: "demo", profile: baseProfile }, resolvePullTargets([], ALL_TARGETS), {}, null);
 
     assert.equal(fakeRemote.calls.some((call) => call.op === "syncFiles"), true);
     assert.equal(fakeRemote.calls.some((call) => call.op === "exportDatabase"), true);
@@ -134,7 +132,7 @@ test("regression: PullService must not re-resolve an already-resolved profile (r
     const sshCalls = [];
     const runner = async (command, args) => { sshCalls.push(args.at(-1)); return Buffer.alloc(200, 1); };
     const service = new PullService(makeFakeEnvService(), (profile) => new SshHost(profile, runner));
-    await service.exportDatabase(dir, resolvedProfile, null);
+    await service.pull(dir, { projectName: "demo", profile: resolvedProfile }, ["db"], { keepDump: true }, null).catch(() => {});
 
     assert.ok(sshCalls[0].includes("cd '/srv/demo/wordpress'"), `expected single-resolved path, got: ${sshCalls[0]}`);
     assert.ok(!sshCalls[0].includes("/srv/demo/srv/demo"), "wordpressRoot must not be double-joined");

@@ -36,34 +36,6 @@ export class MissingOptionError extends CliError {
   }
 }
 
-/** Invalid or unparsable configuration file. */
-export class ConfigError extends CliError {
-  constructor(message: string, options: Omit<CliErrorOptions, "code" | "exitCode"> = {}) {
-    super(message, { ...options, code: "CONFIG_INVALID", exitCode: 3 });
-  }
-}
-
-/** A required local tool is missing, or a required port is unavailable. */
-export class PreflightError extends CliError {
-  constructor(message: string, options: Omit<CliErrorOptions, "code" | "exitCode"> = {}) {
-    super(message, { ...options, code: "PREFLIGHT_FAILED", exitCode: 4 });
-  }
-}
-
-/** SSH/rsync/remote database export/import failures. */
-export class RemoteError extends CliError {
-  constructor(message: string, options: Omit<CliErrorOptions, "code" | "exitCode"> = {}) {
-    super(message, { ...options, code: "REMOTE_FAILED", exitCode: 5 });
-  }
-}
-
-/** Docker/Lando scaffold, start, or readiness-wait failures. */
-export class EnvironmentError extends CliError {
-  constructor(message: string, options: Omit<CliErrorOptions, "code" | "exitCode"> = {}) {
-    super(message, { ...options, code: "ENV_FAILED", exitCode: 6 });
-  }
-}
-
 export class TargetExistsError extends CliError {
   targetDir: string;
 

@@ -17,7 +17,7 @@ interface CommandResultLike {
 // that take a *separate* argument (ssh's `-p 2222` for a port) never match.
 const SECRET_ARG_PATTERN = /(-p|--password=|MYSQL_PWD=)('[^']*'|"[^"]*"|\S+)/g;
 
-/** Best-effort redaction of known credential patterns from a command line before it's logged or surfaced in an error message. Not a substitute for not passing secrets as process arguments in the first place — see the databaseCommand module's MYSQL_PWD usage — but keeps A-CLI's own diagnostic output from gratuitously repeating a secret that's already unavoidably present in local process argv. Covers both known secret-bearing flags (mysqldump's `-p<password>`, ...) and credentials embedded in a URL argument's userinfo (`scheme://user:pass@host`) — the latter can reach here from any command that takes a URL argument, not just git, so it's redacted here rather than at each call site individually. */
+/** Best-effort redaction of known credential patterns from a command line before it's logged or surfaced in an error message. Not a substitute for not passing secrets as process arguments in the first place, but keeps A-CLI's own diagnostic output from gratuitously repeating a secret that's already unavoidably present in local process argv. Covers both known secret-bearing flags (mysqldump's `-p<password>`, ...) and credentials embedded in a URL argument's userinfo (`scheme://user:pass@host`) — the latter can reach here from any command that takes a URL argument, not just git, so it's redacted here rather than at each call site individually. */
 function redactCommandLine(command: string, args: string[]): string {
   const line = [command, ...args].join(" ").replace(SECRET_ARG_PATTERN, (_match, flag) => `${flag}[REDACTED]`);
   return redactUrlCredentials(line);
@@ -49,10 +49,9 @@ export class CommandError extends Error {
 interface RunCommandOptions {
   encoding?: BufferEncoding | null;
   /**
-   * Data written to the child's stdin, then closed, before this promise
-   * resolves. Used by the `direct` remote database driver to
-   * deliver the DB password to a remote script that reads it via `read -r`,
-   * instead of embedding it in this command's own argv.
+   * Data written to the child's stdin, then closed. The Coolify provider
+   * passes an empty string (or its menu answers) so a server-side prompt
+   * reads end-of-input instead of waiting on a terminal.
    */
   stdin?: string | Buffer;
   /** Stream stdout directly to this file instead of retaining it in memory. */

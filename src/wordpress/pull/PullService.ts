@@ -7,28 +7,26 @@ import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import type { ResolvedProfile } from "../../core/model/Profile.ts";
 
-export const FILE_TARGETS = ["uploads", "plugins", "themes", "languages"];
-export const ALL_TARGETS = ["db", ...FILE_TARGETS];
-
 /**
  * Turns whatever a user typed for `acli pull [targets...]` into a concrete,
- * deduplicated target list. Kept pure and separate from execution so the
- * targets a given invocation resolves to can be asserted without running any
- * commands.
+ * deduplicated target list for this profile. Kept pure and separate from
+ * execution so the targets a given invocation resolves to can be asserted
+ * without running any commands.
  *
  * @param requested Raw target arguments (may be empty, may include "full").
- * @returns Subset of ALL_TARGETS, in ALL_TARGETS order.
+ * @param available Everything the profile can pull: "db" plus its file targets.
+ * @returns Subset of `available`, in `available` order.
  */
-export function resolvePullTargets(requested: string[]): string[] {
-  if (!requested || !requested.length || requested.includes("full")) return [...ALL_TARGETS];
-  const invalid = requested.filter((target) => !ALL_TARGETS.includes(target));
+export function resolvePullTargets(requested: string[], available: string[]): string[] {
+  if (!requested || !requested.length || requested.includes("full")) return [...available];
+  const invalid = requested.filter((target) => !available.includes(target));
   if (invalid.length) {
     throw new CliError(`Unknown pull target(s): ${invalid.join(", ")}.`, {
       code: "INVALID_PULL_TARGET",
-      hint: `Valid targets: ${ALL_TARGETS.join(", ")}, or "full" for everything.`,
+      hint: `Targets for this profile: ${available.join(", ")}, or "full" for everything.`,
     });
   }
-  return ALL_TARGETS.filter((target) => requested.includes(target));
+  return available.filter((target) => requested.includes(target));
 }
 
 /**
@@ -57,9 +55,9 @@ export class PullService {
     this.migration = new WordPressMigrationService(envService);
   }
 
-  async exportDatabase(targetDir: string, profile: ResolvedProfile, spinner: Spinner | null = null): Promise<void> {
-    const remote = this.remoteHostFactory(profile);
-    await remote.exportDatabase(targetDir, spinner);
+  /** Everything this profile can pull: the database plus the provider's file targets. */
+  availableTargets(profile: ResolvedProfile): string[] {
+    return ["db", ...this.remoteHostFactory(profile).fileTargets()];
   }
 
   /** Imports an already-exported staging.sql (see exportDatabase) and cleans it up unless keepDump is set. */
@@ -69,18 +67,10 @@ export class PullService {
   }
 
   async pull(targetDir: string, ctx: any, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<void> {
-    const requestedFiles = targets.filter((target) => FILE_TARGETS.includes(target));
-    // A target the profile's backend has no source for (e.g. `languages` on
-    // an ssh profile whose files.targets doesn't list it) is skipped rather
-    // than failing the whole pull — `acli pull full` means "everything this
-    // profile can sync".
     // One backend for the whole pull, so an answer picked interactively
     // (e.g. which database container) is reused by later steps.
     const remote = this.remoteHostFactory(ctx.profile, { interactive: !ctx.nonInteractive, ...(ctx.onSelection ? { onSelection: ctx.onSelection } : {}) });
-    const supported = requestedFiles.length ? remote.fileTargets() : [];
-    const fileTargets = requestedFiles.filter((target) => supported.includes(target));
-    const unsupported = requestedFiles.filter((target) => !supported.includes(target));
-    if (unsupported.length) spinner?.message(`Skipping ${unsupported.join(", ")}: not configured for this profile.`);
+    const fileTargets = targets.filter((target) => target !== "db");
 
     if (fileTargets.length) {
       spinner?.message(`Syncing ${fileTargets.join(", ")}...`);

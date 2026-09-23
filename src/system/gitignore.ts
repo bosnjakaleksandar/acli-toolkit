@@ -57,7 +57,6 @@ export async function mergeGitignoreForImport(targetDir: string, type: string): 
 
 export function mergeGitignoreContents(current: string, template: string, baseline: string | null = null): string {
   const currentRules = activeRules(current);
-  const baselineRules = activeRules(baseline || "");
 
   if (!baseline?.trim() && (currentRules.size === 0 || (currentRules.size === 1 && currentRules.has(".acli/")))) {
     return ensureFinalNewline(template);

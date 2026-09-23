@@ -25,22 +25,6 @@ test("project summary presents the important choices before creation", () => {
   assert.match(result, /Git\s+Initialize repository/);
 });
 
-test("existing WordPress summary includes remote operations", () => {
-  const result = plain(buildProjectSummary({
-    projectName: "client",
-    projectType: "wp-existing",
-    setupType: "existing-wp",
-    environment: "lando",
-    skipFiles: false,
-    skipDatabase: true,
-    profile: { ssh: { host: "staging.example.com" }, files: { transport: "sftp" }, database: { driver: "wp-cli" } },
-  }, "/work/client"));
-
-  assert.match(result, /Remote\s+staging\.example\.com/);
-  assert.match(result, /Files\s+sftp/);
-  assert.match(result, /Database\s+Skip/);
-});
-
 test("success summary gives location and executable next steps", () => {
   const result = plain(buildSuccessSummary("/work/app", {
     projectName: "app", environment: "docker", skipGitInit: false,

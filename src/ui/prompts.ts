@@ -1,4 +1,4 @@
-import { text, select, confirm, isCancel, cancel } from "@clack/prompts";
+import { text, select, isCancel, cancel } from "@clack/prompts";
 import fs from "fs-extra";
 import { mascot } from "./mascot.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../config/defaults.ts";

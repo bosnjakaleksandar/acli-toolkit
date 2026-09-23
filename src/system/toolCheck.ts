@@ -73,7 +73,3 @@ export function assertToolsAvailable(keys: string[]): void {
     hint: failed.map((result) => `${result.label}: ${result.fix}`).join("\n"),
   });
 }
-
-export function toolExists(key: string): boolean {
-  return Boolean(checkTool(key)?.ok);
-}

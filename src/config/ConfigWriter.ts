@@ -8,9 +8,9 @@ import type { AcliConfig } from "../core/model/AcliConfig.ts";
 
 /**
  * Reads a YAML config document for editing, returning an empty-but-valid
- * document when the file doesn't exist yet. Shared by ProfileService and
- * ProjectLinkService so every writer of `.acli/config.yaml` agrees on the
- * same read/validate/write path.
+ * document when the file doesn't exist yet. Shared by ProfileStore and
+ * ProjectLink so every writer of a config file agrees on the same
+ * read/validate/write path.
  */
 export async function readWritableConfig(filePath: string, { allowProjectKey = false }: { allowProjectKey?: boolean } = {}): Promise<AcliConfig> {
   if (!(await fs.pathExists(filePath))) return { version: CONFIG_VERSION, profiles: {} };

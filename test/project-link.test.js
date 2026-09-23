@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "fs-extra";
 import os from "node:os";
 import path from "node:path";
-import { findProjectRoot, readLink, writeLink } from "../src/profiles/ProjectLink.ts";
+import { findProjectRoot, readLink, rememberSelections, writeLink } from "../src/profiles/ProjectLink.ts";
 
 test("writeLink then readLink round-trips the project link", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-"));
@@ -91,5 +91,16 @@ test("findProjectRoot ignores a .acli/config.yaml that has no project link (e.g.
   await fs.ensureDir(path.join(root, ".acli"));
   await fs.writeFile(path.join(root, ".acli", "config.yaml"), YAML.stringify({ version: 1, defaults: { mysqlVersion: "8.0" } }));
   assert.equal(await findProjectRoot(root), null);
+  await fs.remove(root);
+});
+
+test("rememberSelections merges new prompt answers into the project link", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "acli-link-selections-"));
+  const link = { name: "client-site", environment: "docker", profile: "cloud", selections: { wordpressContainer: "wordpress" } };
+  await writeLink(root, link);
+  await rememberSelections(root, link, {});
+  assert.deepEqual((await readLink(root)).selections, { wordpressContainer: "wordpress" }, "nothing new, nothing written");
+  await rememberSelections(root, link, { database: "main-db" });
+  assert.deepEqual((await readLink(root)).selections, { wordpressContainer: "wordpress", database: "main-db" });
   await fs.remove(root);
 });

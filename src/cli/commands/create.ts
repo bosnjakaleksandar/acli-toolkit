@@ -55,12 +55,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
     const { config } = await loadConfig({ configPath: options.config });
     const nonInteractive = Boolean(options.yes || options.nonInteractive);
     const mergedContext = mergeProjectContext((config.defaults || {}) as ProjectPlan, normalizeCliOptions(options));
-    if (mergedContext.setupType === "existing-wp") {
-      throw new UsageError("Configuration defaults describe an existing WordPress project.", {
-        hint: "Use `acli import`; create only scaffolds new projects.",
-      });
-    }
-    ctx = await collectProjectContext(withoutImportContext(mergedContext), { nonInteractive });
+    ctx = await collectProjectContext({ ...mergedContext, setupType: "new" }, { nonInteractive });
     const envService = resolveEnvironmentService(ctx.environment!);
     const strategy = resolveStrategy(ctx, envService);
 
@@ -151,11 +146,4 @@ export function registerCreateCommand(program: Command): void {
     .option("--yes", "Run without interactive prompts when all required options are supplied")
     .option("--non-interactive", "Alias for --yes")
     .action((options: CreateCommandOptions) => createProjectCommand(options));
-}
-
-/** Import-only defaults must never affect a fresh scaffold. */
-function withoutImportContext(ctx: ProjectPlan): ProjectPlan {
-  const clean: ProjectPlan = { ...ctx, setupType: "new" };
-  for (const key of ["profile", "stagingUrl", "skipFiles", "skipDatabase", "skipGitLink", "keepDump"]) delete clean[key];
-  return clean;
 }
