@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+
+- `provider: coolify-cli` profiles for Coolify staging servers that expose only the `project` CLI: imports and pulls use `project db-export`/`project wp-export` plus `scp`, and Git linking uses the repository and deployed branch from `project status`. See `examples/config/coolify.yaml`.
+- `acli pull languages` target (skipped for profiles that don't define it).
+
+### Fixed
+
+- `acli doctor` and remote preflight no longer report SCP as missing: OpenSSH `scp` has no version flag, so it is now only checked for presence.
+
 ### Changed
 
 - `acli create` now only scaffolds new projects; existing WordPress sites use the separate, profile-backed `acli import` workflow.
@@ -18,6 +27,9 @@ All notable changes to this project are documented in this file. The format is b
 - Removed the one-off SSH, local-folder, Git, ZIP, and SQL import sources and their `--source`-specific flags. Portable profile YAML must be saved with `acli profile import` before use.
 
 ### Security
+
+- The shared command runner rejects any SSH command that would run a state-changing or interactive remote `project` subcommand (`wp-import`, `db-import`, `db-backup`, `branch`, `deploy`, `shell`, `logs`, admin commands), keeping remote integration pull-only.
+- `scp` transfers now honor the profile's `ssh.hostKeyPolicy`, like ssh and rsync already did.
 
 - A-CLI's shared command runner now rejects both `git push` and the lower-level `git send-pack`; all Git integration is pull-only and publishing remains an explicit manual user action.
 - Project-scoped `.acli/config.yaml` secret references (`{command: ...}` / `${ENV_VAR}`) now require the file to be trusted before A-CLI will resolve them — content-hash-pinned, auto-trusted for anything A-CLI itself wrote. See [SECURITY.md](SECURITY.md). New `acli config trust` command.

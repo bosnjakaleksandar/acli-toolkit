@@ -35,6 +35,10 @@ Both adapters implement the same contract (`src/environments/EnvironmentService.
 
 `rsync` (default) or `sftp`/`scp`.
 
+## Coolify staging (`provider: coolify-cli`)
+
+For servers that give developers only the `project` CLI instead of direct access to files and databases. A-CLI sends only the read-only `project list`, `status`, `db-export` and `wp-export` subcommands, downloads each export with `scp` and unpacks it locally; `remote`, `database.driver` and `files` are not used. Pullable targets are `db`, `uploads`, `plugins`, `themes` and `languages`. The table prefix is detected from the dump, and Git linking uses the repository and deployed branch reported by `project status`. See [examples/config/coolify.yaml](https://github.com/bosnjakaleksandar/project-setup/blob/main/examples/config/coolify.yaml).
+
 ## How table prefix and site URL are determined
 
 1. An explicit `database.tablePrefix` in the profile, if set, always wins.

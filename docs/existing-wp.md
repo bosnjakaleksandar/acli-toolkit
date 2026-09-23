@@ -58,3 +58,21 @@ acli pull db --yes
 ```
 
 `acli pull` walks up from the current directory to find the nearest linked project, so it works from any subdirectory, not just the project root.
+
+## Coolify staging servers
+
+When the staging server only exposes the `project` CLI (Coolify), use a profile with `provider: coolify-cli` — see [examples/config/coolify.yaml](https://github.com/bosnjakaleksandar/project-setup/blob/main/examples/config/coolify.yaml). Import and pull then work the same way, but each step goes through the server's own exports:
+
+| A-CLI step | Server command |
+| --- | --- |
+| preflight | `project list`, `project status <project>` (assigned and running) |
+| database (`import`, `pull db`) | `project db-export <project> sql.gz`, then `scp` and unpack to `staging.sql` |
+| files (`uploads`, `plugins`, `themes`, `languages`) | `project wp-export <project> <component>`, then `scp` and unpack into `wp-content/` |
+| Git link | repository and deployed branch from `project status` |
+
+This stays strictly pull-only: A-CLI never sends `wp-import`, `db-import`, `db-backup`, `branch`, `deploy`, `shell` or `logs`, and its shared command runner refuses any SSH command containing them. Downloaded archives are checked before extraction (no absolute paths, `..`, links or unexpected top-level directories) and removed afterwards.
+
+Things to know:
+
+- Every export stays on the server in its backup directory, and developers cannot delete it; ask the server administrator about retention.
+- If a project has more than one WordPress or database container, or more than one database, the server asks which one to use. In an interactive run A-CLI asks the same question and passes your answer on (once per run); with `--yes`/`--non-interactive` it stops with `COOLIFY_SELECTION_REQUIRED` and lists the choices. To skip the question, set `coolify.database`, `coolify.databaseName` or `coolify.wordpressContainer` in the profile to the name the server shows, then `acli import --resume`. A-CLI answers the menu by that name, never by position, and adding the setting does not invalidate the resume.

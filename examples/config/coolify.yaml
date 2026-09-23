@@ -1,0 +1,28 @@
+version: 1
+profiles:
+  coolify-staging:
+    type: wordpress
+    # The server only exposes the `project` CLI (Coolify staging): A-CLI runs
+    # the read-only `project list|status|db-export|wp-export` subcommands over
+    # SSH, downloads the exports with scp and unpacks them locally. It never
+    # runs wp-import, db-import, branch, deploy or any other state-changing
+    # subcommand.
+    provider: coolify-cli
+    ssh:
+      host: staging.example.com
+      username: "${ACLI_SSH_USER}"
+      identityFile: "${ACLI_SSH_KEY}"
+    coolify:
+      # Project name exactly as `project list` prints it on the server.
+      project: "{projectName}"
+      # Host used for the SSH Git origin built from `project status`.
+      # gitHost: github.com
+      # When the server asks which one to use, answer by the name it shows:
+      # database: <database container>
+      # databaseName: <database inside that container>
+      # wordpressContainer: <WordPress service or container>
+    git:
+      enabled: true
+      # sshHostAlias: github-work
+    urls:
+      staging: "https://{projectName}.staging.example.com"
