@@ -4,6 +4,10 @@
 
 `acli import` turns a WordPress site on a staging server into a working local project. `acli pull` keeps it up to date afterwards. Both need a [profile](./profiles) for the server.
 
+::: tip Visual overview
+The whole path from installing A-CLI to a site running locally, with animated terminals, is in the [walkthrough](./walkthrough).
+:::
+
 ## Import a site
 
 ```bash
@@ -40,26 +44,11 @@ acli import
 </li>
 </ol>
 
-<AcliTerminal title="acli import">
-<pre>◇  Which project do you want to import?
-│  Client Site
-│
-◇  Local project directory/name:
-│  client-site
-│
-◇  Which local environment do you prefer?
-│  Docker (docker-compose.yaml)
-│
-◇  Selected profile: coolify ──────────────────────────────────────────────╮
-│  Remote: developer@cloud.example.com                                      │
-│  Database and files: exported with the server's project CLI (pull-only)   │
-│  Local: docker                                                            │
-│  Server project: Client Site                                              │
-├───────────────────────────────────────────────────────────────────────────╯
-◒  2/3 Importing files and database...</pre>
-</AcliTerminal>
+<AcliReplay session="import" title="acli import" />
 
 ### What happens
+
+<AcliPullDiagram />
 
 | Step | What A-CLI does |
 | --- | --- |
@@ -73,7 +62,7 @@ acli import
 | Preparing Git ignore rules | Writes A-CLI's WordPress `.gitignore`. Rules only the repository had are kept at the end, so nothing ignored before becomes tracked. `acli pull` does the same, so older imports get it too. |
 | Importing database and replacing URLs | Starts the environment, imports the dump, and replaces the staging URLs with your local one. |
 
-At the end A-CLI installs dependencies where it can and prints the local URL and next steps. The dump contains real user data, so `staging.sql` is deleted after a successful import (`--keep-dump` keeps it).
+At the end A-CLI offers to install the theme's dependencies (when it has a `package.json` or `composer.json`) and prints a summary with the next steps. The environment is left running: the site is at `http://localhost:8080` (Docker) or `https://<name>.lndo.site` (Lando). The dump contains real user data, so `staging.sql` is deleted after a successful import (`--keep-dump` keeps it).
 
 ### If it stops half-way
 
@@ -95,7 +84,7 @@ Finished steps — like a 1 GB `uploads` download — are not repeated.
 | `--remote-url <url>` | One more URL to replace, e.g. the live site's. |
 | `--yes` | No questions; everything must come from options. |
 
-All options: [command reference](../reference/commands#acli-import).
+All options: [command reference](../reference/commands#acli-import-project).
 
 ## What the project folder contains
 
@@ -130,6 +119,8 @@ acli pull uploads plugins    # just some folders
 acli pull full --yes         # everything, no questions
 acli pull                    # choose from a list
 ```
+
+<AcliReplay session="pull" title="~/Sites/client-site — acli pull db" />
 
 Targets are `db` plus the profile's folders: `uploads`, `plugins`, `themes` (and `languages` on Coolify, or your own on SSH profiles). Pulling `db` replaces your local database, so A-CLI asks first unless you pass `--yes`. `--dry-run` shows what would be pulled.
 
