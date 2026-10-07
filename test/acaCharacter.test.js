@@ -118,3 +118,12 @@ test("SIGINT and cancellation clean timers and restore the cursor", async () => 
   await cancelled.show("cancelled", "Operation cancelled.");
   assert.equal(cancelled.hasActiveAnimation(), false);
 });
+
+test("only the documented ACLI_REDUCED_MOTION variable disables animation", () => {
+  for (const name of ["A_CLI_REDUCED_MOTION", "REDUCED_MOTION", "NO_MOTION"]) {
+    const character = new AcaCharacter({ stdout: createOutput(), env: { [name]: "1" }, manageProcess: false });
+    assert.equal(character.canAnimate(), true, `${name} is not a supported variable`);
+  }
+  const reduced = new AcaCharacter({ stdout: createOutput(), env: { ACLI_REDUCED_MOTION: "1" }, manageProcess: false });
+  assert.equal(reduced.canAnimate(), false);
+});

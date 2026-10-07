@@ -60,7 +60,7 @@ test("non-TTY output uses a complete static banner without animation controls", 
 
 test("reduced motion disables animation even for a TTY", async () => {
   const stdout = createOutput({ isTTY: true });
-  await showBanner({ stdout, env: { A_CLI_REDUCED_MOTION: "1" } });
+  await showBanner({ stdout, env: { ACLI_REDUCED_MOTION: "1" } });
 
   assert.doesNotMatch(stdout.raw(), /\x1B\[\?25l/);
   const { version } = await getPackageMetadata();

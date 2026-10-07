@@ -234,8 +234,7 @@ export class AcaCharacter {
 
   canAnimate(): boolean {
     if (!this.stdout.isTTY || this.env.CI || this.env.TERM === "dumb") return false;
-    return ![this.env.ACLI_REDUCED_MOTION, this.env.A_CLI_REDUCED_MOTION, this.env.REDUCED_MOTION, this.env.NO_MOTION]
-      .some(isEnabled);
+    return !isEnabled(this.env.ACLI_REDUCED_MOTION);
   }
 
   attachProcessHandlers(): void {
