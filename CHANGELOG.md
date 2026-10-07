@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
-This release removes the deprecated `create-project` executable, so it is a major version.
+## [3.1.0] - 2026-10-08
 
 ### Changed
 
