@@ -77,6 +77,7 @@ Global options on every command: `--verbose` (show the commands A-CLI runs), `--
 
 ## Where to next
 
+- New here? → [Walkthrough: from zero to a running local site](./walkthrough) — install, profile and import, step by step with what each one looks like.
 - Starting something new? → [Create a project](./create)
 - Working on an existing WordPress site? → [Create a profile](./profiles) first, then [import it](./import-and-pull).
 

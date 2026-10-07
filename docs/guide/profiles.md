@@ -116,39 +116,7 @@ acli profile use agency-staging
 
 A Coolify profile:
 
-<AcliTerminal title="acli profile create">
-<pre>◇  Profile name:
-│  coolify
-│
-◇  How does A-CLI reach this server?
-│  Coolify project CLI
-│
-◇  SSH host:
-│  cloud.example.com
-│
-◇  SSH port:
-│  22
-│
-◇  SSH username:
-│  developer
-│
-◇  SSH private key (optional, e.g. ~/.ssh/id_ed25519):
-│  ~/.ssh/cloud
-│
-◇  SSH host-key policy:
-│  Accept new hosts
-│
-◇  Staging URL (optional, also replaced during import):
-│  https://{projectName}.cloud.example.com
-│
-◇  Link the site's Git repository after import?
-│  Yes
-│
-◇  Local Git SSH Host alias (optional, e.g. github-work):
-│  github-work
-│
-Profile "coolify" saved to ~/Library/Application Support/a-cli/config.yaml.</pre>
-</AcliTerminal>
+<AcliReplay session="profile" title="acli profile create" />
 
 It is stored as plain YAML in your user configuration:
 
