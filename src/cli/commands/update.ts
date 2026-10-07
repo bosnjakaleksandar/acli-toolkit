@@ -6,7 +6,7 @@ import { BRANDING } from "../../ui/branding.ts";
 import { mascot } from "../../ui/mascot.ts";
 import type { PackageMetadata } from "../../system/packageMetadata.ts";
 
-export async function updateCommand(packageName: string): Promise<void> {
+async function updateCommand(packageName: string): Promise<void> {
   console.log(chalk.cyan(`Installing the latest version of ${packageName}...\n`));
   await mascot.show("working", "Installing the latest A-CLI version...");
   mascot.stop();
@@ -24,7 +24,7 @@ export async function updateCommand(packageName: string): Promise<void> {
 }
 
 /** Report-only variant for scripting: prints the result and sets exit code 1 if an update is available, without installing anything. */
-export async function checkUpdateCommand(packageMetadata: PackageMetadata): Promise<void> {
+async function checkUpdateCommand(packageMetadata: PackageMetadata): Promise<void> {
   const { latestVersion, status } = await checkForUpdate({
     packageName: packageMetadata.name,
     currentVersion: packageMetadata.version,

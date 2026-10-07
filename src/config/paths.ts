@@ -6,7 +6,7 @@ const PROJECT_CONFIG_DIR_NAME = ".acli";
 
 type EnvLike = Record<string, string | undefined>;
 
-export function getUserConfigDir(platform: string = process.platform, env: EnvLike = process.env, home: string = os.homedir()): string {
+function getUserConfigDir(platform: string = process.platform, env: EnvLike = process.env, home: string = os.homedir()): string {
   if (env.ACLI_CONFIG_HOME) return env.ACLI_CONFIG_HOME;
   if (platform === "win32") return path.join(env.APPDATA || path.join(home, "AppData", "Roaming"), USER_CONFIG_DIR_NAME);
   if (platform === "darwin") return path.join(home, "Library", "Application Support", USER_CONFIG_DIR_NAME);
@@ -28,7 +28,7 @@ export function getLegacyUpdateCachePath(home: string = os.homedir()): string {
   return path.join(home, ".a-cli", "update.json");
 }
 
-export function getProjectConfigDir(cwd: string = process.cwd()): string {
+function getProjectConfigDir(cwd: string = process.cwd()): string {
   return path.join(cwd, PROJECT_CONFIG_DIR_NAME);
 }
 

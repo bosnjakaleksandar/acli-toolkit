@@ -66,7 +66,7 @@ async function writeStepState(targetDir: string, completedSteps: string[], stepD
   await fs.writeJSON(statePath, state, { spaces: 2 });
 }
 
-export async function clearStepState(targetDir: string): Promise<void> {
+async function clearStepState(targetDir: string): Promise<void> {
   await fs.remove(getStateFilePath(targetDir)).catch(() => {});
 }
 

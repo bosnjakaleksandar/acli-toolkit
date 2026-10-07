@@ -64,7 +64,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
     targetDir = path.join(process.cwd(), ctx!.projectName!);
 
     if (options.dryRun) {
-      const plan = strategy.buildPlan ? strategy.buildPlan(ctx) : {
+      const plan = {
         project: ctx!.projectName,
         projectType: ctx!.projectType,
         localEnvironment: ctx!.environment,
@@ -120,7 +120,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
 
     await mascot.show("success", "Project created successfully.");
     mascot.stop();
-    outro(buildSuccessSummary(targetDir, finalCtx as any, nextSteps));
+    outro(buildSuccessSummary(targetDir, finalCtx, nextSteps));
   });
 }
 

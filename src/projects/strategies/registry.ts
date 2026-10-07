@@ -7,7 +7,7 @@ import { Registry } from "../../core/Registry.ts";
 import type { ProjectPlan } from "../../core/model/ProjectPlan.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 
-export interface ProjectTypeDefinition {
+interface ProjectTypeDefinition {
   id: string;
   label: string;
   /** Does this definition apply to the given (already-normalized) plan? First registered match wins. */
@@ -16,7 +16,7 @@ export interface ProjectTypeDefinition {
   create(envService: EnvironmentService | null, plan: ProjectPlan): ScaffoldStrategy;
 }
 
-export const projectTypeRegistry = new Registry<ProjectTypeDefinition>("project type");
+const projectTypeRegistry = new Registry<ProjectTypeDefinition>("project type");
 
 projectTypeRegistry.register({
   id: "application",

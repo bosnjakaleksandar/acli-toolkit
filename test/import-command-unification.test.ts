@@ -93,6 +93,26 @@ test("create --existing returns a usage error and never delegates to import", as
   await fs.remove(dir);
 });
 
+test("create --dry-run prints the generic project plan without touching the filesystem", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-create-dry-run-"));
+  const result = await withCwd(dir, () => captureCliRun(() => createProjectCommand({
+    name: "dry-app",
+    type: "application",
+    framework: "react",
+    environment: "none",
+    dryRun: true,
+    yes: true,
+  })));
+
+  assert.equal(result.exitCode, undefined);
+  assert.match(result.output, /"project": "dry-app"/);
+  assert.match(result.output, /"projectType": "react"/);
+  assert.match(result.output, /"localEnvironment": "none"/);
+  assert.doesNotMatch(result.output, /"laravel"/);
+  assert.equal(await fs.pathExists(path.join(dir, "dry-app")), false);
+  await fs.remove(dir);
+});
+
 test("the import resume command quotes a server project name that differs from the local name", () => {
   assert.equal(importResumeCommand("acme-client-site", "acme client site"), "acli import 'acme client site' --resume --name acme-client-site");
   assert.equal(importResumeCommand("client-site", "client-site"), "acli import --resume --name client-site");

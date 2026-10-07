@@ -131,14 +131,14 @@ export function assertRequiredProjectContext(ctx: ProjectPlan = {}): void {
 /**
  * Normalizes a user-facing framework alias into the internal key.
  */
-export function normalizeFramework(value: string): string {
+function normalizeFramework(value: string): string {
   return FRAMEWORK_ALIASES[value] ?? value;
 }
 
 /**
  * Normalizes a user-facing WordPress type alias into the internal key.
  */
-export function normalizeWpType(value: string): string {
+function normalizeWpType(value: string): string {
   return WP_TYPE_ALIASES[value] ?? value;
 }
 

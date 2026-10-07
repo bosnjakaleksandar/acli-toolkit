@@ -1,4 +1,4 @@
-export const WP_CLI_VERSION = "2.12.0";
+const WP_CLI_VERSION = "2.12.0";
 
 /** Shell executed inside the WordPress container. Both the PHAR and its
  * published SHA-512 are pinned to the same immutable WP-CLI release. */
