@@ -18,13 +18,22 @@ test("the main menu keeps Create, Import and Profiles as separate first-class ac
   assert.deepEqual(PROFILE_MENU_OPTIONS.map(({ value }) => value), ["create", "list", "use", "git-alias", "delete", "back"]);
 });
 
-test("create help contains only new-project controls plus the compatibility error flag", () => {
+test("create help contains only new-project controls", () => {
   const help = commandHelp(registerCreateCommand, "create");
-  assert.match(help, /--existing/);
+  assert.doesNotMatch(help, /--existing/);
   assert.match(help, /--ssh-key/);
   for (const removed of ["--profile", "--staging-url", "--keep-dump", "--skip-files", "--skip-database", "--skip-git-link"]) {
     assert.doesNotMatch(help, new RegExp(removed));
   }
+});
+
+test("create still accepts the hidden --existing flag so old scripts get the acli import hint", () => {
+  const program = new Command();
+  registerCreateCommand(program);
+  const create = program.commands.find((command) => command.name() === "create")!;
+  const existing = create.options.find((option) => option.long === "--existing");
+  assert.ok(existing, "--existing must stay registered");
+  assert.equal(existing.hidden, true);
 });
 
 test("import help is profile-only and does not expose alternative source flags", () => {
