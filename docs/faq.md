@@ -61,7 +61,3 @@ The server asked which database to use. Run the same command without `--yes` and
 | `database.driver` / `files.transport` | Remove them — SSH servers use wp-cli and rsync. |
 | `${ENV_VAR}` or `{command: …}` | Write the value itself. |
 | `presets` | Move shared values to `defaults`; pass the rest as `acli create` options. |
-
-## Coming from `create-project`
-
-The old `create-project` command still works: it prints a deprecation warning and forwards to `acli create`. Its staging convention (Docker container found by name, `STAGING_SSH_HOST`) is no longer supported — create an [SSH profile](./guide/profiles) for a server with wp-cli, or a Coolify profile.

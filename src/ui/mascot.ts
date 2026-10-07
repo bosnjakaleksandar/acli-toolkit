@@ -10,7 +10,7 @@ const MESSAGE_ROW = 3;
 
 export type AcaState = "startup" | "idle" | "thinking" | "working" | "success" | "warning" | "error" | "cancelled" | "offline";
 
-export const ACA_TIMING = Object.freeze({
+const ACA_TIMING = Object.freeze({
   frameInterval: 200,
   startupDuration: 1800,
   idleDuration: 1600,
@@ -234,8 +234,7 @@ export class AcaCharacter {
 
   canAnimate(): boolean {
     if (!this.stdout.isTTY || this.env.CI || this.env.TERM === "dumb") return false;
-    return ![this.env.ACLI_REDUCED_MOTION, this.env.A_CLI_REDUCED_MOTION, this.env.REDUCED_MOTION, this.env.NO_MOTION]
-      .some(isEnabled);
+    return !isEnabled(this.env.ACLI_REDUCED_MOTION);
   }
 
   attachProcessHandlers(): void {

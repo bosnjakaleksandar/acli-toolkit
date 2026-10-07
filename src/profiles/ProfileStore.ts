@@ -19,7 +19,7 @@ export interface ProfileWriteOptions extends ProfileConfigPathOptions {
 }
 
 /** Profiles live in the user config — they describe how this machine reaches a server. */
-export function resolveProfileConfigPath({ configPath, cwd = process.cwd() }: ProfileConfigPathOptions = {}): string {
+function resolveProfileConfigPath({ configPath, cwd = process.cwd() }: ProfileConfigPathOptions = {}): string {
   return configPath ? path.resolve(cwd, configPath) : getUserConfigPath();
 }
 
@@ -88,7 +88,7 @@ export async function setProfileGitSshHostAlias(name: string, alias: string | nu
   return filePath;
 }
 
-export function validateProfileName(name: string): void {
+function validateProfileName(name: string): void {
   if (!/^[a-z0-9][a-z0-9-_]*$/.test(name || "")) throw new Error("Profile name may contain lowercase letters, numbers, dashes, and underscores.");
 }
 

@@ -15,7 +15,7 @@ import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "../contra
 type Runner = typeof runCommand;
 
 /** wp-content directories the server's `project wp-export` can export one at a time. */
-export const COOLIFY_FILE_TARGETS = ["uploads", "plugins", "languages", "themes"];
+const COOLIFY_FILE_TARGETS = ["uploads", "plugins", "languages", "themes"];
 
 // The only `project` subcommands A-CLI ever sends. Everything else the
 // server offers (wp-import, db-import, db-backup, branch, deploy, shell,

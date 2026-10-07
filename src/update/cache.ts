@@ -4,8 +4,6 @@ import { getLegacyUpdateCachePath, getUpdateCachePath } from "../config/paths.ts
 
 export const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-export { getUpdateCachePath };
-
 export interface UpdateCache {
   lastChecked: number;
   latestVersion: string;

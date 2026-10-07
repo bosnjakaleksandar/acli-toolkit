@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-08
+
+### Changed
+
+- `acli create --help` no longer lists the unsupported `--existing` flag; passing it still explains that existing sites use `acli import`.
+
+### Removed
+
+- The `create-project` executable, deprecated since `acli create` replaced it. Use `acli create` (and `acli <command>` for everything else).
+- The undocumented `A_CLI_REDUCED_MOTION`, `REDUCED_MOTION` and `NO_MOTION` variables. Use `ACLI_REDUCED_MOTION=1`.
+
 ## [3.0.0] - 2026-09-24
 
 This release narrows `acli import` / `acli pull` to two well-defined ways of reaching a staging server and removes the configuration machinery that existed for one-off setups. It is a major version because commands, options and configuration fields were removed (see **Removed**); configurations that use them fail validation with a message saying what to change. `acli create` keeps React, Next.js, Laravel and WordPress, and now offers a Docker or Lando environment for every one of them.

@@ -1,7 +1,7 @@
 import { note, outro, select, spinner } from "@clack/prompts";
 import chalk from "chalk";
 import path from "path";
-import type { Command } from "commander";
+import { Option, type Command } from "commander";
 import { collectProjectContext, editProjectContext } from "../../projects/prompts/projectPrompts.ts";
 import { resolveEnvironmentService } from "../../environments/EnvironmentRegistry.ts";
 import { loadConfig } from "../../config/ConfigLoader.ts";
@@ -64,7 +64,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
     targetDir = path.join(process.cwd(), ctx!.projectName!);
 
     if (options.dryRun) {
-      const plan = strategy.buildPlan ? strategy.buildPlan(ctx) : {
+      const plan = {
         project: ctx!.projectName,
         projectType: ctx!.projectType,
         localEnvironment: ctx!.environment,
@@ -120,7 +120,7 @@ export async function createProjectCommand(options: CreateCommandOptions = {}): 
 
     await mascot.show("success", "Project created successfully.");
     mascot.stop();
-    outro(buildSuccessSummary(targetDir, finalCtx as any, nextSteps));
+    outro(buildSuccessSummary(targetDir, finalCtx, nextSteps));
   });
 }
 
@@ -134,7 +134,7 @@ export function registerCreateCommand(program: Command): void {
     .option("--config <path>", "Use an explicit A-CLI configuration file")
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--resume", "Continue an interrupted create run instead of starting over")
-    .option("--existing", "Unsupported compatibility flag; use `acli import`")
+    .addOption(new Option("--existing", "Unsupported compatibility flag; use `acli import`").hideHelp())
     .option("--type <type>", "Project type: application or wordpress")
     .option("--framework <framework>", "Application framework: react, nextjs, or next")
     .option("--laravel", "Add Laravel as a backend for application projects")

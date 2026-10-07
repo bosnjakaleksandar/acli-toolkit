@@ -114,8 +114,6 @@ export async function collectProjectContext(known: ProjectPlan = {}, { nonIntera
   return validateProjectContext(ctx);
 }
 
-export { validateProjectName };
-
 /** Local environment choices: application projects may also run natively. */
 export function environmentOptions(appType: ProjectPlan["appType"]): Array<{ label: string; value: string; hint?: string }> {
   return [
@@ -133,7 +131,7 @@ export function environmentOptions(appType: ProjectPlan["appType"]): Array<{ lab
  * @param projectType Selected new-project type: react, nextjs, wp-theme, wp-woo, or wp-react.
  */
 export function applyProjectTypeChange(ctx: ProjectPlan, projectType: string): ProjectPlan {
-  // Legacy import fields never survive editing a new-project plan.
+  // Import-only fields (`acli import`'s profile and staging URL) never survive editing a new-project plan.
   const cleared = { ...ctx, profile: undefined, stagingUrl: undefined };
   if (projectType === "react" || projectType === "nextjs") return { ...cleared, setupType: "new", appType: "application", framework: projectType as ProjectPlan["framework"], projectType, wpType: null };
   return { ...cleared, setupType: "new", appType: "wordpress", framework: null, useLaravel: false, projectType, wpType: projectType as ProjectPlan["wpType"], ...(cleared.environment === "none" || !cleared.environment ? { environment: "docker" } : {}) };

@@ -9,7 +9,7 @@ const adapters = new Map<string, EnvironmentFactory>([
   ["lando", () => new LandoService()],
 ]);
 
-export function listEnvironmentAdapters(): string[] { return [...adapters.keys()]; }
+function listEnvironmentAdapters(): string[] { return [...adapters.keys()]; }
 
 export function resolveEnvironmentService(environment: string): EnvironmentService {
   const factory = adapters.get(environment);

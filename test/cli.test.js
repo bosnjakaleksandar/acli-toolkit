@@ -6,7 +6,6 @@ import fs from "node:fs";
 import { shouldCheckForUpdates } from "../src/cli/run.ts";
 
 const primaryBin = fileURLToPath(new URL("../bin/acli", import.meta.url));
-const legacyBin = fileURLToPath(new URL("../bin/create-project", import.meta.url));
 const packageVersion = JSON.parse(fs.readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")).version;
 
 function runBin(bin, args) {
@@ -31,11 +30,10 @@ test("root help presents A-CLI as a command platform", () => {
   assert.doesNotMatch(result.stdout, /\bdoctor\b|\bpreset\b/);
 });
 
-test("legacy executable warns and preserves root commands", () => {
-  const result = runBin(legacyBin, ["--version"]);
-  assert.equal(result.status, 0);
-  assert.equal(result.stdout, `${packageVersion}\n`);
-  assert.match(result.stderr, /deprecated.*acli create/is);
+test("acli is the only executable the package declares", () => {
+  const manifest = JSON.parse(fs.readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
+  assert.deepEqual(Object.keys(manifest.bin), ["acli"]);
+  assert.equal(fs.existsSync(fileURLToPath(new URL("../bin/create-project", import.meta.url))), false);
 });
 
 test("update check is bypassed by non-interactive flags and CI", () => {

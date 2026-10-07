@@ -27,7 +27,7 @@ export async function runLocalPreflight(ctx: ProjectPlan & { port?: number }): P
   return { warnings: [] };
 }
 
-export function isPortAvailable(port: number, host = "127.0.0.1"): Promise<boolean> {
+function isPortAvailable(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once("error", () => resolve(false));
