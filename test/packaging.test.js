@@ -22,6 +22,7 @@ test("npm pack only includes the intended files (no source maps, tests, src/, or
     assert.ok(!filePath.startsWith("src/"), `tarball should not include TypeScript source: ${filePath}`);
     assert.ok(!filePath.startsWith(".claude/"), `tarball should not include local tooling config: ${filePath}`);
     assert.ok(!filePath.includes(".DS_Store"), `tarball should not include .DS_Store: ${filePath}`);
+    assert.notEqual(filePath, "bin/create-project", "tarball should not ship the removed create-project executable");
   }
 
   for (const expected of ["package.json", "README.md", "LICENSE", "bin/acli", "dist/cli/run.js"]) {

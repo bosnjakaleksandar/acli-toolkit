@@ -24,8 +24,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "acli": "./bin/acli",
-    "create-project": "./bin/create-project"
+    "acli": "./bin/acli"
   },
   "engines": {
     "node": ">=22.18.0"

@@ -8,10 +8,9 @@ import { runMainMenu } from "./mainMenu.ts";
 /**
  * CLI entry point.
  */
-export async function run(argv: string[] = process.argv, { legacyExecutable = false }: { legacyExecutable?: boolean } = {}): Promise<void> {
+export async function run(argv: string[] = process.argv): Promise<void> {
   const packageMetadata = await getPackageMetadata();
-  const normalizedArgv = legacyExecutable ? normalizeLegacyArguments(argv) : argv;
-  const args = normalizedArgv.slice(2);
+  const args = argv.slice(2);
   if (shouldCheckForUpdates(args) && await maybeUpdate(packageMetadata)) return;
 
   const program = new Command();
@@ -39,18 +38,11 @@ export async function run(argv: string[] = process.argv, { legacyExecutable = fa
 
   registerCommands(program, { packageMetadata });
 
-  await program.parseAsync(normalizedArgv);
+  await program.parseAsync(argv);
 }
 
 export function shouldCheckForUpdates(args: string[], env: Record<string, string | undefined> = process.env): boolean {
   if (env.CI) return false;
   const bypassArguments = new Set(["--skip-update", "--version", "-v", "--help", "-h", "update", "help", "--yes", "--non-interactive", "--quiet"]);
   return !args.some((argument) => bypassArguments.has(argument));
-}
-
-function normalizeLegacyArguments(argv: string[]): string[] {
-  const args = argv.slice(2);
-  const rootArguments = new Set(["create", "import", "update", "link", "pull", "help", "--help", "-h", "--version", "-v"]);
-  if (args.some((argument) => rootArguments.has(argument))) return argv;
-  return [...argv.slice(0, 2), "create", ...args];
 }
