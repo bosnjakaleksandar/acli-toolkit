@@ -5,7 +5,7 @@ import os from "node:os";
 import fs from "fs-extra";
 import { isCacheFresh, readUpdateCache, UPDATE_INTERVAL_MS, writeUpdateCache } from "../src/update/cache.ts";
 
-test("considers cache fresh for at most 24 hours", () => {
+test("considers cache fresh for at most one hour", () => {
   const now = 2_000_000_000;
   assert.equal(isCacheFresh({ lastChecked: now - UPDATE_INTERVAL_MS + 1 }, now), true);
   assert.equal(isCacheFresh({ lastChecked: now - UPDATE_INTERVAL_MS }, now), false);

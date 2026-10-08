@@ -2,7 +2,8 @@ import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { getLegacyUpdateCachePath, getUpdateCachePath } from "../config/paths.ts";
 
-export const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Short enough that a fresh release is offered the same day it ships.
+export const UPDATE_INTERVAL_MS = 60 * 60 * 1000;
 
 export interface UpdateCache {
   lastChecked: number;

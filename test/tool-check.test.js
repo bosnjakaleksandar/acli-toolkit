@@ -1,9 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { assertToolsAvailable, checkTool, meetsMinimumVersion, TOOL_CATALOG } from "../src/system/toolCheck.ts";
 
 test("docker check verifies Docker Compose v2, not just the docker binary", () => {
   assert.deepEqual(TOOL_CATALOG.docker.args, ["compose", "version"]);
+});
+
+test("lando check uses `lando version` and falls back to `--version` for older releases", () => {
+  assert.deepEqual(TOOL_CATALOG.lando.args, ["version"]);
+  assert.deepEqual(TOOL_CATALOG.lando.fallbackArgs, [["--version"]]);
+});
+
+test("checkTool falls back to the next version args when the first ones fail", { skip: process.platform === "win32" }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "acli-fake-lando-"));
+  // Mimics an older Lando: no `version` subcommand, only `--version`.
+  fs.writeFileSync(path.join(dir, "lando"), '#!/bin/sh\nif [ "$1" = "--version" ]; then echo v3.20.0; exit 0; fi\necho "Unknown command"; exit 1\n', { mode: 0o755 });
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${dir}${path.delimiter}${originalPath}`;
+  try {
+    const result = checkTool("lando");
+    assert.equal(result.ok, true);
+    assert.equal(result.version, "v3.20.0");
+  } finally {
+    process.env.PATH = originalPath;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("checkTool finds a present executable and reports its version", () => {

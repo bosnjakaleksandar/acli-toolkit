@@ -19,7 +19,7 @@ export interface CheckForUpdateResult {
 
 /**
  * Checks for a newer published version. The network fetch itself is
- * throttled to once per 24h via the cache (unchanged). Separately, this
+ * throttled to once per UPDATE_INTERVAL_MS via the cache. Separately, this
  * also tracks whether the *user* has already been notified about the
  * specific pending version, via `cache.notifiedVersion` — so a command run
  * five times in a row doesn't interactively prompt about the same known

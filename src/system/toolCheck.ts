@@ -7,6 +7,8 @@ export interface ToolCheck {
   args: string[];
   fix: string;
   minimumVersion?: string;
+  /** Tried in order when `args` fails, for tools whose version flag changed between releases. */
+  fallbackArgs?: string[][];
   /** The tool has no version flag (OpenSSH scp): it only has to be startable, whatever its exit status. */
   presenceOnly?: boolean;
 }
@@ -26,7 +28,8 @@ export const TOOL_CATALOG: Record<string, ToolCheck> = {
   npm: { label: "npm", command: "npm", args: ["--version"], fix: "Install npm with Node.js." },
   git: { label: "Git", command: "git", args: ["--version"], fix: "Install Git and add it to PATH." },
   docker: { label: "Docker Compose", command: "docker", args: ["compose", "version"], fix: "Install Docker with Compose v2." },
-  lando: { label: "Lando", command: "lando", args: ["--version"], fix: "Install Lando." },
+  // Newer Lando dropped `--version` (it prints usage and exits 1); older releases only have it.
+  lando: { label: "Lando", command: "lando", args: ["version"], fallbackArgs: [["--version"]], fix: "Install Lando." },
   composer: { label: "Composer", command: "composer", args: ["--version"], fix: "Install Composer for Laravel generation." },
   php: { label: "PHP", command: "php", args: ["--version"], fix: "Install PHP 8.2 or newer.", minimumVersion: "8.2.0" },
   ssh: { label: "SSH", command: "ssh", args: ["-V"], fix: "Install OpenSSH." },
@@ -38,7 +41,11 @@ export const TOOL_CATALOG: Record<string, ToolCheck> = {
 export function checkTool(key: string): ToolCheckResult | null {
   const check = TOOL_CATALOG[key];
   if (!check) return null;
-  const result = spawnSync(check.command, check.args, { encoding: "utf8", shell: false });
+  let result = spawnSync(check.command, check.args, { encoding: "utf8", shell: false });
+  for (const args of check.fallbackArgs ?? []) {
+    if (result.error || result.status === 0) break;
+    result = spawnSync(check.command, args, { encoding: "utf8", shell: false });
+  }
   const output = result.stdout?.trim() || result.stderr?.trim() || "";
   if (check.presenceOnly) return { key, ...check, ok: !result.error, version: result.error ? "" : "installed" };
   const version = output.split("\n")[0]!;
