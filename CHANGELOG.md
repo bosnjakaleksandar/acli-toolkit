@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-08
+
+### Fixed
+
+- Lando is detected on newer releases, where `lando --version` exits with an error: the preflight now runs `lando version` and falls back to `lando --version` for older releases.
+- New A-CLI releases are offered within an hour of publishing: the update check is cached for one hour instead of 24.
+
 ## [3.1.0] - 2026-10-08
 
 ### Changed
