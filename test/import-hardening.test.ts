@@ -39,10 +39,10 @@ test("gitignore: a file missing template rules is rebuilt, keeping its CRLF endi
 test("gitignore: import → commit → re-import → pull leaves the working tree clean", async () => {
   const root = await tempDir("acli-gitignore-cycle-");
   const origin = path.join(root, "origin.git");
-  git(root, "init", "-q", "--bare", origin);
+  git(root, "init", "-q", "-b", "main", "--bare", origin);
   const seed = path.join(root, "seed");
   await fs.ensureDir(seed);
-  git(seed, "init", "-q");
+  git(seed, "init", "-q", "-b", "main");
   await fs.writeFile(path.join(seed, ".gitignore"), "node_modules\n!wp-content/plugins/custom/\n");
   git(seed, "add", "-A");
   git(seed, "commit", "-qm", "init");
