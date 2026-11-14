@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { createReadStream, createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
@@ -21,12 +22,14 @@ const COOLIFY_FILE_TARGETS = ["uploads", "plugins", "languages", "themes"];
 // server offers (wp-import, db-import, db-backup, branch, deploy, shell,
 // logs, admin commands) changes remote state or needs a terminal; the shared
 // command runner rejects those too, as a second layer.
-const READ_ONLY_SUBCOMMANDS = new Set(["list", "info", "status", "db-export", "wp-export"]);
+// `export` copies named files out of the WordPress container into the
+// server's backup directory — read-only for the site, like wp-export.
+const READ_ONLY_SUBCOMMANDS = new Set(["list", "info", "status", "db-export", "wp-export", "export"]);
 
 // Where the server writes exports (root-owned, mode 711 directories; the
 // file itself is owned by the requesting user, mode 600). Anything else
 // printed as an export path is refused rather than handed to scp.
-const EXPORT_PATH = /^\/var\/backups\/project-(?:databases|wordpress)\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\.(?:sql\.gz|tar\.gz)$/;
+const EXPORT_PATH = /^\/var\/backups\/project-(?:databases|wordpress|files)\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\.(?:sql\.gz|tar\.gz)$/;
 
 /** Normalizes a server project name the way local project names are written: "Acme Client Site" -> "acme-client-site". */
 export function projectSlug(name: string): string {
@@ -34,17 +37,21 @@ export function projectSlug(name: string): string {
 }
 
 type SelectionKey = "wordpressContainer" | "database" | "databaseName";
+/** Menus A-CLI answers; "fileContainer" (`project export`) is answered automatically and never remembered. */
+type MenuKey = SelectionKey | "fileContainer";
 
 // Headers of the server script's numbered "which one?" menus, and which
 // profile field answers each.
-const SELECTION_MENUS: { header: RegExp; key: SelectionKey; what: string }[] = [
+const SELECTION_MENUS: { header: RegExp; key: MenuKey; what: string }[] = [
   { header: /^WordPress containers for project: /, key: "wordpressContainer", what: "WordPress containers" },
   { header: /^Databases for project: /, key: "database", what: "database containers" },
   { header: /^Available databases:$/, key: "databaseName", what: "databases" },
+  // `project export` asks which of the project's containers to read from.
+  { header: /^Containers for project: /, key: "fileContainer", what: "containers" },
 ];
 
 export interface SelectionMenu {
-  key: SelectionKey;
+  key: MenuKey;
   what: string;
   /** Each option's menu label plus, for containers, the container name printed under it. */
   options: { number: number; names: string[] }[];
@@ -80,6 +87,11 @@ interface ProjectStatus {
   status?: string;
   git_repository?: string;
   git_branch?: string;
+  // Optional runtime versions a server may report (see docs: "Coolify
+  // servers"). Read when present; nothing else depends on them.
+  php_version?: string;
+  wordpress_version?: string;
+  db_version?: string;
 }
 
 /**
@@ -89,12 +101,14 @@ interface ProjectStatus {
  */
 export function parseExportPath(output: string): string | null {
   const lines = output.split(/\r?\n/).map((line) => line.trim());
-  const marker = lines.findIndex((line) => /^(?:Export|Bundle) created:$/.test(line));
+  // db-export/wp-export print "Export created:", `export` prints "Archive:";
+  // the path is the next non-empty line either way.
+  const marker = lines.findIndex((line) => /^(?:(?:Export|Bundle) created|Archive):$/.test(line));
   if (marker === -1) {
     if (lines.includes("Nothing to export.")) return null;
     throw new Error(`The remote project CLI did not report an export path:\n${output.trim()}`);
   }
-  const exportPath = lines[marker + 1] ?? "";
+  const exportPath = lines.slice(marker + 1).find(Boolean) ?? "";
   if (!EXPORT_PATH.test(exportPath) || exportPath.split("/").includes("..")) {
     throw new Error(`Refusing unexpected export path from the remote project CLI: ${JSON.stringify(exportPath)}.`);
   }
@@ -236,9 +250,41 @@ export class CoolifyProjectHost implements RemoteBackend {
     }
   }
 
-  /** `wp` is not reachable through the project CLI, so the prefix comes from the profile or the dump itself. */
+  /**
+   * `wp` is not reachable through the project CLI, so the prefix comes from
+   * the profile or the dump itself. Runtime versions come from optional
+   * `project status` fields when the server reports them; the WordPress
+   * version otherwise from wp-includes/version.php (`project export`). The
+   * database version falls back to the dump header (see the import
+   * workflow). Best effort: a failed lookup is null, never an error.
+   */
   async getRemoteFacts(): Promise<RemoteFacts> {
-    return { tablePrefix: this.profile.database?.tablePrefix || null, siteUrl: null };
+    const status = await this.status().catch(() => ({} as ProjectStatus));
+    const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
+    const wpVersion = text(status.wordpress_version) ?? (await this.readCoreVersion().catch(() => null));
+    return {
+      tablePrefix: this.profile.database?.tablePrefix || null,
+      siteUrl: null,
+      phpVersion: text(status.php_version),
+      dbVersion: text(status.db_version),
+      wpVersion,
+    };
+  }
+
+  /** `$wp_version` from the running site's wp-includes/version.php, exported read-only from its WordPress container. */
+  private async readCoreVersion(): Promise<string | null> {
+    const remotePath = parseExportPath(await this.projectCommand("export", [await this.project(), "wp-includes/version.php"]));
+    if (!remotePath) return null;
+    const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "acli-version-"));
+    try {
+      const archive = await this.download(remotePath, workDir);
+      await this.assertSafeArchive(archive, (entry) => entry === "wp-includes/" || entry === "wp-includes/version.php");
+      await this.run("tar", ["-xzf", archive, "-C", workDir]);
+      const source = await fs.readFile(path.join(workDir, "wp-includes", "version.php"), "utf8");
+      return source.match(/^\$wp_version\s*=\s*'([0-9][0-9A-Za-z.-]*)'\s*;/m)?.[1] ?? null;
+    } finally {
+      await fs.remove(workDir).catch(() => {});
+    }
   }
 
   /** Uses the repository and branch Coolify deploys from, as reported by `project status`. */
@@ -287,6 +333,7 @@ export class CoolifyProjectHost implements RemoteBackend {
   }
 
   private async chooseFromMenu(menu: SelectionMenu, spinner: Spinner | null): Promise<number> {
+    if (menu.key === "fileContainer") return pickWordPressContainer(menu);
     const wanted = this.profile.coolify?.[menu.key] || this.chosen[menu.key];
     const available = menu.options.map((option) => option.names.at(-1)).join(", ");
     if (!wanted && this.chooseOption) {
@@ -348,4 +395,16 @@ export class CoolifyProjectHost implements RemoteBackend {
   private async releaseWorkDir(directory: string): Promise<void> {
     await fs.rmdir(directory).catch(() => {});
   }
+}
+
+/**
+ * The WordPress container in `project export`'s container menu: the one
+ * option whose container name starts with "wordpress". Picked without
+ * asking (the lookup is a background version check) and never remembered —
+ * the names carry a deploy timestamp that changes on every redeploy.
+ */
+function pickWordPressContainer(menu: SelectionMenu): number {
+  const matches = menu.options.filter((option) => option.names.some((name) => /^wordpress[-_]/i.test(name)));
+  if (matches.length !== 1) throw new Error(`Could not tell which container runs WordPress: ${menu.options.map((option) => option.names.at(-1)).join(", ")}.`);
+  return matches[0]!.number;
 }

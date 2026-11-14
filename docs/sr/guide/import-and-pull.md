@@ -147,8 +147,15 @@ Coolify server nudi komandu `project` umesto direktnog pristupa fajlovima i baza
 | status projekta, Git repo i grana | `project status <project>` |
 | baza | `project db-export <project> sql.gz` |
 | folder | `project wp-export <project> uploads` (plugins, themes, languages) |
+| verzija WordPress-a | `project export <project> wp-includes/version.php` |
 
 Svaki izvoz se preuzima `scp`-om, proverava, raspakuje i lokalno briše.
+
+**Iste verzije kao na stagingu** — verzija baze se čita iz dump-a, a verzija WordPress-a iz `wp-includes/version.php`. Verzija PHP-a se ne vidi kroz ove komande, pa se koristi podrazumevana uz upozorenje (ili `--php`). Server može sam da prijavi verzije dodavanjem opcionih polja u JSON od `project status`; A-CLI ih koristi kad postoje:
+
+```json
+{ "status": "running:healthy", "php_version": "8.2.29", "wordpress_version": "7.1.4", "db_version": "12.2.2-MariaDB" }
+```
 
 **Kada server postavi pitanje** — neki projekti imaju više od jednog kontejnera baze ili WordPress kontejnera, pa server pita koji da koristi. A-CLI ti prikaže isto pitanje, pošalje tvoj odgovor i zapamti ga u `.acli/config.yaml`, pa te pita samo jednom po projektu. Sa `--yes` ne može da pita, pa staje i izlista izbore. Izaberi onaj koji WordPress koristi — proveri `DB_HOST` u `wp-config.php` sajta ili projekat u Coolify-ju.
 

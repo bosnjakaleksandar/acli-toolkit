@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Fixed
+
+- Coolify imports now use the staging WordPress version (read from `wp-includes/version.php` with the read-only `project export`) instead of the default. The PHP version, and optionally the others, are read from `php_version` / `wordpress_version` / `db_version` in `project status` when the server reports them.
+
 ## [3.1.2] - 2026-11-14
 
 ### Changed
