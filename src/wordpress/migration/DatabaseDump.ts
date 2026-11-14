@@ -1,9 +1,11 @@
 import path from "node:path";
 import fs from "fs-extra";
+import { open } from "node:fs/promises";
 import chalk from "chalk";
 import { CliError } from "../../core/errors.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
+import { serverVersionFromDumpHeader } from "../../environments/versions.ts";
 
 // The set of table names every normal WordPress install has. A dump's real
 // prefix is whichever candidate covers the most of these — not just "the
@@ -42,6 +44,19 @@ export default class DatabaseDumpService {
       code: "TABLE_PREFIX_NOT_DETECTED",
       hint: "Set database.tablePrefix in the profile to the site's table prefix (e.g. wp_), then resume.",
     });
+  }
+}
+
+/** The database server version a dump was taken from, read from its mysqldump/mariadb-dump header; null when absent. */
+export async function detectDumpServerVersion(dumpPath: string): Promise<string | null> {
+  const handle = await open(dumpPath, "r").catch(() => null);
+  if (!handle) return null;
+  try {
+    const buffer = Buffer.alloc(8192);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    return serverVersionFromDumpHeader(buffer.subarray(0, bytesRead).toString("latin1"));
+  } finally {
+    await handle.close();
   }
 }
 

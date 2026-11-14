@@ -17,8 +17,19 @@ export type ImportContext = {
   appType: "wordpress";
   setupType: "existing-wp";
   projectType: "wp-existing";
-  mysqlVersion: string;
-  wpVersion: string;
+  /**
+   * Runtime versions. Before the "detect-versions" step these hold only
+   * what was asked for explicitly (--mysql/--php/--wp-version); that step
+   * fills in the rest from the staging server, falling back to
+   * versionFallbacks.
+   */
+  mysqlVersion?: string;
+  phpVersion?: string;
+  wpVersion?: string;
+  /** Configured defaults, used only when staging doesn't report a version. */
+  versionFallbacks?: { mysqlVersion?: string; phpVersion?: string; wpVersion?: string };
+  /** "PHP 8.1 · DB mariadb:10.11 · WordPress 6.5.3", shown in the success summary. */
+  runtimeSummary?: string;
   /** An extra URL to search-replace (from --remote-url or the profile's urls.staging). */
   stagingUrl?: string;
   skipFiles?: boolean;
@@ -33,6 +44,8 @@ export type ImportContext = {
   selections?: CoolifySelection;
   /** Detected by the workflow, templated into the local environment. */
   tablePrefix?: string;
+  /** Where the linked repository lives, relative to the project ("." = root). */
+  gitRepoDirectory?: string;
   /** Git link result shown in the success summary. */
   gitStatus?: string;
   warnings?: string[];

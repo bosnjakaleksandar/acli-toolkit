@@ -1,6 +1,9 @@
 services:
   db:
     image: {{DB_IMAGE}}
+    # Real site dumps carry rows (serialized options, page-builder data) larger
+    # than the server's default packet size, which aborts the import midway.
+    command: ["--max-allowed-packet=1073741824"]
     volumes:
       - db_data:/var/lib/mysql
     restart: always
@@ -13,7 +16,7 @@ services:
   wordpress:
     depends_on:
       - db
-    image: wordpress:{{WP_VERSION}}
+    image: wordpress:{{WP_IMAGE_TAG}}
     volumes:
       - .:/var/www/html
     ports:

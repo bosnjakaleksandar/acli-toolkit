@@ -1,4 +1,4 @@
-import { confirm, multiselect, outro, spinner } from "@clack/prompts";
+import { confirm, log, multiselect, outro, spinner } from "@clack/prompts";
 import chalk from "chalk";
 import path from "node:path";
 import type { Command } from "commander";
@@ -87,12 +87,14 @@ export async function pullCommand(targets: string[], options: PullCommandOptions
     mascot.stop();
     const s = spinner();
     s.start(`Pulling ${finalTargets.join(", ")}...`);
+    let warnings: string[] = [];
     try {
-      await pull.pull(projectRoot, ctx, finalTargets, { keepDump: Boolean(options.keepDump) }, s);
+      warnings = await pull.pull(projectRoot, ctx, finalTargets, { keepDump: Boolean(options.keepDump) }, s);
     } finally {
       await rememberSelections(projectRoot, link, selections);
     }
     s.stop("Pull complete.");
+    for (const warning of warnings) log.warn(warning);
 
     await mascot.show("success", "Pull complete.");
     mascot.stop();

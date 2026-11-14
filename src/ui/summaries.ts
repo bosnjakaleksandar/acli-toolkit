@@ -25,10 +25,11 @@ export function buildProjectSummary(ctx: ProjectPlan, targetDir: string): string
   return formatRows(rows);
 }
 
-export function buildSuccessSummary(targetDir: string, ctx: ProjectPlan & { dependenciesInstalled?: boolean; warnings?: string[] }, nextSteps: string): string {
+export function buildSuccessSummary(targetDir: string, ctx: ProjectPlan & { dependenciesInstalled?: boolean; warnings?: string[]; runtimeSummary?: string }, nextSteps: string): string {
   const rows: Array<[string, unknown]> = [
     ["Location", targetDir],
     ["Environment", environmentLabel(ctx.environment)],
+    ...(ctx.runtimeSummary ? [["Runtime", ctx.runtimeSummary] as [string, unknown]] : []),
     ["Git", typeof ctx.gitStatus === "string" ? ctx.gitStatus : ctx.skipGitInit ? "Not initialized (skipped)" : "Initialized"],
     ["Dependencies", ctx.dependenciesInstalled ? "Installed" : "Manual steps may remain"],
   ];

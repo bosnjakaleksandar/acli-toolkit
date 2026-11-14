@@ -25,6 +25,8 @@ import { shellQuote } from "../../providers/sshArgs.ts";
 import { REMOTE_PROJECT_PATTERN } from "../../core/objects.ts";
 import type { ImportCommandOptions } from "../options.ts";
 import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
+import { normalizePhpVersion } from "../../environments/versions.ts";
+import { assertSafeVersionString } from "../../system/safety.ts";
 
 /**
  * `acli import`: brings an existing WordPress site into a new local project
@@ -101,12 +103,17 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
       appType: "wordpress",
       setupType: "existing-wp",
       projectType: "wp-existing",
-      mysqlVersion: options.mysql || "8.0",
-      // A generated docker-compose.yaml always templates {{WP_VERSION}} into
-      // its wordpress image tag (see DockerEnvironment.scaffold) — every
-      // import source needs a value here or that placeholder is left
-      // unsubstituted in the generated file.
-      wpVersion: options.wpVersion || String(config.defaults?.wpVersion || DEFAULT_WORDPRESS_VERSION),
+      // Only explicit flags here: the workflow's "detect-versions" step reads
+      // the rest from the staging server (see stagingVersions.ts), so the
+      // local environment runs the same PHP and database as staging.
+      ...(options.mysql ? { mysqlVersion: assertSafeVersionString(options.mysql, "--mysql") } : {}),
+      ...(options.php ? { phpVersion: parsePhpFlag(options.php) } : {}),
+      ...(options.wpVersion ? { wpVersion: assertSafeVersionString(options.wpVersion, "--wp-version") } : {}),
+      versionFallbacks: {
+        mysqlVersion: stringOrUndefined(config.defaults?.mysqlVersion),
+        phpVersion: stringOrUndefined(config.defaults?.phpVersion),
+        wpVersion: stringOrUndefined(config.defaults?.wpVersion) ?? DEFAULT_WORDPRESS_VERSION,
+      },
       skipFiles: Boolean(options.skipFiles),
       skipDatabase: Boolean(options.skipDatabase),
       skipGitLink: Boolean(options.skipGitLink),
@@ -170,7 +177,9 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
     log.step("3/3 Finalizing...");
     const nextSteps = await maybeInstallDependencies(installPlan, s, ctx);
     ctx.dependenciesInstalled = !nextSteps.includes(" install");
-    await maybeInitializeGit(targetDir, ctx);
+    // A repository linked inside the project (a theme repo) is the project's
+    // Git; initializing another one at the root would nest it.
+    if (!ctx.gitRepoDirectory || ctx.gitRepoDirectory === ".") await maybeInitializeGit(targetDir, ctx);
     log.success("3/3 Done.");
 
     await mascot.show("success", "Import completed successfully.");
@@ -179,6 +188,18 @@ export async function importCommand(options: ImportCommandOptions = {}): Promise
   });
 }
 
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function parsePhpFlag(value: string): string {
+  try {
+    return normalizePhpVersion(value);
+  } catch (error: any) {
+    throw new CliError(error.message, { code: "USAGE", hint: "Pass the PHP major.minor version, e.g. --php 8.1." });
+  }
+}
 
 /** The exact command that continues this import, including the server project when it differs from the local name. */
 export function importResumeCommand(projectName: string, remoteProject?: string): string {
@@ -212,8 +233,9 @@ export function registerImportCommand(program: Command): void {
     .option("--name <name>", "Project directory/name")
     .option("--environment <environment>", "Local environment: docker or lando")
     .option("--env <environment>", "Alias for --environment")
-    .option("--mysql <version>", "MySQL or MariaDB version")
-    .option("--wp-version <version>", "WordPress version")
+    .option("--mysql <version>", "MySQL or MariaDB version, e.g. 8.0 or mariadb:10.11 (default: staging's)")
+    .option("--php <version>", "PHP version, e.g. 8.1 (default: staging's)")
+    .option("--wp-version <version>", "WordPress version (default: staging's)")
     .option("--dry-run", "Validate and print the execution plan without mutation")
     .option("--resume", "Continue an interrupted import run instead of starting over")
     .option("--profile <profile>", "Use a configured staging profile")

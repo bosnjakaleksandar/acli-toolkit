@@ -1,4 +1,4 @@
-import { assertSafeVersionString } from "../system/safety.ts";
+export { resolveDbImage } from "./versions.ts";
 
 const TEMPLATE_MAP: Record<string, string> = {
   "wp-existing": "wordpress",
@@ -15,12 +15,4 @@ export function frontendDevServer(framework?: string | null): { port: string; co
   return framework === "nextjs"
     ? { port: "3000", command: "npm run dev -- --hostname 0.0.0.0 --port 3000" }
     : { port: "5173", command: "npm run dev -- --host 0.0.0.0 --port 5173" };
-}
-
-/** Maps a MySQL/MariaDB version onto its Docker image reference. Validates first — the result is templated into generated YAML. */
-export function resolveDbImage(mysqlVersion: string): string {
-  assertSafeVersionString(mysqlVersion, "mysqlVersion");
-  return mysqlVersion.includes("mariadb")
-    ? mysqlVersion
-    : `mysql:${mysqlVersion}`;
 }

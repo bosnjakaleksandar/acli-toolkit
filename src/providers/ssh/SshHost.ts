@@ -11,6 +11,8 @@ import type { RemoteBackend, RemoteGitOrigin, SyncFilesOptions } from "../contra
 
 type Runner = typeof runCommand;
 
+const RUNTIME_PROBE = 'global $wpdb; echo PHP_VERSION, "|", $wpdb->get_var("SELECT VERSION()"), "|", get_bloginfo("version");';
+
 /**
  * Every operation A-CLI performs against a remote WordPress host over SSH:
  * capability preflight, file sync (rsync), database export (wp-cli), and
@@ -96,11 +98,15 @@ export class SshHost implements RemoteBackend {
     const explicitPrefix = this.profile.database?.tablePrefix || null;
     const root = shellQuote(this.remote.wordpressRoot);
     const fetch = (command: string) => this.run("ssh", buildSshArgs(this.profile.ssh, `cd ${root} && ${command}`)).then((value) => (value as string)?.trim() || null).catch(() => null);
-    const [fetchedPrefix, siteUrl] = await Promise.all([
+    const [fetchedPrefix, siteUrl, runtime] = await Promise.all([
       explicitPrefix ? Promise.resolve(null) : fetch("wp config get table_prefix --quiet"),
       fetch("wp option get siteurl --quiet"),
+      // One round trip for the versions the local environment must match.
+      // $wpdb asks the server itself (no mysql binary needed on the host).
+      fetch(`wp eval ${shellQuote(RUNTIME_PROBE)} --skip-plugins --skip-themes --quiet`),
     ]);
-    return { tablePrefix: explicitPrefix || fetchedPrefix, siteUrl };
+    const [phpVersion, dbVersion, wpVersion] = (runtime ?? "").split("|").map((value) => value.trim() || null);
+    return { tablePrefix: explicitPrefix || fetchedPrefix, siteUrl, phpVersion: phpVersion ?? null, dbVersion: dbVersion ?? null, wpVersion: wpVersion ?? null };
   }
 
   async discoverGit(): Promise<RemoteGitOrigin | null> {

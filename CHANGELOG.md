@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Changed
+
+- `acli import` and `acli link` run the same PHP, MySQL/MariaDB and WordPress versions as the staging server instead of a hardcoded PHP 8.3 / MySQL 8.0. SSH profiles read them with wp-cli; Coolify profiles take the database version from the dump header. `--mysql`, the new `--php`, and `--wp-version` still override, and a version that can't be read is listed as a warning.
+- `acli pull` warns when the project's local database differs from the staging server's.
+
+### Fixed
+
+- A `.gitignore` that was imported, committed and pushed no longer shows as modified after the next `acli import` or `acli pull`. A file that already has every rule is now left untouched (CRLF line endings, a hand-reordered file, rules from an older A-CLI template).
+- A Git repository discovered in `wp-content/themes/<project>` is linked in that folder instead of at the WordPress root.
+- Docker database import: the real SQL error is shown instead of a misleading second attempt with another client, and large rows no longer abort the import (`max_allowed_packet` raised to 1G).
+- Search-replace also rewrites JSON-escaped URLs (Elementor, block attributes) and ignores trailing slashes on the site URL. In Docker, wp-cli gets 1G of memory instead of PHP's default 128M.
+- MySQL 8 collations (`utf8mb4_0900_*`) are normalized so a MySQL 8 dump imports into MariaDB or MySQL 5.7.
+- A missing Docker image for a PHP/WordPress combination fails with a clear hint instead of a raw `docker compose` error.
+
 ## [3.1.1] - 2026-10-08
 
 ### Fixed

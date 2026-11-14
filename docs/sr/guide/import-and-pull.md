@@ -56,10 +56,11 @@ acli import
 | Fetching WordPress files | Kopira `wp-content` (uploads, plugins, themes, a na Coolify-ju i languages). |
 | Fetching database dump | Izvozi bazu na serveru i preuzima je kao `staging.sql`. |
 | Detecting table prefix | Čita ga sa servera (SSH/wp-cli) ili iz dump-a, da bi lokalni sajt koristio prave tabele. |
+| Matching staging PHP and database versions | Čita PHP, MySQL/MariaDB i WordPress verziju sa servera (SSH/wp-cli; na Coolify-ju verzija baze dolazi iz dump-a), tako da lokalno okruženje radi na istim verzijama. `--php`, `--mysql` i `--wp-version` imaju prednost; verzija koja ne može da se pročita pada na podrazumevanu i prikazuje se kao upozorenje. |
 | Scaffolding local environment | Piše `docker-compose.yaml` ili `.lando.yml` za ovaj sajt. |
 | Linking project to its profile | Čuva vezu u `.acli/config.yaml`, pa `acli pull` kasnije ne traži argumente. |
 | Linking Git repository | Povezuje Git origin sajta, samo za pull ([detalji](#git)). |
-| Preparing Git ignore rules | Piše A-CLI-jev WordPress `.gitignore`. Pravila koja je imao samo repozitorijum zadržavaju se na kraju, pa ništa što je ranije bilo ignorisano ne postaje praćeno. `acli pull` radi isto, pa to dobijaju i stariji importi. |
+| Preparing Git ignore rules | Piše A-CLI-jev WordPress `.gitignore`. Pravila koja je imao samo repozitorijum zadržavaju se na kraju, pa ništa što je ranije bilo ignorisano ne postaje praćeno. Commit-ovan `.gitignore` koji već ima sva pravila ostaje netaknut, pa ga ponovni import ili pull nikad ne prikazuje kao izmenjen. `acli pull` radi isto, pa to dobijaju i stariji importi. |
 | Importing database and replacing URLs | Pokreće okruženje, importuje dump i zamenjuje staging URL-ove tvojim lokalnim. |
 
 Na kraju A-CLI nudi da instalira zavisnosti teme (kada ima `package.json` ili `composer.json`) i ispiše pregled sa sledećim koracima. Okruženje ostaje pokrenuto: sajt je na `http://localhost:8080` (Docker) ili `https://<name>.lndo.site` (Lando). Dump sadrži stvarne podatke korisnika, pa se `staging.sql` briše posle uspešnog importa (`--keep-dump` ga zadržava).
@@ -161,7 +162,7 @@ A-CLI nikada ne pravi commit niti push. Ako fetch pukne sa *Permission denied (p
 
 ## Kako baza ispadne ispravna {#how-the-database-comes-out-right}
 
-- **URL-ovi:** sopstveni URL sajta čita se iz importovane baze i zamenjuje tvojim lokalnim URL-om, plus staging URL iz profila, `--remote-url` i `urls.additionalSearchReplace` — i `http://` i `https://`.
+- **URL-ovi:** sopstveni URL sajta čita se iz importovane baze i zamenjuje tvojim lokalnim URL-om, plus staging URL iz profila, `--remote-url` i `urls.additionalSearchReplace` — i `http://` i `https://`, kao i njihov JSON-escaped oblik (`https:\/\/…`) koji čuvaju page builderi.
 - **Prefiks tabela:** čita se sa servera kad god je moguće, inače iz dump-a prepoznavanjem WordPress core tabela. Postavi `database.tablePrefix` u profilu ako ne može da se prepozna.
 - **Prenosivi dump-ovi:** linije `CREATE DATABASE`/`USE` i MariaDB sandbox marker se uklanjaju, a novije kolacije se prepisuju za lokalni MySQL/MariaDB (`database.normalizeCollations: false` to isključuje).
 - **Spremno pre importa:** A-CLI čeka dok WordPress stvarno ne može da dođe do baze i jednom popravi zastareli lokalni volume baze ako treba.

@@ -36,8 +36,9 @@ Bring a WordPress site from staging into a new local project. `[project]` is the
 | `--profile <name>` | → Which profile (server). Default: your default or only profile. |
 | `--name <name>` | → Local folder name. |
 | `--environment <docker\|lando>` | → Local environment (alias `--env`). |
-| `--mysql <version>` | Local MySQL/MariaDB version (default `8.0`). |
-| `--wp-version <version>` | WordPress version for the local environment. |
+| `--mysql <version>` | Local MySQL/MariaDB version, e.g. `8.0`, `mariadb:10.11` (default: the staging server's). |
+| `--php <version>` | Local PHP version, e.g. `8.1` (default: the staging server's). |
+| `--wp-version <version>` | WordPress version for the local environment (default: the staging server's). |
 | `--remote-url <url>` | Another URL to replace with the local one. |
 | `--skip-files` | Don't copy files. |
 | `--skip-database` | Don't import the database. |

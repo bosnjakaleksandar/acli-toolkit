@@ -8,4 +8,10 @@
 export interface RemoteFacts {
   tablePrefix: string | null;
   siteUrl: string | null;
+  /** PHP version wp-cli runs under on the server, e.g. "8.1.27". */
+  phpVersion?: string | null;
+  /** The database server's `SELECT VERSION()`, e.g. "10.11.6-MariaDB-0+deb12u1". */
+  dbVersion?: string | null;
+  /** WordPress core version, e.g. "6.5.3". */
+  wpVersion?: string | null;
 }

@@ -21,7 +21,7 @@ export default class WordPressMigrationService {
       await this.envService.start(targetDir, spinner);
       await this.envService.importDb(targetDir, "staging.sql", spinner);
 
-      const localUrl = this.envService.getLocalUrl(ctx);
+      const localUrl = stripTrailingSlash(this.envService.getLocalUrl(ctx));
       spinner?.message("Reading the imported site's actual URL...");
       // The freshly imported database is the authoritative source for what
       // URL is actually embedded in the content — more reliable than a
@@ -31,15 +31,8 @@ export default class WordPressMigrationService {
       // sources in case content references older/alternate hostnames too.
       const importedSiteUrl = (await this.envService.wp(targetDir, ["option", "get", "siteurl"], spinner))?.trim() || null;
 
-      const candidates: string[] = [importedSiteUrl, ctx.stagingUrl, ...(ctx.profile?.urls?.additionalSearchReplace || [])].filter(Boolean);
-      const sourceUrls = new Set<string>();
-      for (const url of candidates) {
-        sourceUrls.add(url);
-        sourceUrls.add(toggleScheme(url));
-      }
-      sourceUrls.delete(localUrl);
-
-      for (const source of sourceUrls) await this.envService.searchReplace(targetDir, source, localUrl, spinner);
+      const candidates: string[] = [importedSiteUrl, ctx.stagingUrl, ...(ctx.profile?.urls?.additionalSearchReplace || [])].filter(Boolean).map(stripTrailingSlash);
+      for (const [from, to] of searchReplacePairs(candidates, localUrl)) await this.envService.searchReplace(targetDir, from, to, spinner);
     } catch (error: any) {
       // The underlying error (e.g. a CommandError from a failed `docker
       // compose exec ... wp ...`) carries the actual stderr/stdout — the
@@ -52,6 +45,42 @@ export default class WordPressMigrationService {
       );
     }
   }
+}
+
+/**
+ * Every (from, to) pair the import runs through `wp search-replace`: each
+ * source URL in both schemes, plus its JSON-escaped form (`https:\/\/host`)
+ * — page builders such as Elementor and block attributes store URLs that
+ * way, and a plain search never matches them, leaving images and links
+ * pointing at staging. Longest sources first, so a URL that is a prefix of
+ * another (https://site.com vs https://site.com/blog) never pre-empts it.
+ * Trailing slashes are dropped on both sides, so a siteurl stored as
+ * "https://site.com/" can't turn "https://site.com/wp-content" into
+ * "http://localhost:8080wp-content".
+ */
+export function searchReplacePairs(sources: string[], localUrl: string): Array<[string, string]> {
+  const local = stripTrailingSlash(localUrl);
+  const urls = new Set<string>();
+  for (const url of sources.map(stripTrailingSlash).filter(Boolean)) {
+    urls.add(url);
+    urls.add(toggleScheme(url));
+  }
+  urls.delete(local);
+  const pairs: Array<[string, string]> = [];
+  for (const url of [...urls].sort((a, b) => b.length - a.length)) {
+    pairs.push([url, local]);
+    const escaped = escapeSlashes(url);
+    if (escaped !== url) pairs.push([escaped, escapeSlashes(local)]);
+  }
+  return pairs;
+}
+
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
+function escapeSlashes(url: string): string {
+  return url.replaceAll("/", "\\/");
 }
 
 function toggleScheme(url: string): string {

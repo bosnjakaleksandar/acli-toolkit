@@ -10,6 +10,13 @@ const COLLATION_REPLACEMENTS: Array<[Buffer, Buffer]> = [
   [Buffer.from("utf8mb3_uca1400_ai_ci"), Buffer.from("utf8_general_ci")],
   [Buffer.from("utf8mb4_uca1400_ai_ci"), Buffer.from("utf8mb4_unicode_520_ci")],
   [Buffer.from("utf8mb3_"), Buffer.from("utf8_")],
+  // MySQL 8's default collations don't exist in MariaDB or MySQL 5.7
+  // ("Unknown collation: 'utf8mb4_0900_ai_ci'"), so a MySQL 8 dump fails on
+  // any local server that isn't MySQL 8 too. unicode_520 exists everywhere.
+  [Buffer.from("utf8mb4_0900_ai_ci"), Buffer.from("utf8mb4_unicode_520_ci")],
+  [Buffer.from("utf8mb4_0900_as_ci"), Buffer.from("utf8mb4_unicode_520_ci")],
+  [Buffer.from("utf8mb4_0900_as_cs"), Buffer.from("utf8mb4_bin")],
+  [Buffer.from("utf8mb4_0900_bin"), Buffer.from("utf8mb4_bin")],
 ];
 
 interface NormalizationStep {
@@ -28,7 +35,7 @@ export const NORMALIZATION_STEPS: NormalizationStep[] = [
   },
   {
     name: "normalize-collations",
-    description: "Rewrites collations the local MySQL/MariaDB image may not recognize (e.g. newer MariaDB uca1400 collations) to broadly compatible equivalents.",
+    description: "Rewrites collations the local MySQL/MariaDB image may not recognize (newer MariaDB uca1400 and MySQL 8 0900 collations) to broadly compatible equivalents.",
   },
 ];
 

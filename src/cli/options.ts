@@ -51,6 +51,7 @@ export interface ImportCommandOptions {
   environment?: string;
   env?: string;
   mysql?: string;
+  php?: string;
   wpVersion?: string;
   dryRun?: boolean;
   resume?: boolean;

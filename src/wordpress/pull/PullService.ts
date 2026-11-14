@@ -6,6 +6,11 @@ import WordPressMigrationService from "../migration/WordPressMigration.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
 import type { ResolvedProfile } from "../../core/model/Profile.ts";
+import YAML from "yaml";
+import { detectDumpServerVersion } from "../migration/DatabaseDump.ts";
+import { dbMismatchWarning, localDbSpecFromEnvironmentFile } from "../../environments/versions.ts";
+
+const ENVIRONMENT_FILES: Record<string, string> = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 
 /**
  * Turns whatever a user typed for `acli pull [targets...]` into a concrete,
@@ -77,7 +82,9 @@ export class PullService {
     if (!keepDump) await fs.remove(path.join(targetDir, "staging.sql")).catch(() => {});
   }
 
-  async pull(targetDir: string, ctx: PullContext, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<void> {
+  /** Resolves with warnings worth showing after the pull (e.g. a local/staging database mismatch). */
+  async pull(targetDir: string, ctx: PullContext, targets: string[], { keepDump = false }: { keepDump?: boolean } = {}, spinner: Spinner | null = null): Promise<string[]> {
+    const warnings: string[] = [];
     // One backend for the whole pull, so an answer picked interactively
     // (e.g. which database container) is reused by later steps.
     const remote = this.remoteHostFactory(ctx.profile, { interactive: !ctx.nonInteractive, ...(ctx.onSelection ? { onSelection: ctx.onSelection } : {}) });
@@ -91,7 +98,22 @@ export class PullService {
     if (targets.includes("db")) {
       spinner?.message("Exporting remote database...");
       await remote.exportDatabase(targetDir, spinner);
+      const mismatch = await this.dbMismatch(targetDir, ctx.environment);
+      if (mismatch) warnings.push(mismatch);
       await this.importDatabase(targetDir, ctx, spinner, { keepDump });
     }
+    return warnings;
+  }
+
+  // Projects imported before A-CLI matched staging's versions still run the
+  // old hardcoded mysql:8.0; say so instead of letting the import fail
+  // mysteriously (collations, sql modes, a MariaDB-only syntax).
+  private async dbMismatch(targetDir: string, environment: string): Promise<string | null> {
+    const file = ENVIRONMENT_FILES[environment];
+    if (!file) return null;
+    const content = await fs.readFile(path.join(targetDir, file), "utf8").catch(() => null);
+    if (content === null) return null;
+    const dumpVersion = await detectDumpServerVersion(path.join(targetDir, "staging.sql")).catch(() => null);
+    return dbMismatchWarning(localDbSpecFromEnvironmentFile(environment, content, YAML.parse), dumpVersion, file);
   }
 }

@@ -1,4 +1,6 @@
+import path from "node:path";
 import { CliError } from "../../core/errors.ts";
+import { renderTemplate } from "../../providers/template.ts";
 import { applyGitSshHostAlias, linkGitRemote, type GitSetupResult } from "../../system/git.ts";
 import { isSafeGitUrl, redactUrlCredentials } from "../../system/safety.ts";
 import type { Spinner } from "../../environments/EnvironmentService.ts";
@@ -26,9 +28,19 @@ export async function linkDiscoveredGit(
     return null;
   }
   const localRemoteUrl = applyGitSshHostAlias(found.url, ctx.profile.git?.sshHostAlias);
+  // The repository lives where it was found on the server: a theme repo
+  // discovered at wp-content/themes/<name> is linked in that folder, not at
+  // the WordPress root (which would put the theme's files at the root of the
+  // index and show every file as deleted/untracked).
+  const repoDirectory = localRepoDirectory(found.directory, ctx.profile.projectName || ctx.projectName);
+  if (repoDirectory === null) {
+    spinner?.message(`Skipping Git link: unexpected repository location ${JSON.stringify(found.directory)}.`);
+    return null;
+  }
+  ctx.gitRepoDirectory = repoDirectory;
   let result: GitSetupResult;
   try {
-    result = await gitLinker(targetDir, localRemoteUrl, undefined, { previousRemoteUrl: found.url, ...(found.branch ? { branch: found.branch } : {}) });
+    result = await gitLinker(repoDirectory === "." ? targetDir : path.join(targetDir, ...repoDirectory.split("/")), localRemoteUrl, undefined, { previousRemoteUrl: found.url, ...(found.branch ? { branch: found.branch } : {}) });
   } catch (error: any) {
     const details = `${error?.stderr || ""}\n${error?.message || ""}`;
     if (/Permission denied \(publickey\)|Could not read from remote repository/i.test(details)) {
@@ -46,4 +58,18 @@ export async function linkDiscoveredGit(
   }
   ctx.gitStatus = result.summary;
   return result;
+}
+
+/** The discovery path as a safe relative directory ("." for the root), or null when it isn't one. */
+function localRepoDirectory(directory: string | undefined, projectName: string): string | null {
+  if (!directory || directory === ".") return ".";
+  let rendered: string;
+  try {
+    rendered = path.posix.normalize(renderTemplate(directory, { projectName }));
+  } catch {
+    return null;
+  }
+  if (rendered === "." || rendered === "./") return ".";
+  if (path.posix.isAbsolute(rendered) || rendered.split("/").includes("..") || !/^[A-Za-z0-9._/-]+$/.test(rendered)) return null;
+  return rendered.replace(/\/+$/, "");
 }

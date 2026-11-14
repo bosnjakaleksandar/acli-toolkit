@@ -74,12 +74,36 @@ export async function mergeGitignoreForImport(targetDir: string, type: string): 
 
   if (await fs.pathExists(path.join(targetDir, ".git"))) {
     try {
-      baseline = String(await runCommand("git", ["show", "HEAD:.gitignore"], { cwd: targetDir }));
+      // Raw bytes: the runner trims text output, and a lost final newline
+      // alone would make the committed file look modified.
+      baseline = Buffer.from(await runCommand("git", ["show", "HEAD:.gitignore"], { cwd: targetDir, encoding: null })).toString("utf8");
     } catch { /* A new/empty remote or a repository without .gitignore. */ }
   }
 
+  const merged = reconcileGitignore(current, template, baseline);
+  if (merged !== current) await fs.writeFile(gitignorePath, merged);
+}
+
+/**
+ * What an import/pull writes as .gitignore. The committed file (or, without
+ * a repository, the local one) is kept byte for byte when it already has
+ * every rule the template and the local file need — rewriting it anyway is
+ * what made a file that was imported, committed and pushed show up as
+ * modified on the next `acli import`/`acli pull`: a teammate's CRLF line
+ * endings, a hand-reordered section, or a template that changed wording
+ * between A-CLI versions all differ textually while meaning the same thing.
+ * Only a file that is actually missing rules is rebuilt (template first, see
+ * mergeGitignoreContents), keeping the existing file's line endings.
+ */
+export function reconcileGitignore(current: string, template: string, baseline: string | null = null): string {
+  const existing = baseline ?? (current || null);
+  if (existing !== null) {
+    const have = new Set([...activeRules(existing)].map(normalizeRule));
+    const needed = [...activeRules(template), ...activeRules(current)].map(normalizeRule);
+    if (needed.every((rule) => have.has(rule))) return existing;
+  }
   const merged = mergeGitignoreContents(current, template, baseline);
-  await fs.writeFile(gitignorePath, merged);
+  return existing?.includes("\r\n") ? merged.replace(/\r?\n/g, "\r\n") : merged;
 }
 
 const KEPT_RULES_HEADER = "# Kept from the project's previous .gitignore";
