@@ -97,12 +97,13 @@ test("getRemoteFacts fetches table prefix and siteurl via wp-cli over SSH", asyn
     const remoteCommand = args.at(-1);
     if (remoteCommand.includes("table_prefix")) return "wp_demo_";
     if (remoteCommand.includes("siteurl")) return "https://demo.staging.example.com";
+    if (remoteCommand.includes("wp eval") && remoteCommand.includes("PHP_VERSION")) return "8.1.27|10.11.6-MariaDB-0+deb12u1|6.5.3";
     throw new Error(`unexpected remote command: ${remoteCommand}`);
   };
   const service = new SshHost(resolveRemoteProfile(profile, { projectName: "demo" }), runner);
   const facts = await service.getRemoteFacts();
-  assert.deepEqual(facts, { tablePrefix: "wp_demo_", siteUrl: "https://demo.staging.example.com" });
-  assert.equal(calls.length, 2);
+  assert.deepEqual(facts, { tablePrefix: "wp_demo_", siteUrl: "https://demo.staging.example.com", phpVersion: "8.1.27", dbVersion: "10.11.6-MariaDB-0+deb12u1", wpVersion: "6.5.3" });
+  assert.equal(calls.length, 3);
   assert.ok(calls.every((call) => call.command === "ssh"));
   assert.ok(calls.every((call) => call.args.at(-1).includes("cd '/srv/demo/wordpress'")));
 });

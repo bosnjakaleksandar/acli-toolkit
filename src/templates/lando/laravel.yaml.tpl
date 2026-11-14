@@ -6,7 +6,7 @@ name: {{PROJECT_NAME}}
 recipe: laravel
 config:
   webroot: backend/public
-  php: "8.3"
+  php: "{{PHP_VERSION}}"
   composer_version: 2
   database: {{DB_IMAGE}}
 services:

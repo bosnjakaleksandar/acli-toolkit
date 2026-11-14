@@ -2,7 +2,8 @@ import EnvironmentService, { type Spinner } from "./EnvironmentService.ts";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { frontendDevServer, resolveTemplateName, resolveDbImage } from "./templateMap.ts";
+import { frontendDevServer, resolveTemplateName } from "./templateMap.ts";
+import { runtimeTemplateValues } from "./versions.ts";
 import { assertSafeTablePrefix, assertSafeWpVersion } from "../system/safety.ts";
 import { runCommand } from "../system/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
@@ -16,6 +17,11 @@ const TEMPLATES_ROOT = path.join(__dirname, "..", "templates");
 
 type Runner = typeof runCommand;
 
+// The official image ships no php.ini, so PHP's built-in 128M memory_limit
+// applies to wp-cli — too little for search-replace over a real site's
+// postmeta/options. Raised for the local container only.
+const WP_CLI_MEMORY_SHELL = "printf 'memory_limit=1024M\\n' > /usr/local/etc/php/conf.d/zz-acli-memory.ini";
+
 export default class DockerComposeService extends EnvironmentService {
   run: Runner;
 
@@ -27,12 +33,13 @@ export default class DockerComposeService extends EnvironmentService {
   getLocalUrl(ctx: any): string { return ctx.profile?.local?.url || "http://localhost:8080"; }
 
   async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
-    const { projectName, mysqlVersion, wpVersion, tablePrefix, framework } = options;
+    const { projectName, mysqlVersion, phpVersion, wpVersion, tablePrefix, framework } = options;
+    const safeWpVersion = assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION);
     const templateName = resolveTemplateName(type);
     const frontend = frontendDevServer(framework);
     const content = applyPlaceholders(await readTemplate(TEMPLATES_ROOT, "docker", templateName), {
-      DB_IMAGE: mysqlVersion ? resolveDbImage(mysqlVersion) : undefined,
-      WP_VERSION: assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION),
+      ...runtimeTemplateValues({ mysqlVersion, phpVersion, wpVersion: safeWpVersion }),
+      WP_VERSION: safeWpVersion,
       TABLE_PREFIX: assertSafeTablePrefix(tablePrefix || "wp_"),
       PROJECT_NAME: projectName,
       FRONTEND_PORT: frontend.port,
@@ -43,7 +50,21 @@ export default class DockerComposeService extends EnvironmentService {
 
   async start(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     const onProgress = spinner ? (line: string) => spinner.message(`Docker Compose: ${line}`) : null;
-    await this.run("docker", ["compose", "up", "-d"], { cwd: targetDir }, onProgress);
+    try {
+      await this.run("docker", ["compose", "up", "-d"], { cwd: targetDir }, onProgress);
+    } catch (error: any) {
+      // The WordPress/database image tags follow the staging server's
+      // versions; an old combination (e.g. a WordPress release never built
+      // for that PHP) has no published image.
+      const details = `${error?.stderr || ""}\n${error?.message || ""}`;
+      if (/manifest (?:for \S+ )?(?:unknown|not found)|pull access denied|not found: manifest/i.test(details)) {
+        throw new CliError(`A Docker image in docker-compose.yaml does not exist: ${describeError(error)}`, {
+          code: "DOCKER_IMAGE_NOT_FOUND",
+          hint: "Edit the image tag in docker-compose.yaml (e.g. wordpress:php8.1-apache, mariadb:10.11) or re-run the import with --php / --wp-version / --mysql set to a published combination.",
+        });
+      }
+      throw error;
+    }
   }
 
   async isDbReady(targetDir: string): Promise<boolean> {
@@ -75,7 +96,7 @@ export default class DockerComposeService extends EnvironmentService {
   async ensureWpCli(targetDir: string, spinner: Spinner | null = null): Promise<void> {
     spinner?.message("Installing WP-CLI...");
     try {
-      await this.run("docker", ["compose", "exec", "-T", "wordpress", "bash", "-c", wpCliInstallShell()], { cwd: targetDir });
+      await this.run("docker", ["compose", "exec", "-T", "wordpress", "bash", "-c", `${wpCliInstallShell()}; ${WP_CLI_MEMORY_SHELL}`], { cwd: targetDir });
     } catch (error) {
       throw new CliError(`Failed to install WP-CLI inside the Docker container: ${describeError(error)}`, {
         code: "WP_CLI_INSTALL_FAILED",
@@ -108,7 +129,7 @@ export default class DockerComposeService extends EnvironmentService {
     if (!/^[a-zA-Z0-9._-]+$/.test(containerSqlFile)) throw new Error(`Unsafe SQL filename: ${sqlFile}`);
     await this.run("docker", ["compose", "cp", sqlFile, `db:/tmp/${containerSqlFile}`], { cwd: targetDir });
 
-    await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", `trap 'rm -f /tmp/my.cnf /tmp/${containerSqlFile}' EXIT; { echo "[client]"; echo "user=root"; echo "password=$MYSQL_ROOT_PASSWORD"; } > /tmp/my.cnf && (mariadb --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${containerSqlFile} 2>/dev/null || mysql --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${containerSqlFile})`], { cwd: targetDir }, onProgress);
+    await this.run("docker", ["compose", "exec", "-T", "db", "sh", "-c", `trap 'rm -f /tmp/my.cnf /tmp/${containerSqlFile}' EXIT; { echo "[client]"; echo "user=root"; echo "password=$MYSQL_ROOT_PASSWORD"; echo "max_allowed_packet=1G"; } > /tmp/my.cnf && if command -v mariadb >/dev/null 2>&1; then client=mariadb; else client=mysql; fi && "$client" --defaults-file=/tmp/my.cnf "$MYSQL_DATABASE" < /tmp/${containerSqlFile}`], { cwd: targetDir }, onProgress);
   }
 
   // --skip-plugins/--skip-themes: every call site here (siteurl reads,

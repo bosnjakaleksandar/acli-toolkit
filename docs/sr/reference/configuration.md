@@ -41,7 +41,8 @@ Bilo koja od ovih vrednosti preskače odgovarajuće pitanje. Vrednosti su običn
 | Ključ | Primer |
 | --- | --- |
 | `environment` | `docker`, `lando` ili `none` (samo aplikacije) |
-| `mysqlVersion` | `"8.0"`, `mariadb:11.4` |
+| `mysqlVersion` | `"8.0"`, `mariadb:11.4` (za `acli import` samo kada verzija sa staginga ne može da se pročita) |
+| `phpVersion` | `"8.3"` (za `acli import` samo kada verzija sa staginga ne može da se pročita) |
 | `wpVersion` | `"6.8"` ili `latest` |
 | `themeRepo` / `themeBranch` | Git URL / grana |
 | `plugins` | `[advanced-custom-fields, wordpress-seo]` |

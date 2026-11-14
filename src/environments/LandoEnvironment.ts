@@ -2,7 +2,8 @@ import EnvironmentService, { type Spinner } from "./EnvironmentService.ts";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
-import { frontendDevServer, resolveTemplateName, resolveDbImage } from "./templateMap.ts";
+import { frontendDevServer, resolveTemplateName } from "./templateMap.ts";
+import { runtimeTemplateValues } from "./versions.ts";
 import { assertSafeTablePrefix, assertSafeWpVersion } from "../system/safety.ts";
 import { runCommand } from "../system/commandRunner.ts";
 import { CliError, describeError } from "../core/errors.ts";
@@ -26,12 +27,13 @@ export default class LandoService extends EnvironmentService {
   getLocalUrl(ctx: any): string { return ctx.profile?.local?.url || `https://${ctx.projectName}.lndo.site`; }
 
   async scaffold(targetDir: string, type: string, options: any, spinner: Spinner | null = null): Promise<void> {
-    const { projectName, mysqlVersion, wpVersion, tablePrefix, framework } = options;
+    const { projectName, mysqlVersion, phpVersion, wpVersion, tablePrefix, framework } = options;
+    const safeWpVersion = assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION);
     const templateName = resolveTemplateName(type);
     const frontend = frontendDevServer(framework);
     const content = applyPlaceholders(await readTemplate(TEMPLATES_ROOT, "lando", templateName), {
-      DB_IMAGE: mysqlVersion ? resolveDbImage(mysqlVersion) : undefined,
-      WP_VERSION: assertSafeWpVersion(wpVersion || DEFAULT_WORDPRESS_VERSION),
+      ...runtimeTemplateValues({ mysqlVersion, phpVersion, wpVersion: safeWpVersion }),
+      WP_VERSION: safeWpVersion,
       TABLE_PREFIX: assertSafeTablePrefix(tablePrefix || "wp_"),
       PROJECT_NAME: projectName,
       FRONTEND_PORT: frontend.port,

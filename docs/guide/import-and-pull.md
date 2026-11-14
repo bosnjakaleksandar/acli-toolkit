@@ -56,10 +56,11 @@ acli import
 | Fetching WordPress files | Copies `wp-content` (uploads, plugins, themes, and languages on Coolify). |
 | Fetching database dump | Exports the database on the server and downloads it as `staging.sql`. |
 | Detecting table prefix | Reads it from the server (SSH/wp-cli) or from the dump, so the local site uses the right tables. |
+| Matching staging PHP and database versions | Reads the server's PHP, MySQL/MariaDB and WordPress versions (SSH/wp-cli; on Coolify the database version comes from the dump) so the local environment runs the same ones. `--php`, `--mysql` and `--wp-version` override; a version that can't be read falls back to the default and is listed as a warning. |
 | Scaffolding local environment | Writes `docker-compose.yaml` or `.lando.yml` for this site. |
 | Linking project to its profile | Saves the link in `.acli/config.yaml`, so `acli pull` needs no arguments later. |
 | Linking Git repository | Connects the site's Git origin, pull-only ([details](#git)). |
-| Preparing Git ignore rules | Writes A-CLI's WordPress `.gitignore`. Rules only the repository had are kept at the end, so nothing ignored before becomes tracked. `acli pull` does the same, so older imports get it too. |
+| Preparing Git ignore rules | Writes A-CLI's WordPress `.gitignore`. Rules only the repository had are kept at the end, so nothing ignored before becomes tracked. A committed `.gitignore` that already has every rule is left exactly as it is, so a re-import or pull never shows it as modified. `acli pull` does the same, so older imports get it too. |
 | Importing database and replacing URLs | Starts the environment, imports the dump, and replaces the staging URLs with your local one. |
 
 At the end A-CLI offers to install the theme's dependencies (when it has a `package.json` or `composer.json`) and prints a summary with the next steps. The environment is left running: the site is at `http://localhost:8080` (Docker) or `https://<name>.lndo.site` (Lando). The dump contains real user data, so `staging.sql` is deleted after a successful import (`--keep-dump` keeps it).
@@ -161,7 +162,7 @@ A-CLI never commits or pushes. If fetching fails with *Permission denied (public
 
 ## How the database comes out right
 
-- **URLs:** the site's own URL is read from the imported database and replaced with your local URL, plus the profile's staging URL, `--remote-url` and `urls.additionalSearchReplace` — both `http://` and `https://`.
+- **URLs:** the site's own URL is read from the imported database and replaced with your local URL, plus the profile's staging URL, `--remote-url` and `urls.additionalSearchReplace` — both `http://` and `https://`, and their JSON-escaped form (`https:\/\/…`) that page builders store.
 - **Table prefix:** read from the server where possible, otherwise from the dump by matching WordPress's core tables. Set `database.tablePrefix` in the profile if it can't be detected.
 - **Portable dumps:** `CREATE DATABASE`/`USE` lines and MariaDB's sandbox marker are removed, and newer collations are rewritten for the local MySQL/MariaDB (`database.normalizeCollations: false` turns that off).
 - **Ready before import:** A-CLI waits until WordPress can actually reach its database, and repairs a stale local database volume once if needed.

@@ -36,8 +36,9 @@ Prebacuje WordPress sajt sa staging-a u nov lokalni projekat. `[project]` je ime
 | `--profile <name>` | → Koji profil (server). Podrazumevano: tvoj podrazumevani ili jedini profil. |
 | `--name <name>` | → Ime lokalnog foldera. |
 | `--environment <docker\|lando>` | → Lokalno okruženje (alias `--env`). |
-| `--mysql <version>` | Lokalna verzija MySQL/MariaDB (podrazumevano `8.0`). |
-| `--wp-version <version>` | Verzija WordPress-a za lokalno okruženje. |
+| `--mysql <version>` | Lokalna verzija MySQL/MariaDB, npr. `8.0`, `mariadb:10.11` (podrazumevano: ista kao na stagingu). |
+| `--php <version>` | Lokalna verzija PHP-a, npr. `8.1` (podrazumevano: ista kao na stagingu). |
+| `--wp-version <version>` | Verzija WordPress-a za lokalno okruženje (podrazumevano: ista kao na stagingu). |
 | `--remote-url <url>` | Još jedan URL koji se zamenjuje lokalnim. |
 | `--skip-files` | Ne kopiraj fajlove. |
 | `--skip-database` | Ne importuj bazu. |

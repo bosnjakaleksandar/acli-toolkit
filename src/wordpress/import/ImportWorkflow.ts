@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import DatabaseDumpService from "../migration/DatabaseDump.ts";
+import DatabaseDumpService, { detectDumpServerVersion } from "../migration/DatabaseDump.ts";
 import WordPressMigrationService from "../migration/WordPressMigration.ts";
 import { StepRunner } from "../../core/StepRunner.ts";
 import type EnvironmentService from "../../environments/EnvironmentService.ts";
@@ -12,6 +12,8 @@ import { writeLink } from "../../profiles/ProjectLink.ts";
 import { providerFor, type RemoteBackend } from "../../providers/registry.ts";
 import { linkDiscoveredGit } from "./linkGit.ts";
 import type { ImportContext } from "./ImportContext.ts";
+import { describeRuntimeVersions, resolveRuntimeVersions, type ResolvedRuntimeVersions } from "./stagingVersions.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
 
 export interface ImportWorkflowOptions {
   /** The profile provider's backend for this project (see createRemoteBackend). */
@@ -56,6 +58,8 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
   const migrationService = new WordPressMigrationService(envService);
   const dumpPath = path.join(targetDir, "staging.sql");
   const hasDump = () => fs.pathExists(dumpPath);
+  let factsPromise: Promise<RemoteFacts | null> | null = null;
+  const remoteFacts = () => (factsPromise ??= remote.getRemoteFacts().catch(() => null));
 
   const steps = [
     {
@@ -88,8 +92,7 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
       run: async () => {
         if (!(await hasDump())) return null;
         spinner?.message?.("Detecting table prefix...");
-        const remoteFacts = await remote.getRemoteFacts();
-        const tablePrefix = await databaseDumpService.detectTablePrefix(targetDir, spinner, remoteFacts);
+        const tablePrefix = await databaseDumpService.detectTablePrefix(targetDir, spinner, await remoteFacts());
         ctx.tablePrefix = tablePrefix;
         return tablePrefix;
       },
@@ -97,6 +100,27 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
       // last run, but ctx here is a fresh object this run never populated it.
       onSkip: (tablePrefix: unknown) => {
         if (typeof tablePrefix === "string") ctx.tablePrefix = tablePrefix;
+      },
+    },
+    {
+      // The local PHP / database / WordPress versions follow staging, so the
+      // dump imports into the same server family and version it came from.
+      // Runs before scaffolding, which templates them into the environment.
+      id: "detect-versions",
+      title: "Matching staging PHP and database versions",
+      run: async () => {
+        spinner?.message?.("Reading the staging PHP, database and WordPress versions...");
+        const resolved = resolveRuntimeVersions({
+          requested: { mysqlVersion: ctx.mysqlVersion, phpVersion: ctx.phpVersion, wpVersion: ctx.wpVersion },
+          facts: await remoteFacts(),
+          dumpServerVersion: (await hasDump()) ? await detectDumpServerVersion(dumpPath) : null,
+          fallbacks: ctx.versionFallbacks ?? {},
+        });
+        applyRuntimeVersions(ctx, resolved);
+        return resolved;
+      },
+      onSkip: (resolved: unknown) => {
+        if (resolved && typeof resolved === "object" && "mysqlVersion" in resolved) applyRuntimeVersions(ctx, resolved as ResolvedRuntimeVersions);
       },
     },
     {
@@ -132,10 +156,12 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
       run: async () => {
         if (ctx.skipGitLink || ctx.skipGitInit) return null;
         spinner?.message?.("Discovering remote Git repository...");
-        return linkDiscoveredGit(remote, targetDir, ctx, { spinner, ...(resumeCommand ? { resumeCommand } : {}), gitLinker });
+        const result = await linkDiscoveredGit(remote, targetDir, ctx, { spinner, ...(resumeCommand ? { resumeCommand } : {}), gitLinker });
+        return result ? { ...result, repoDirectory: ctx.gitRepoDirectory ?? "." } : null;
       },
       onSkip: (result: any) => {
         if (result?.summary) ctx.gitStatus = result.summary;
+        if (typeof result?.repoDirectory === "string") ctx.gitRepoDirectory = result.repoDirectory;
       },
     },
     {
@@ -172,6 +198,7 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
       projectName: ctx.projectName,
       environment: ctx.environment,
       mysqlVersion: ctx.mysqlVersion,
+      phpVersion: ctx.phpVersion,
       wpVersion: ctx.wpVersion,
       skipFiles: ctx.skipFiles,
       skipDatabase: ctx.skipDatabase,
@@ -182,6 +209,14 @@ export async function runImportWorkflow({ remote, ctx, targetDir, envService, sp
     },
   });
   await runner.run({ resume: Boolean(resume) });
+}
+
+function applyRuntimeVersions(ctx: ImportContext, resolved: ResolvedRuntimeVersions): void {
+  ctx.mysqlVersion = resolved.mysqlVersion;
+  ctx.phpVersion = resolved.phpVersion;
+  ctx.wpVersion = resolved.wpVersion;
+  ctx.runtimeSummary = describeRuntimeVersions(resolved);
+  ctx.warnings = [...(ctx.warnings ?? []), ...resolved.warnings.filter((warning) => !ctx.warnings?.includes(warning))];
 }
 
 /** The `acli import --dry-run` plan: what would be fetched from where, and which local tools it needs. */
@@ -198,6 +233,12 @@ export function buildImportPlan(ctx: ImportContext, remote: RemoteBackend): Reco
     // site's own siteurl always is, and this is the extra source folded in
     // alongside it (from --remote-url, or the profile's own urls.staging).
     stagingUrl: ctx.stagingUrl ?? ctx.profile.urls?.staging ?? null,
+    // Unset values are read from the staging server during the import.
+    runtimeVersions: {
+      php: ctx.phpVersion ?? "from staging",
+      database: ctx.mysqlVersion ?? "from staging",
+      wordpress: ctx.wpVersion ?? "from staging",
+    },
     requiredTools: remote.requiredTools({ environment: ctx.environment, skipFiles: ctx.skipFiles }),
   };
 }

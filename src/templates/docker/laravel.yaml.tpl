@@ -5,6 +5,7 @@
 services:
   db:
     image: {{DB_IMAGE}}
+    command: ["--max-allowed-packet=1073741824"]
     volumes:
       - db_data:/var/lib/mysql
     environment:
@@ -21,7 +22,7 @@ services:
     build:
       context: .
       dockerfile_inline: |
-        FROM php:8.3-cli
+        FROM php:{{PHP_VERSION}}-cli
         RUN apt-get update \
           && apt-get install -y --no-install-recommends git unzip libzip-dev \
           && docker-php-ext-install pdo_mysql zip \

@@ -2,7 +2,7 @@ name: {{PROJECT_NAME}}
 recipe: wordpress
 config:
   webroot: .
-  php: 8.3
+  php: "{{PHP_VERSION}}"
   database: {{DB_IMAGE}}
 services:
   appserver:

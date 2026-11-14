@@ -12,7 +12,11 @@ import { CliError } from "../../core/errors.ts";
 import { validateProjectName } from "../../projects/plan/projectName.ts";
 import { runCommand } from "../CommandShell.ts";
 import type { LinkCommandOptions } from "../options.ts";
-import { DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
+import { DEFAULT_MYSQL_VERSION, DEFAULT_WORDPRESS_VERSION } from "../../config/defaults.ts";
+import { resolveRemoteProfile } from "../../providers/resolveProfile.ts";
+import { createRemoteBackend } from "../../providers/registry.ts";
+import { dbSpecFromServerVersion, phpSpecFromVersion, wpSpecFromVersion } from "../../environments/versions.ts";
+import type { RemoteFacts } from "../../core/model/RemoteFacts.ts";
 
 const ENV_FILE_NAMES: Record<string, string> = { docker: "docker-compose.yaml", lando: ".lando.yml" };
 
@@ -43,12 +47,18 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
     if (!(await fs.pathExists(envFilePath))) {
       const shouldScaffold = nonInteractive || await ask(confirm, { message: `No ${ENV_FILE_NAMES[environment]} found here. Generate one now?`, initialValue: true });
       if (shouldScaffold) {
-        const mysqlVersion = nonInteractive ? "8.0" : await askMysqlVersion();
-        const wpVersion = nonInteractive
+        // Staging decides the runtime when it can report it; prompts (or
+        // defaults) only fill in what it couldn't.
+        const facts = await readStagingFacts(selection.profile!, projectName, options.remoteProject);
+        const mysqlVersion = dbSpecFromServerVersion(facts?.dbVersion) ?? (nonInteractive ? String(config.defaults?.mysqlVersion || DEFAULT_MYSQL_VERSION) : await askMysqlVersion());
+        const wpVersion = wpSpecFromVersion(facts?.wpVersion) ?? (nonInteractive
           ? config.defaults?.wpVersion || DEFAULT_WORDPRESS_VERSION
-          : await askWpVersion();
+          : await askWpVersion());
+        const phpVersion = phpSpecFromVersion(facts?.phpVersion) ?? undefined;
+        if (facts?.dbVersion || facts?.phpVersion) console.log(chalk.gray(`Matching staging: PHP ${phpVersion ?? "default"}, DB ${mysqlVersion}, WordPress ${wpVersion}.`));
+        const tablePrefix = facts?.tablePrefix && /^[A-Za-z0-9_]+$/.test(facts.tablePrefix) ? facts.tablePrefix : "wp_";
         const envService = resolveEnvironmentService(environment);
-        await envService.scaffold(cwd, "wordpress", { projectName, mysqlVersion, wpVersion, tablePrefix: "wp_" });
+        await envService.scaffold(cwd, "wordpress", { projectName, mysqlVersion, phpVersion, wpVersion, tablePrefix });
       }
     }
 
@@ -63,6 +73,16 @@ export async function linkCommand(options: LinkCommandOptions = {}): Promise<voi
 
     outro(chalk.green(`Linked "${projectName}" to profile "${selection.profileName}" (${filePath}).\nRun \`acli pull\` to sync files and the database.`));
   });
+}
+
+/** Best effort: the staging server's runtime facts, or null when the provider can't report them or the lookup fails. */
+async function readStagingFacts(profile: Parameters<typeof resolveRemoteProfile>[0], projectName: string, remoteProject?: string): Promise<RemoteFacts | null> {
+  try {
+    const resolved = resolveRemoteProfile(profile, { projectName, ...(remoteProject ? { remoteProject } : {}) });
+    return await createRemoteBackend(resolved).getRemoteFacts();
+  } catch {
+    return null;
+  }
 }
 
 export function registerLinkCommand(program: Command): void {
