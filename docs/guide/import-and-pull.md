@@ -147,8 +147,15 @@ A Coolify server exposes a `project` command instead of direct access to files a
 | project status, Git repo and branch | `project status <project>` |
 | the database | `project db-export <project> sql.gz` |
 | a folder | `project wp-export <project> uploads` (plugins, themes, languages) |
+| the WordPress version | `project export <project> wp-includes/version.php` |
 
 Each export is downloaded with `scp`, checked, unpacked and deleted locally.
+
+**Matching the staging versions** — the database version comes from the dump and the WordPress version from `wp-includes/version.php`. The PHP version isn't visible through these commands, so it falls back to the default with a warning (or use `--php`). A server can report the versions itself by adding optional fields to the `project status` JSON; A-CLI uses them when present:
+
+```json
+{ "status": "running:healthy", "php_version": "8.2.29", "wordpress_version": "7.1.4", "db_version": "12.2.2-MariaDB" }
+```
 
 **When the server asks a question** — some projects have more than one database container or WordPress container, and the server asks which one to use. A-CLI shows you the same question, sends your answer, and remembers it in `.acli/config.yaml`, so you are asked only once per project. With `--yes` it can't ask, so it stops and lists the choices. Pick the one WordPress uses — check `DB_HOST` in the site's `wp-config.php` or the project in Coolify.
 

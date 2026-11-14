@@ -360,3 +360,69 @@ test("linkGitRemote tracks a known deployed branch without asking the remote for
     assert.ok(calls.some((args) => args.join(" ") === "reset --mixed refs/remotes/origin/prod"));
   });
 });
+
+const EXPORT_OUTPUT = `Containers for project: Demo
+
+  1) demomain-abc  [application] Up 7 days
+     filebrowser-abc-20261103T105651
+  2) demomain-abc  [application] Up 7 days
+     wordpress-abc-20261103T105651
+  3) mariadb-database-demo              [database] Up 8 days (healthy)
+     tcur025gi1qhpyydw56fknt7
+`;
+const EXPORT_DONE = `Project:   Demo
+Container: wordpress-abc-20261103T105651
+
+Export completed successfully.
+
+Archive:
+  /var/backups/project-files/demo/demo_2026-11-14_files.tar.gz
+
+Size:
+4.0K	/var/backups/project-files/demo/demo_2026-11-14_files.tar.gz
+`;
+
+test("parseExportPath reads the path printed under 'Archive:' by project export", () => {
+  assert.equal(parseExportPath(EXPORT_DONE), "/var/backups/project-files/demo/demo_2026-11-14_files.tar.gz");
+});
+
+test("getRemoteFacts reads the WordPress version from version.php, answering the container menu with the WordPress container", async () => {
+  await withTempDir(async (directory) => {
+    await fs.outputFile(path.join(directory, "src", "wp-includes", "version.php"), "<?php\n$wp_version = '7.1.4';\n$required_php_version = '7.4';\n");
+    const archive = path.join(directory, "version.tar.gz");
+    await runCommand("tar", ["-czf", archive, "-C", path.join(directory, "src"), "wp-includes/version.php"]);
+    const stdins: string[] = [];
+    const runner = (async (command: string, args: string[] = [], options: any = {}) => {
+      if (command === "ssh") {
+        const remote = args.at(-1)!;
+        if (remote.startsWith("project list")) return "Demo";
+        if (remote.startsWith("project status")) return JSON.stringify({ status: "running:healthy", php_version: "8.2.29" });
+        if (remote.startsWith("project export")) {
+          stdins.push(options.stdin);
+          if (!options.stdin) throw Object.assign(new Error("menu"), { stdout: EXPORT_OUTPUT, stderr: "" });
+          return EXPORT_DONE;
+        }
+        throw new Error(`unexpected ${remote}`);
+      }
+      if (command === "scp") { await fs.copy(archive, args.at(-1)!); return ""; }
+      return runCommand(command, args, options);
+    }) as typeof runCommand;
+
+    const facts = await new CoolifyProjectHost(resolve(), runner).getRemoteFacts();
+    assert.equal(facts.wpVersion, "7.1.4");
+    assert.equal(facts.phpVersion, "8.2.29", "an optional php_version in project status is used");
+    assert.deepEqual(stdins, ["", "2\n"], "the WordPress container is picked without asking");
+  });
+});
+
+test("getRemoteFacts prefers versions the server reports in project status and never fails the import", async () => {
+  const status = JSON.stringify({ status: "running:healthy", php_version: "8.1.30", wordpress_version: "6.9.1", db_version: "10.11.6-MariaDB" });
+  const { calls, runner } = fakeRunner({ list: "Demo", status }, {});
+  const facts = await new CoolifyProjectHost(resolve(), runner).getRemoteFacts();
+  assert.deepEqual([facts.phpVersion, facts.wpVersion, facts.dbVersion], ["8.1.30", "6.9.1", "10.11.6-MariaDB"]);
+  assert.ok(!calls.some((call) => call.args.at(-1)!.startsWith("project export")), "no export when status already has the WordPress version");
+
+  const failing = fakeRunner({ list: "Demo", status: "{}" }, {});
+  const empty = await new CoolifyProjectHost(resolve(), failing.runner).getRemoteFacts();
+  assert.deepEqual([empty.phpVersion, empty.wpVersion], [null, null]);
+});
